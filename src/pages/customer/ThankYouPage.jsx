@@ -42,21 +42,12 @@ const ThankYouPage = () => {
       // Disable history lock IMMEDIATELY
       isLockedRef.current = false;
       
-      // Aggressive exit strategy
-      // 1. Try to close the window/tab first (works for popups, PWAs, some mobile browsers)
-      window.close();
-      
-      // 2. If that didn't work, use location.replace to clear history and exit
+      // Simulate clicking back button to exit
       setTimeout(() => {
-        // Try multiple methods to exit
-        try {
-          // Option A: Replace current location with about:blank to clear history
-          window.location.replace('about:blank');
-        } catch {
-          // Option B: Go back far in history
-          window.history.go(-100);
-        }
-      }, 100);
+        // Go back in history - this will take user out of the ordering flow
+        // Since we're past feedback/thank you, this goes back to wherever they came from
+        window.history.back();
+      }, 200);
     }
   }, [countdown]);
 
