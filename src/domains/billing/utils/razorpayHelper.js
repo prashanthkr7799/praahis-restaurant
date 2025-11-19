@@ -143,6 +143,15 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
       throw new Error('Invalid payment amount. Amount must be at least ₹1.00');
     }
 
+    console.log('💳 Initializing Razorpay Payment:', {
+      key: paymentConfig.razorpay_key_id,
+      amount: amountPaise,
+      amountINR: orderData.total,
+      currency: paymentConfig.payment_settings?.currency || 'INR',
+      restaurant: paymentConfig.restaurant_name,
+      isFallback: paymentConfig.is_fallback,
+    });
+
     // Razorpay options with restaurant-specific key
     const options = {
       key: paymentConfig.razorpay_key_id,
@@ -150,11 +159,8 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
       currency: paymentConfig.payment_settings?.currency || 'INR',
       name: paymentConfig.restaurant_name || orderData.restaurantName || 'Restaurant',
       description: `Order #${orderData.orderNumber || orderData.orderId}`,
-      // order_id: Only include if we have one from server (for production)
-      // For test mode, Razorpay works without order_id
-      ...(orderData.razorpayOrderId && orderData.razorpayOrderId.startsWith('order_rzp_') ? {
-        order_id: orderData.razorpayOrderId
-      } : {}),
+      // In test mode, skip order_id - direct payment
+      // Production should create order via Edge Function first
       prefill: {
         name: orderData.customerName || '',
         email: orderData.customerEmail || '',
@@ -194,7 +200,15 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
 
     razorpayInstance.on('payment.failed', function (response) {
       const err = response?.error || {};
-      console.error('Payment failed:', err);
+      console.error('❌ Razorpay Payment Failed:', {
+        code: err.code,
+        description: err.description,
+        reason: err.reason,
+        source: err.source,
+        step: err.step,
+        metadata: err.metadata,
+        fullResponse: response,
+      });
       // Provide clearer message to UI
       const friendly = err.description || err.reason || 'Payment failed. Please try another method or test card.';
       if (onFailure) {
