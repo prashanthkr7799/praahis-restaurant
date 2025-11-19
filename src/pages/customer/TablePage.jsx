@@ -55,6 +55,55 @@ const TablePage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId]);
 
+  // Cleanup: Release table when customer leaves
+  useEffect(() => {
+    let hasLeft = false;
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+    const releaseTable = async () => {
+      if (hasLeft || !tableId) return;
+      hasLeft = true;
+
+      const sessionId = getSession(tableId);
+      
+      try {
+        console.log('Releasing table:', tableId, 'session:', sessionId);
+        
+        // Call Edge Function to release table
+        await fetch(`${SUPABASE_URL}/functions/v1/release-table`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+          },
+          body: JSON.stringify({ tableId, sessionId })
+        });
+      } catch (error) {
+        console.error('Error releasing table:', error);
+        // Fail silently - user is leaving anyway
+      }
+    };
+
+    // Handle tab close or refresh
+    const handleBeforeUnload = () => {
+      releaseTable();
+    };
+
+    // Handle tab visibility change (switch away, minimize)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        releaseTable();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [tableId]);
 
 
   const loadData = async () => {

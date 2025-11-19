@@ -1,19 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { CheckCircle, UtensilsCrossed, Sparkles } from 'lucide-react';
 
 const ThankYouPage = () => {
   const [countdown, setCountdown] = useState(5);
+  const isLockedRef = useRef(true);
 
   // History-lock mechanism: Prevent back button from leaving this page
   useEffect(() => {
-    let isLocked = true;
-    
     // Push a dummy state to lock the history
     window.history.pushState(null, '', window.location.href);
     
     const handlePopState = () => {
       // Only prevent navigation if lock is active
-      if (isLocked) {
+      if (isLockedRef.current) {
         window.history.pushState(null, '', window.location.href);
       }
     };
@@ -22,7 +21,6 @@ const ThankYouPage = () => {
     window.addEventListener('popstate', handlePopState);
     
     return () => {
-      isLocked = false;
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
@@ -38,8 +36,10 @@ const ThankYouPage = () => {
         clearInterval(countdownTimer);
       };
     } else if (countdown === 0) {
-      // Disable history lock and navigate back
-      // Small delay to ensure lock is released
+      // Disable history lock first
+      isLockedRef.current = false;
+      
+      // Navigate back after ensuring lock is released
       setTimeout(() => {
         window.history.go(-1);
       }, 100);

@@ -22,6 +22,45 @@ const TablesPage = () => {
 
   useEffect(() => {
     loadTables();
+    
+    // Set up realtime subscription for table updates
+    if (!restaurantId) return;
+
+    const channel = supabase
+      .channel('tables-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tables',
+          filter: `restaurant_id=eq.${restaurantId}`
+        },
+        (payload) => {
+          console.log('Table change detected:', payload);
+          // Reload tables when any change occurs
+          loadTables();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'table_sessions',
+        },
+        (payload) => {
+          console.log('Session change detected:', payload);
+          // Reload tables when sessions change
+          loadTables();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
 

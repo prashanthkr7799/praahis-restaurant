@@ -31,6 +31,28 @@ const QRCodesManagement = () => {
       return;
     }
     loadTables();
+
+    // Set up realtime subscription for table status updates
+    const channel = supabase
+      .channel('qr-tables-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tables',
+          filter: `restaurant_id=eq.${restaurantId}`
+        },
+        (payload) => {
+          console.log('Table change detected in QR page:', payload);
+          loadTables();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
 
