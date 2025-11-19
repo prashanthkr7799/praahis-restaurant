@@ -5,16 +5,15 @@ const ThankYouPage = () => {
   const [countdown, setCountdown] = useState(5);
   const isLockedRef = useRef(true);
 
-  // AGGRESSIVE History-lock: Make this page completely unescapable
+  // History-lock: Prevent back button during countdown
   useEffect(() => {
-    // Push multiple dummy states to create a "history fortress"
-    // This ensures back button always stays on this page
-    for (let i = 0; i < 50; i++) {
-      window.history.pushState(null, '', window.location.href);
-    }
+    // Push a few dummy states (not too many to avoid blocking our own exit)
+    window.history.pushState(null, '', window.location.href);
+    window.history.pushState(null, '', window.location.href);
+    window.history.pushState(null, '', window.location.href);
     
     const handlePopState = () => {
-      // ALWAYS prevent navigation while lock is active - no escape!
+      // ALWAYS prevent navigation while lock is active
       if (isLockedRef.current) {
         // Immediately push state again to stay locked
         window.history.pushState(null, '', window.location.href);
@@ -23,14 +22,6 @@ const ThankYouPage = () => {
     
     // Listen for back button press
     window.addEventListener('popstate', handlePopState);
-    
-    // Also prevent forward navigation
-    window.addEventListener('beforeunload', (e) => {
-      if (isLockedRef.current) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    });
     
     return () => {
       window.removeEventListener('popstate', handlePopState);
@@ -48,19 +39,23 @@ const ThankYouPage = () => {
         clearInterval(countdownTimer);
       };
     } else if (countdown === 0) {
-      // Disable history lock first
+      // Disable history lock IMMEDIATELY
       isLockedRef.current = false;
       
-      // Nuclear option: Try everything to exit
+      // Aggressive exit strategy
+      // 1. Try to close the window/tab first (works for popups, PWAs, some mobile browsers)
+      window.close();
+      
+      // 2. If that didn't work, use location.replace to clear history and exit
       setTimeout(() => {
-        // 1. Try to close the tab/window
-        window.close();
-        
-        // 2. If close fails, go back 999 steps to nuke entire history
-        setTimeout(() => {
-          // This will either close the tab or go back to browser start page / QR scanner
-          window.history.go(-999);
-        }, 100);
+        // Try multiple methods to exit
+        try {
+          // Option A: Replace current location with about:blank to clear history
+          window.location.replace('about:blank');
+        } catch {
+          // Option B: Go back far in history
+          window.history.go(-100);
+        }
       }, 100);
     }
   }, [countdown]);
