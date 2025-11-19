@@ -152,6 +152,31 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
       isFallback: paymentConfig.is_fallback,
     });
 
+    // Create Razorpay order server-side for proper payment flow
+    let razorpayOrderId = null;
+    try {
+      console.log('📝 Creating Razorpay order server-side...');
+      const { data: orderResponse, error: orderError } = await supabase.functions.invoke('create-razorpay-order', {
+        body: {
+          restaurantId: orderData.restaurantId,
+          amount: orderData.total, // Send in INR, Edge Function converts to paise
+          orderId: orderData.orderId,
+          orderNumber: orderData.orderNumber,
+          currency: paymentConfig.payment_settings?.currency || 'INR',
+        },
+      });
+
+      if (orderError) {
+        console.error('Failed to create Razorpay order:', orderError);
+        // Fallback: proceed without order_id (may work in some test scenarios)
+      } else if (orderResponse?.razorpay_order_id) {
+        razorpayOrderId = orderResponse.razorpay_order_id;
+        console.log('✅ Razorpay order created:', razorpayOrderId);
+      }
+    } catch (orderErr) {
+      console.warn('Order creation failed, attempting direct payment:', orderErr);
+    }
+
     // Razorpay options with restaurant-specific key
     const options = {
       key: paymentConfig.razorpay_key_id,
@@ -159,8 +184,7 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
       currency: paymentConfig.payment_settings?.currency || 'INR',
       name: paymentConfig.restaurant_name || orderData.restaurantName || 'Restaurant',
       description: `Order #${orderData.orderNumber || orderData.orderId}`,
-      // In test mode, skip order_id - direct payment
-      // Production should create order via Edge Function first
+      ...(razorpayOrderId && { order_id: razorpayOrderId }), // Add order_id if created
       prefill: {
         name: orderData.customerName || '',
         email: orderData.customerEmail || '',
