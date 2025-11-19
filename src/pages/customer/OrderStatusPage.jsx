@@ -45,8 +45,8 @@ const OrderStatusPage = () => {
     if (order && (order.status === 'served' || allServed) && order.session_id) {
       // Wait 2 seconds to show the "served" status, then redirect
       const timer = setTimeout(() => {
-        // Redirect to post-meal with sessionId instead of orderId
-        navigate(`/post-meal/${order.session_id}/${order.table_number}`);
+        // Redirect to post-meal with sessionId instead of orderId (replace history)
+        navigate(`/post-meal/${order.session_id}/${order.table_number}`, { replace: true });
       }, 2000);
 
       return () => clearTimeout(timer);

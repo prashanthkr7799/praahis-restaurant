@@ -14,8 +14,8 @@ const PostMealOptions = () => {
   };
 
   const handleNoThanks = () => {
-    // Redirect to feedback page with sessionId
-    navigate(`/feedback/${sessionId}`);
+    // Redirect to feedback page with sessionId (replace history to prevent back)
+    navigate(`/feedback/${sessionId}`, { replace: true });
   };
 
   return (

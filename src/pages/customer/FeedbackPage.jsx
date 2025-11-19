@@ -155,9 +155,9 @@ const FeedbackPage = () => {
 
       toast.success('Thank You! 🎉', { duration: 2500 });
 
-      // Redirect to Thank You page instead of homepage
+      // Redirect to Thank You page instead of homepage (replace history to prevent back)
       setTimeout(() => {
-        navigate('/thank-you');
+        navigate('/thank-you', { replace: true });
       }, 2000);
     } catch (err) {
       console.error('Error submitting feedback:', err);

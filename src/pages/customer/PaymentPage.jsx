@@ -47,7 +47,7 @@ const PaymentPage = () => {
 
       // If already paid, redirect to order status
       if (orderData.payment_status === 'paid') {
-        navigate(`/order-status/${orderId}`);
+        navigate(`/order-status/${orderId}`, { replace: true });
       }
     } catch (err) {
       console.error('Error loading order:', err);
@@ -167,9 +167,9 @@ const PaymentPage = () => {
 
       toast.success('✅ Payment successful!');
 
-      // Navigate to order status page
+      // Navigate to order status page (replace history to prevent back to payment)
       setTimeout(() => {
-        navigate(`/order-status/${order.id}`);
+        navigate(`/order-status/${order.id}`, { replace: true });
       }, 1000);
     } catch (err) {
       console.error('Error in payment flow:', err);
