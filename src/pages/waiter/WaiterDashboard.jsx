@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase, updateOrderItemStatus, fromRestaurant } from '@shared/utils/api/supabaseClient';
 import toast from 'react-hot-toast';
 import { LogOut, RefreshCw, Bell, CheckCircle, Clock, Users, UtensilsCrossed, X, Filter, Search } from 'lucide-react';
+import useRestaurant from '@shared/hooks/useRestaurant';
+import notificationService from '@/domains/notifications/utils/notificationService';
 
 /**
  * Waiter Dashboard - Main dashboard for waiters
@@ -10,6 +12,7 @@ import { LogOut, RefreshCw, Bell, CheckCircle, Clock, Users, UtensilsCrossed, X,
  */
 const WaiterDashboard = () => {
   const navigate = useNavigate();
+  const { restaurantId } = useRestaurant();
   const [user, setUser] = useState(null);
   const [tables, setTables] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -53,6 +56,9 @@ const WaiterDashboard = () => {
   };
 
   useEffect(() => {
+    // Ensure audio can play after a user gesture
+    notificationService.registerUserGestureUnlock();
+
     checkSimpleAuth();
     // Initial blocking load
     const init = async () => {
@@ -71,7 +77,12 @@ const WaiterDashboard = () => {
     const ordersSubscription = supabase
       .channel('orders-changes')
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'orders' },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          ...(restaurantId ? { filter: `restaurant_id=eq.${restaurantId}` } : {}),
+        },
         (payload) => {
           // Patch-in-place without refetch
           setOrders((prev) => {
@@ -80,11 +91,21 @@ const WaiterDashboard = () => {
             const oldRec = payload.old;
             if (evt === 'INSERT' && newRec) {
               const exists = prev.some((o) => o.id === newRec.id);
+              // Sound + notification for new order
+              try {
+                notificationService.notifyWaiterNewOrder(newRec.order_number, newRec.table_number || 'N/A');
+              } catch { /* noop */ }
               return exists
                 ? prev.map((o) => (o.id === newRec.id ? newRec : o))
                 : [newRec, ...prev];
             }
             if (evt === 'UPDATE' && newRec) {
+              // Sound when order becomes ready
+              try {
+                if (oldRec?.order_status !== 'ready' && newRec.order_status === 'ready') {
+                  notificationService.notifyFoodReady(newRec.order_number, newRec.table_number || 'N/A');
+                }
+              } catch { /* noop */ }
               return prev.map((o) => (o.id === newRec.id ? newRec : o));
             }
             if (evt === 'DELETE' && oldRec) {
@@ -99,7 +120,12 @@ const WaiterDashboard = () => {
     const tablesSubscription = supabase
       .channel('tables-changes')
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'tables' },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tables',
+          ...(restaurantId ? { filter: `restaurant_id=eq.${restaurantId}` } : {}),
+        },
         (payload) => {
           // Patch-in-place without refetch
           setTables((prev) => {
@@ -127,10 +153,10 @@ const WaiterDashboard = () => {
     // Waiter call alerts via Realtime broadcast
     // Alerts channel will be configured after tables load using restaurant-scoped channels
 
-    // Backup auto-refresh every 60 seconds (silent), in case a realtime event is missed
+    // Backup auto-refresh every 5 seconds (silent), in case a realtime event is missed
     const autoRefreshInterval = setInterval(() => {
       loadData({ silent: true });
-    }, 60000);
+    }, 5000);
 
           {/* Stats - Mobile chips + Desktop cards */}
     return () => {
@@ -176,7 +202,7 @@ const WaiterDashboard = () => {
       clearInterval(autoRefreshInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [restaurantId]);
 
   // Configure waiter alert subscriptions scoped by restaurant once tables are loaded
   useEffect(() => {
@@ -298,27 +324,9 @@ const WaiterDashboard = () => {
     toast.success('Logged out successfully');
   };
 
-  // Simple beep using Web Audio API when a call arrives
+  // Play notification sound via centralized service
   const playBeep = () => {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const ctx = new AudioCtx();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.value = 880;
-      o.connect(g);
-      g.connect(ctx.destination);
-      g.gain.setValueAtTime(0.0001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
-      o.start();
-      setTimeout(() => {
-        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
-        o.stop(ctx.currentTime + 0.15);
-      }, 0);
-    } catch (e) {
-      console.warn('Audio context not available', e);
-    }
+    try { notificationService.playSound('urgent'); } catch { /* ignore */ }
   };
 
   // Serve all items in an order (bulk action when all items are ready)

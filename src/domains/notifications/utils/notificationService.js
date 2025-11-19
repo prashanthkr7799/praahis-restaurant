@@ -38,8 +38,10 @@ class NotificationService {
         if (!this.audioContext) {
           this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         }
-        // Avoid calling resume() here; some browsers still warn despite user gesture.
-        // We'll rely on the context being in a valid state after creation.
+        // With a real user gesture it's safe to resume; ensures 'running' state on Chrome/Safari
+        if (this.audioContext.state !== 'running') {
+          await this.audioContext.resume().catch(() => {});
+        }
         this.isUnlocked = this.audioContext.state === 'running';
       } catch {
         // Swallow errors; user can try again with another gesture
