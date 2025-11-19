@@ -104,8 +104,11 @@ ALTER TABLE public.restaurants
   ADD COLUMN IF NOT EXISTS razorpay_key_id TEXT,
   ADD COLUMN IF NOT EXISTS razorpay_key_secret TEXT,
   ADD COLUMN IF NOT EXISTS razorpay_webhook_secret TEXT,
-  ADD COLUMN IF NOT EXISTS payment_gateway_enabled BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS payment_gateway_enabled BOOLEAN DEFAULT true,
   ADD COLUMN IF NOT EXISTS payment_settings JSONB DEFAULT '{}'::jsonb;
+
+-- Set payment_gateway_enabled to true for all existing restaurants (one-time backfill)
+UPDATE public.restaurants SET payment_gateway_enabled = true WHERE payment_gateway_enabled IS NULL OR payment_gateway_enabled = false;
 
 -- ============================================================================
 -- FUNCTIONS: billing calculations & helpers

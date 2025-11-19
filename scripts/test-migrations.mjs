@@ -59,6 +59,7 @@ const migrations = [
   '13_indexes.sql',
   '14_seed_initial_data.sql',
   '15_compatibility_views.sql',
+  '16_auto_enable_payments.sql',
 ];
 
 async function runMigration(client, filename) {
@@ -76,7 +77,7 @@ async function runMigration(client, filename) {
 }
 
 async function main() {
-  console.log('🚀 Testing All Phase 3 Migrations (01-15)...\n');
+  console.log('🚀 Testing All Phase 3 Migrations (01-16)...\n');
   console.log(`📡 Connecting to: ${connectionString.replace(/:[^:@]+@/, ':***@')}`);
   
   const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
