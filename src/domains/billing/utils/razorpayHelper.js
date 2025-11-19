@@ -19,7 +19,7 @@ export const getRestaurantPaymentConfig = async (restaurantId) => {
   try {
     const { data, error } = await supabase
       .from('restaurants')
-      .select('payment_settings, payment_gateway_enabled, name, is_active')
+      .select('payment_settings, payment_gateway_enabled, name, is_active, razorpay_key_id, razorpay_key_secret, razorpay_webhook_secret')
       .eq('id', restaurantId)
       .single();
 
@@ -57,8 +57,8 @@ export const getRestaurantPaymentConfig = async (restaurantId) => {
       };
     }
 
-    // Use restaurant-specific keys from payment_settings JSONB
-    const razorpayKeyId = paymentSettings.razorpay_key_id;
+  // Use restaurant-specific keys from payment_settings JSONB, else fallback to top-level columns
+  const razorpayKeyId = paymentSettings.razorpay_key_id || data.razorpay_key_id;
     
     if (!razorpayKeyId) {
       // If payment_gateway_enabled but no key, use fallback
@@ -79,8 +79,9 @@ export const getRestaurantPaymentConfig = async (restaurantId) => {
 
     return {
       razorpay_key_id: razorpayKeyId,
-      razorpay_key_secret: paymentSettings.razorpay_key_secret, // For server-side use only
-      razorpay_webhook_secret: paymentSettings.razorpay_webhook_secret,
+      // Prefer JSONB secrets if present, else top-level columns (server-side only usage)
+      razorpay_key_secret: paymentSettings.razorpay_key_secret || data.razorpay_key_secret,
+      razorpay_webhook_secret: paymentSettings.razorpay_webhook_secret || data.razorpay_webhook_secret,
       payment_settings: {
         currency: paymentSettings.currency || 'INR',
         accepted_methods: paymentSettings.accepted_methods || ['card', 'netbanking', 'wallet', 'upi'],
