@@ -14,19 +14,8 @@ export default defineConfig({
     },
   },
   build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('react-router')) return 'react-router';
-            if (id.includes('@supabase')) return 'supabase';
-            if (id.includes('lucide-react')) return 'icons';
-            if (id.includes('/react/') || id.includes('react-dom')) return 'react';
-            return 'vendor';
-          }
-        },
-      },
-    },
+    // Let Vite/Rollup handle optimal chunking automatically to avoid
+    // brittle manual chunk graphs that can break module execution order.
     chunkSizeWarningLimit: 1500,
   },
 })
