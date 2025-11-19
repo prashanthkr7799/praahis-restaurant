@@ -4,21 +4,20 @@ import { CheckCircle, UtensilsCrossed, Sparkles } from 'lucide-react';
 const ThankYouPage = () => {
   const [countdown, setCountdown] = useState(5);
 
-  // Simple history lock: If user clicks back, close the window/tab
+  // History-lock mechanism: Make this the final unescapable page
   useEffect(() => {
-    // Push one state to detect back button
-    window.history.pushState(null, '', window.location.href);
+    // Push multiple dummy states to create a deep history buffer
+    // This prevents back button from reaching menu/order pages
+    for (let i = 0; i < 50; i++) {
+      window.history.pushState(null, '', window.location.href);
+    }
     
     const handlePopState = () => {
-      // User clicked back - try to close the tab
-      window.close();
-      
-      // If window.close() fails, go back far in history
-      setTimeout(() => {
-        window.history.go(-999);
-      }, 100);
+      // If user presses back, push state again to keep them here
+      window.history.pushState(null, '', window.location.href);
     };
     
+    // Listen for back button press
     window.addEventListener('popstate', handlePopState);
     
     return () => {
@@ -26,7 +25,7 @@ const ThankYouPage = () => {
     };
   }, []);
 
-  // Countdown timer: Auto-close after 5 seconds
+  // Countdown timer that auto-closes at 0
   useEffect(() => {
     if (countdown > 0) {
       const timer = setInterval(() => {
@@ -34,11 +33,11 @@ const ThankYouPage = () => {
       }, 1000);
 
       return () => clearInterval(timer);
-    } else {
-      // Countdown reached 0 - close the tab
+    } else if (countdown === 0) {
+      // Countdown reached 0 - try to close the tab
       window.close();
       
-      // Fallback if close fails
+      // Fallback: If window.close() is blocked, go back 999 steps
       setTimeout(() => {
         window.history.go(-999);
       }, 100);
@@ -81,9 +80,9 @@ const ThankYouPage = () => {
           <div className="w-20 h-1 bg-gradient-to-r from-green-400 to-green-600 rounded-full"></div>
         </div>
 
-        {/* Info Text with Countdown */}
+        {/* Countdown Display */}
         <p className="text-sm text-gray-400 italic">
-          Closing in <span className="font-bold text-orange-500 text-lg">{countdown}</span> second{countdown !== 1 ? 's' : ''}
+          Closing in <span className="font-bold text-orange-500 text-xl">{countdown}</span> second{countdown !== 1 ? 's' : ''}
         </p>
 
         {/* Footer Message */}
