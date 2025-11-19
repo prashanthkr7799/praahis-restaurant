@@ -5,20 +5,32 @@ const ThankYouPage = () => {
   const [countdown, setCountdown] = useState(5);
   const isLockedRef = useRef(true);
 
-  // History-lock mechanism: Prevent back button from leaving this page
+  // AGGRESSIVE History-lock: Make this page completely unescapable
   useEffect(() => {
-    // Push a dummy state to lock the history
-    window.history.pushState(null, '', window.location.href);
+    // Push multiple dummy states to create a "history fortress"
+    // This ensures back button always stays on this page
+    for (let i = 0; i < 50; i++) {
+      window.history.pushState(null, '', window.location.href);
+    }
     
     const handlePopState = () => {
-      // Only prevent navigation if lock is active
+      // ALWAYS prevent navigation while lock is active - no escape!
       if (isLockedRef.current) {
+        // Immediately push state again to stay locked
         window.history.pushState(null, '', window.location.href);
       }
     };
     
     // Listen for back button press
     window.addEventListener('popstate', handlePopState);
+    
+    // Also prevent forward navigation
+    window.addEventListener('beforeunload', (e) => {
+      if (isLockedRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
     
     return () => {
       window.removeEventListener('popstate', handlePopState);
@@ -39,17 +51,15 @@ const ThankYouPage = () => {
       // Disable history lock first
       isLockedRef.current = false;
       
-      // Try to close the tab/window first
+      // Nuclear option: Try everything to exit
       setTimeout(() => {
+        // 1. Try to close the tab/window
         window.close();
         
-        // If window.close() doesn't work (most browsers block this for security)
-        // Navigate back multiple times to skip all order pages
+        // 2. If close fails, go back 999 steps to nuke entire history
         setTimeout(() => {
-          // Go back far enough to exit the ordering flow
-          // Typical flow: Menu → Payment → OrderStatus → PostMeal → Feedback → ThankYou
-          // So we need to go back 5-6 steps to get out of the ordering session
-          window.history.go(-10);
+          // This will either close the tab or go back to browser start page / QR scanner
+          window.history.go(-999);
         }, 100);
       }, 100);
     }
