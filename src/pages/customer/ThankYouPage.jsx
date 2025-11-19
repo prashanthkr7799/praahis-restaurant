@@ -1,66 +1,46 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircle, UtensilsCrossed, Sparkles } from 'lucide-react';
 
 const ThankYouPage = () => {
   const [countdown, setCountdown] = useState(5);
-  const isLockedRef = useRef(true);
 
-  // AGGRESSIVE History-lock: Make this page completely unescapable
+  // Simple history lock: If user clicks back, close the window/tab
   useEffect(() => {
-    // Push multiple dummy states to create a "history fortress"
-    // This ensures back button always stays on this page (50 layers deep)
-    for (let i = 0; i < 50; i++) {
-      window.history.pushState(null, '', window.location.href);
-    }
+    // Push one state to detect back button
+    window.history.pushState(null, '', window.location.href);
     
     const handlePopState = () => {
-      // ALWAYS prevent navigation while lock is active - no escape!
-      if (isLockedRef.current) {
-        // Immediately push state again to stay locked
-        window.history.pushState(null, '', window.location.href);
-      }
+      // User clicked back - try to close the tab
+      window.close();
+      
+      // If window.close() fails, go back far in history
+      setTimeout(() => {
+        window.history.go(-999);
+      }, 100);
     };
     
-    // Listen for back button press
     window.addEventListener('popstate', handlePopState);
-    
-    // Also prevent forward navigation
-    window.addEventListener('beforeunload', (e) => {
-      if (isLockedRef.current) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    });
     
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
 
+  // Countdown timer: Auto-close after 5 seconds
   useEffect(() => {
-    // Countdown timer: Decrement every second
     if (countdown > 0) {
-      const countdownTimer = setInterval(() => {
+      const timer = setInterval(() => {
         setCountdown((prev) => prev - 1);
       }, 1000);
 
-      return () => {
-        clearInterval(countdownTimer);
-      };
-    } else if (countdown === 0) {
-      // Disable history lock first
-      isLockedRef.current = false;
+      return () => clearInterval(timer);
+    } else {
+      // Countdown reached 0 - close the tab
+      window.close();
       
-      // Nuclear option: Try everything to exit
+      // Fallback if close fails
       setTimeout(() => {
-        // 1. Try to close the tab/window
-        window.close();
-        
-        // 2. If close fails, go back 999 steps to nuke entire history
-        setTimeout(() => {
-          // This will either close the tab or go back to browser start page / QR scanner
-          window.history.go(-999);
-        }, 100);
+        window.history.go(-999);
       }, 100);
     }
   }, [countdown]);
