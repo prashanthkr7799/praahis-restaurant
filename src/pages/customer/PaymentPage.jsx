@@ -66,11 +66,9 @@ const PaymentPage = () => {
         throw new Error('Restaurant ID is missing from order. Please refresh and try again.');
       }
 
-      // Generate unique Razorpay order ID
-      const razorpayOrderId = `order_${order.id}_${Date.now()}`;
-
       // Initialize Razorpay payment with restaurant-specific credentials
-      // This will automatically fetch the restaurant's Razorpay keys from payment_settings
+      // NOTE: For test mode, we use direct payment (no pre-created order_id)
+      // Production should create order via Edge Function before this step
       const totalValue = isEditing ? calculateUpdatedTotals().total : (typeof order.total_amount === 'number' ? order.total_amount : Number(order.total || 0));
       await initializeRazorpayPayment(
         {
@@ -78,7 +76,6 @@ const PaymentPage = () => {
           orderNumber: order.order_number || order.id.substring(0, 8),
           total: totalValue,
           restaurantId: order.restaurant_id, // CRITICAL: Restaurant-specific payment keys
-          razorpayOrderId: razorpayOrderId,
           tableNumber: order.tables?.table_number || 'N/A',
           restaurantName: order.restaurants?.name || 'Restaurant',
           customerName: order.customer_name || '',
@@ -87,7 +84,8 @@ const PaymentPage = () => {
         },
         {
           onSuccess: async (response) => {
-            await handlePaymentSuccess(response, razorpayOrderId);
+            // Razorpay returns razorpay_order_id in response for direct payments
+            await handlePaymentSuccess(response, response.razorpay_order_id);
           },
           onFailure: (error) => {
             console.error('Payment failed:', error);
@@ -101,10 +99,10 @@ const PaymentPage = () => {
               console.warn('Dev bypass enabled: simulating successful payment.');
               const fake = {
                 razorpay_payment_id: `pay_${order.id}_${Date.now()}`,
-                razorpay_order_id: razorpayOrderId,
+                razorpay_order_id: `order_${order.id}_${Date.now()}`,
                 razorpay_signature: 'dev_bypass_signature'
               };
-              handlePaymentSuccess(fake, razorpayOrderId);
+              handlePaymentSuccess(fake, fake.razorpay_order_id);
               return;
             } else {
               toast.error(error.description || error.message || 'Payment failed. Please try again.');
