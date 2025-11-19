@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "lib": ["deno.window"],
+    "strict": false,
+    "noImplicitAny": false
+  },
+  "imports": {
+    "https://deno.land/std@0.168.0/": "https://deno.land/std@0.168.0/",
+    "https://esm.sh/@supabase/": "https://esm.sh/@supabase/"
+  }
+}
