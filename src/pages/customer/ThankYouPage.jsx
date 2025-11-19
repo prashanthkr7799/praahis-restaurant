@@ -39,40 +39,21 @@ const ThankYouPage = () => {
       // Disable history lock first
       isLockedRef.current = false;
       
-      // Navigate back after ensuring lock is released
+      // Try to close the tab/window first
       setTimeout(() => {
-        window.history.go(-1);
+        window.close();
+        
+        // If window.close() doesn't work (most browsers block this for security)
+        // Navigate back multiple times to skip all order pages
+        setTimeout(() => {
+          // Go back far enough to exit the ordering flow
+          // Typical flow: Menu → Payment → OrderStatus → PostMeal → Feedback → ThankYou
+          // So we need to go back 5-6 steps to get out of the ordering session
+          window.history.go(-10);
+        }, 100);
       }, 100);
     }
   }, [countdown]);
-
-  useEffect(() => {
-    // Auto-close window after 5 seconds (for kiosk/iframe mode)
-    const closeTimer = setTimeout(() => {
-      // Try to close window (only works if opened by script or in kiosk mode)
-      // This will fail for regular browser tabs - that's expected behavior
-      try {
-        window.close();
-      } catch {
-        // Silently fail - user can manually close tab or navigate away
-      }
-    }, 5000);
-
-    return () => {
-      clearTimeout(closeTimer);
-    };
-  }, []);
-
-  useEffect(() => {
-    // Automatic back navigation after 5 seconds
-    const backTimer = setTimeout(() => {
-      window.history.back();
-    }, 5000);
-
-    return () => {
-      clearTimeout(backTimer);
-    };
-  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50 px-4">
