@@ -2,6 +2,24 @@ import React, { useEffect } from 'react';
 import { CheckCircle, UtensilsCrossed, Sparkles } from 'lucide-react';
 
 const ThankYouPage = () => {
+  // History-lock mechanism: Prevent back button from leaving this page
+  useEffect(() => {
+    // Push a dummy state to lock the history
+    window.history.pushState(null, '', window.location.href);
+    
+    const handlePopState = (event) => {
+      // Prevent navigation away by pushing the state again
+      window.history.pushState(null, '', window.location.href);
+    };
+    
+    // Listen for back button press
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   useEffect(() => {
     // Auto-close window after 5 seconds (for kiosk/iframe mode)
     const closeTimer = setTimeout(() => {
