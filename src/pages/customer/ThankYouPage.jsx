@@ -7,24 +7,28 @@ const ThankYouPage = () => {
 
   // History-lock: Prevent back button during countdown
   useEffect(() => {
-    // Push a few dummy states (not too many to avoid blocking our own exit)
-    window.history.pushState(null, '', window.location.href);
-    window.history.pushState(null, '', window.location.href);
-    window.history.pushState(null, '', window.location.href);
+    // Prevent swipe-to-back gestures (works in Chrome/Edge/Android)
+    document.body.style.overscrollBehaviorX = 'none';
+
+    // FORTRESS LOCK: Push 20 dummy states to bury the Menu page deep in history.
+    // This creates a massive buffer so even if the user spams 'Back' 4-5 times,
+    // they are just traversing our dummy states and never reaching the Menu.
+    for (let i = 0; i < 20; i++) {
+      window.history.pushState(null, '', window.location.href);
+    }
     
     const handlePopState = () => {
-      // ALWAYS prevent navigation while lock is active
+      // If user tries to go back, push state again to keep them here
       if (isLockedRef.current) {
-        // Immediately push state again to stay locked
         window.history.pushState(null, '', window.location.href);
       }
     };
     
-    // Listen for back button press
     window.addEventListener('popstate', handlePopState);
     
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      document.body.style.overscrollBehaviorX = ''; // Cleanup
     };
   }, []);
 
@@ -39,16 +43,21 @@ const ThankYouPage = () => {
         clearInterval(countdownTimer);
       };
     } else if (countdown === 0) {
-      // Disable history lock IMMEDIATELY
+      // Disable lock
       isLockedRef.current = false;
       
-      // Go back multiple steps to skip ALL order pages
-      setTimeout(() => {
-        // Go back 50 steps to completely exit the ordering flow
-        // This skips: Menu → Payment → OrderStatus → PostMeal → Feedback → ThankYou
-        // User will either close tab or land on QR scanner / home
-        window.history.go(-50);
-      }, 200);
+      // 1. Try to close the window immediately
+      try {
+        window.close();
+      } catch {
+        // Ignore errors
+      }
+
+      // 2. NUCLEAR EXIT: Go back way past the start of the history stack.
+      // We calculate the current length and add a buffer to ensure we exit the browser/webview.
+      // This mimics pressing the "Back" button 50+ times instantly.
+      const exitSteps = -(window.history.length + 50);
+      window.history.go(exitSteps);
     }
   }, [countdown]);
 
