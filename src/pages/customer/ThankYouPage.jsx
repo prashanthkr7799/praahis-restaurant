@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircle, UtensilsCrossed, Sparkles } from 'lucide-react';
 
 const ThankYouPage = () => {
+  const [countdown, setCountdown] = useState(5);
+
   // History-lock mechanism: Prevent back button from leaving this page
   useEffect(() => {
     // Push a dummy state to lock the history
@@ -19,6 +21,22 @@ const ThankYouPage = () => {
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
+
+  useEffect(() => {
+    // Countdown timer: Decrement every second
+    if (countdown > 0) {
+      const countdownTimer = setInterval(() => {
+        setCountdown((prev) => prev - 1);
+      }, 1000);
+
+      return () => {
+        clearInterval(countdownTimer);
+      };
+    } else if (countdown === 0) {
+      // When countdown reaches 0, navigate back
+      window.history.back();
+    }
+  }, [countdown]);
 
   useEffect(() => {
     // Auto-close window after 5 seconds (for kiosk/iframe mode)
@@ -84,9 +102,9 @@ const ThankYouPage = () => {
           <div className="w-20 h-1 bg-gradient-to-r from-green-400 to-green-600 rounded-full"></div>
         </div>
 
-        {/* Info Text */}
+        {/* Info Text with Countdown */}
         <p className="text-sm text-gray-400 italic">
-          This page will close automatically in 5 seconds
+          Closing in <span className="font-bold text-orange-500 text-lg">{countdown}</span> second{countdown !== 1 ? 's' : ''}
         </p>
 
         {/* Footer Message */}
