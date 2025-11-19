@@ -10,12 +10,13 @@ SELECT 'Demo Restaurant','demo','Initial demo tenant'
 WHERE NOT EXISTS (SELECT 1 FROM public.restaurants WHERE slug='demo');
 
 -- Ensure Taj restaurant exists & active (idempotent upsert by slug)
-INSERT INTO public.restaurants(name, slug, description, is_active)
-VALUES ('Taj Restaurant','taj','Taj primary tenant', true)
+INSERT INTO public.restaurants(name, slug, description, is_active, payment_gateway_enabled)
+VALUES ('Taj Restaurant','taj','Taj primary tenant', true, true)
 ON CONFLICT (slug) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
-  is_active = true;
+  is_active = true,
+  payment_gateway_enabled = true;
 
 -- Create trial subscription for demo if missing
 DO $$ DECLARE v_rest UUID; v_sub UUID; BEGIN
