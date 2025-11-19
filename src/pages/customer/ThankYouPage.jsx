@@ -5,36 +5,35 @@ const ThankYouPage = () => {
   const [countdown, setCountdown] = useState(5);
   const isLockedRef = useRef(true);
 
-  // Set a session flag to indicate the order is complete.
-  // This prevents the user from returning to the Menu page even if they bypass the history lock.
+  // AGGRESSIVE History-lock: Make this page completely unescapable
   useEffect(() => {
-    sessionStorage.setItem('order_completed', 'true');
-  }, []);
-
-  // History-lock: Prevent back button during countdown
-  useEffect(() => {
-    // Prevent swipe-to-back gestures (works in Chrome/Edge/Android)
-    document.body.style.overscrollBehaviorX = 'none';
-
-    // FORTRESS LOCK: Push 20 dummy states to bury the Menu page deep in history.
-    // This creates a massive buffer so even if the user spams 'Back' 4-5 times,
-    // they are just traversing our dummy states and never reaching the Menu.
-    for (let i = 0; i < 20; i++) {
+    // Push multiple dummy states to create a "history fortress"
+    // This ensures back button always stays on this page (50 layers deep)
+    for (let i = 0; i < 50; i++) {
       window.history.pushState(null, '', window.location.href);
     }
     
     const handlePopState = () => {
-      // If user tries to go back, push state again to keep them here
+      // ALWAYS prevent navigation while lock is active - no escape!
       if (isLockedRef.current) {
+        // Immediately push state again to stay locked
         window.history.pushState(null, '', window.location.href);
       }
     };
     
+    // Listen for back button press
     window.addEventListener('popstate', handlePopState);
+    
+    // Also prevent forward navigation
+    window.addEventListener('beforeunload', (e) => {
+      if (isLockedRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
     
     return () => {
       window.removeEventListener('popstate', handlePopState);
-      document.body.style.overscrollBehaviorX = ''; // Cleanup
     };
   }, []);
 
@@ -49,21 +48,20 @@ const ThankYouPage = () => {
         clearInterval(countdownTimer);
       };
     } else if (countdown === 0) {
-      // Disable lock
+      // Disable history lock first
       isLockedRef.current = false;
       
-      // 1. Try to close the window immediately
-      try {
+      // Nuclear option: Try everything to exit
+      setTimeout(() => {
+        // 1. Try to close the tab/window
         window.close();
-      } catch {
-        // Ignore errors
-      }
-
-      // 2. NUCLEAR EXIT: Go back way past the start of the history stack.
-      // We calculate the current length and add a buffer to ensure we exit the browser/webview.
-      // This mimics pressing the "Back" button 50+ times instantly.
-      const exitSteps = -(window.history.length + 50);
-      window.history.go(exitSteps);
+        
+        // 2. If close fails, go back 999 steps to nuke entire history
+        setTimeout(() => {
+          // This will either close the tab or go back to browser start page / QR scanner
+          window.history.go(-999);
+        }, 100);
+      }, 100);
     }
   }, [countdown]);
 
