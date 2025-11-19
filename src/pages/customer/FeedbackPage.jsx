@@ -20,6 +20,13 @@ const FeedbackPage = () => {
   const [itemRatings, setItemRatings] = useState({}); // { menu_item_id: rating }
   const [session, setSession] = useState(null);
 
+  // SECURITY: Check if this session is already completed
+  useEffect(() => {
+    if (sessionStorage.getItem('order_completed') === 'true') {
+      navigate('/thank-you', { replace: true });
+    }
+  }, [navigate]);
+
   // Load all items from this table session (aggregate across multiple orders during current seating)
   useEffect(() => {
     const load = async () => {

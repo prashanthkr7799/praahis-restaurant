@@ -7,6 +7,13 @@ const PostMealOptions = () => {
   const { sessionId, tableNumber: _tableNumber } = useParams(); // Changed from orderId to sessionId
   const navigate = useNavigate();
 
+  // SECURITY: Check if this session is already completed
+  React.useEffect(() => {
+    if (sessionStorage.getItem('order_completed') === 'true') {
+      navigate('/thank-you', { replace: true });
+    }
+  }, [navigate]);
+
   const handleOrderMore = () => {
     // Route back to the same table ordering page
     const tableTarget = (_tableNumber ?? '').toString().trim();

@@ -24,6 +24,13 @@ const PaymentPage = () => {
   const [orderItems, setOrderItems] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
 
+  // SECURITY: Check if this session is already completed
+  useEffect(() => {
+    if (sessionStorage.getItem('order_completed') === 'true') {
+      navigate('/thank-you', { replace: true });
+    }
+  }, [navigate]);
+
   useEffect(() => {
     loadOrder();
     return () => {

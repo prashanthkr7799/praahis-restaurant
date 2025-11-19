@@ -5,6 +5,12 @@ const ThankYouPage = () => {
   const [countdown, setCountdown] = useState(5);
   const isLockedRef = useRef(true);
 
+  // Set a session flag to indicate the order is complete.
+  // This prevents the user from returning to the Menu page even if they bypass the history lock.
+  useEffect(() => {
+    sessionStorage.setItem('order_completed', 'true');
+  }, []);
+
   // History-lock: Prevent back button during countdown
   useEffect(() => {
     // Prevent swipe-to-back gestures (works in Chrome/Edge/Android)

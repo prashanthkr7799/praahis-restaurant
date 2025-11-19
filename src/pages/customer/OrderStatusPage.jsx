@@ -18,6 +18,13 @@ const OrderStatusPage = () => {
   const [order, setOrder] = useState(null);
   const lastStatusRef = useRef(null);
 
+  // SECURITY: Check if this session is already completed
+  useEffect(() => {
+    if (sessionStorage.getItem('order_completed') === 'true') {
+      navigate('/thank-you', { replace: true });
+    }
+  }, [navigate]);
+
   // Load order function
   const loadOrder = useCallback(async () => {
     try {

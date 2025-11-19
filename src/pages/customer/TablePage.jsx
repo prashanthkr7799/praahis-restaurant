@@ -34,6 +34,17 @@ const TablePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
+  // SECURITY: Check if this session is already completed
+  // If the user tries to navigate back to the menu after finishing an order,
+  // we immediately redirect them back to the Thank You page (which will auto-close).
+  useEffect(() => {
+    const isOrderCompleted = sessionStorage.getItem('order_completed');
+    if (isOrderCompleted === 'true') {
+      // Redirect immediately
+      navigate('/thank-you', { replace: true });
+    }
+  }, [navigate]);
+
   // Load initial data and mark table as occupied
   // Ensure RestaurantContext is set from ?restaurant=slug before loading
   useEffect(() => {
