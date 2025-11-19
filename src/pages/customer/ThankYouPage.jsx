@@ -42,11 +42,12 @@ const ThankYouPage = () => {
       // Disable history lock IMMEDIATELY
       isLockedRef.current = false;
       
-      // Simulate clicking back button to exit
+      // Go back multiple steps to skip ALL order pages
       setTimeout(() => {
-        // Go back in history - this will take user out of the ordering flow
-        // Since we're past feedback/thank you, this goes back to wherever they came from
-        window.history.back();
+        // Go back 50 steps to completely exit the ordering flow
+        // This skips: Menu → Payment → OrderStatus → PostMeal → Feedback → ThankYou
+        // User will either close tab or land on QR scanner / home
+        window.history.go(-50);
       }, 200);
     }
   }, [countdown]);
