@@ -37,6 +37,17 @@ const ThankYouPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // Automatic back navigation after 5 seconds
+    const backTimer = setTimeout(() => {
+      window.history.back();
+    }, 5000);
+
+    return () => {
+      clearTimeout(backTimer);
+    };
+  }, []);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50 px-4">
       {/* Main Content */}
