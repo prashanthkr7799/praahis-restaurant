@@ -153,13 +153,18 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
     });
 
     // Create Razorpay order server-side for proper payment flow
+    // NOTE: Skipping server-side order creation for now - using direct payment
+    // This works in Razorpay test mode without pre-created order_id
     let razorpayOrderId = null;
+    
+    // TEMPORARY: Comment out Edge Function call to test direct payment
+    /*
     try {
       console.log('📝 Creating Razorpay order server-side...');
       const { data: orderResponse, error: orderError } = await supabase.functions.invoke('create-razorpay-order', {
         body: {
           restaurantId: orderData.restaurantId,
-          amount: orderData.total, // Send in INR, Edge Function converts to paise
+          amount: orderData.total,
           orderId: orderData.orderId,
           orderNumber: orderData.orderNumber,
           currency: paymentConfig.payment_settings?.currency || 'INR',
@@ -168,14 +173,16 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
 
       if (orderError) {
         console.error('Failed to create Razorpay order:', orderError);
-        // Fallback: proceed without order_id (may work in some test scenarios)
       } else if (orderResponse?.razorpay_order_id) {
         razorpayOrderId = orderResponse.razorpay_order_id;
         console.log('✅ Razorpay order created:', razorpayOrderId);
       }
     } catch (orderErr) {
-      console.warn('Order creation failed, attempting direct payment:', orderErr);
+      console.warn('Order creation failed:', orderErr);
     }
+    */
+    
+    console.log('Using direct payment (no server-side order) - works in test mode');
 
     // Razorpay options with restaurant-specific key
     const options = {
@@ -224,15 +231,23 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
 
     razorpayInstance.on('payment.failed', function (response) {
       const err = response?.error || {};
-      console.error('❌ Razorpay Payment Failed:', {
+      
+      // Log everything for debugging
+      console.error('❌ Razorpay Payment Failed - FULL DETAILS:', {
         code: err.code,
         description: err.description,
         reason: err.reason,
         source: err.source,
         step: err.step,
         metadata: err.metadata,
-        fullResponse: response,
+        fullResponse: JSON.stringify(response, null, 2),
       });
+      
+      // Show alert on mobile for debugging
+      if (typeof window !== 'undefined' && window.alert) {
+        alert(`Payment Failed!\nCode: ${err.code}\nReason: ${err.reason || err.description}\nStep: ${err.step}`);
+      }
+      
       // Provide clearer message to UI
       const friendly = err.description || err.reason || 'Payment failed. Please try another method or test card.';
       if (onFailure) {
@@ -243,13 +258,23 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
           step: err.step,
           reason: err.reason,
           metadata: err.metadata,
+          fullError: err,
         });
       }
     });
 
-    razorpayInstance.open();
+    console.log('🚀 Opening Razorpay checkout modal...');
+    try {
+      razorpayInstance.open();
+      console.log('✅ Razorpay modal opened successfully');
+    } catch (openErr) {
+      console.error('❌ Failed to open Razorpay modal:', openErr);
+      alert(`Failed to open payment modal: ${openErr.message}`);
+      throw openErr;
+    }
   } catch (err) {
-    console.error('Error initializing payment:', err);
+    console.error('❌ Error initializing payment:', err);
+    alert(`Payment initialization error: ${err.message}`);
     if (onFailure) {
       onFailure(err);
     } else {
