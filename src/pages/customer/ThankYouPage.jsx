@@ -6,18 +6,23 @@ const ThankYouPage = () => {
 
   // History-lock mechanism: Prevent back button from leaving this page
   useEffect(() => {
+    let isLocked = true;
+    
     // Push a dummy state to lock the history
     window.history.pushState(null, '', window.location.href);
     
-    const handlePopState = (event) => {
-      // Prevent navigation away by pushing the state again
-      window.history.pushState(null, '', window.location.href);
+    const handlePopState = () => {
+      // Only prevent navigation if lock is active
+      if (isLocked) {
+        window.history.pushState(null, '', window.location.href);
+      }
     };
     
     // Listen for back button press
     window.addEventListener('popstate', handlePopState);
     
     return () => {
+      isLocked = false;
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
@@ -33,8 +38,11 @@ const ThankYouPage = () => {
         clearInterval(countdownTimer);
       };
     } else if (countdown === 0) {
-      // When countdown reaches 0, navigate back
-      window.history.back();
+      // Disable history lock and navigate back
+      // Small delay to ensure lock is released
+      setTimeout(() => {
+        window.history.go(-1);
+      }, 100);
     }
   }, [countdown]);
 
