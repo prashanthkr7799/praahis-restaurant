@@ -160,8 +160,12 @@ const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, on
             }
           }}
           onTouchEnd={(e) => {
+            // Ensure mobile tap triggers checkout as well
             e.preventDefault();
             e.stopPropagation();
+            if (!isProcessing) {
+              onCheckout();
+            }
           }}
           className={`w-full rounded-xl px-6 py-3 font-semibold text-white transition-all shadow-lg touch-manipulation ${isProcessing ? 'bg-orange-500/60 cursor-not-allowed' : 'bg-orange-500 active:brightness-90 hover:brightness-110'}`}
         >
