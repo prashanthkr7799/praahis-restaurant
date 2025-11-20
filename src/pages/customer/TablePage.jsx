@@ -241,7 +241,7 @@ const TablePage = () => {
   // Loading state
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="min-h-screen customer-theme flex items-center justify-center">
         <LoadingSpinner size="large" text="Loading menu..." />
       </div>
     );
@@ -250,8 +250,11 @@ const TablePage = () => {
   // Error state
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <ErrorMessage error={error} onRetry={loadData} />
+      <div className="min-h-screen customer-theme flex items-center justify-center">
+        {/* Dark theme compatible error message override */}
+        <div className="w-full max-w-md customer-card">
+          <ErrorMessage error={error} onRetry={loadData} />
+        </div>
       </div>
     );
   }
@@ -385,6 +388,20 @@ const TablePage = () => {
                   </div>
                 </div>
               ))
+            )}
+            {/* Empty menu fallback */}
+            {!isSearching && categories.length === 0 && (
+              <div className="py-20 text-center customer-card">
+                <Search className="mx-auto h-16 w-16 text-gray-500 mb-4" />
+                <h2 className="text-2xl font-bold text-white mb-2">Menu Coming Soon</h2>
+                <p className="text-sm text-gray-400 max-w-md mx-auto">No dishes are available right now. Please ask the staff or try again later.</p>
+                <button
+                  onClick={loadData}
+                  className="mt-6 px-5 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-lg active:scale-95"
+                >
+                  Refresh
+                </button>
+              </div>
             )}
           </div>
 
