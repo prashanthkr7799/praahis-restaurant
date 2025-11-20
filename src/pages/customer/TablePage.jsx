@@ -6,7 +6,6 @@ import { AnimatePresence, m } from 'framer-motion';
 const MOTION = m;
 import toast from 'react-hot-toast';
 import { getTable, getMenuItems, createOrder, markTableOccupied, supabase, getOrCreateActiveSessionId, getSharedCart, updateSharedCart, clearSharedCart, subscribeToSharedCart } from '@shared/utils/api/supabaseClient';
-import { getSession, saveSession } from '@/shared/utils/helpers/localStorage';
 import { startSessionTracking, stopSessionTracking } from '@/shared/utils/helpers/sessionActivityTracker';
 import { groupByCategory, getCategories, prepareOrderData } from '@domains/ordering/utils/orderHelpers';
 import MenuItem from '@domains/ordering/components/MenuItem';
@@ -78,19 +77,19 @@ const TablePage = () => {
       setTable(tableData);
       setMenuItems(menuData || []);
 
-      // Mark table as occupied and create/get session
+      // Mark table as occupied and get/create session - 100% DATABASE-DRIVEN
+      // All devices scanning the same table will get the SAME session ID from the database
       const tableWithSession = await markTableOccupied(tableData.id);
       
-      // Get or create session ID
-      let currentSessionId = getSession(tableId);
-      if (!currentSessionId && tableWithSession?.session_id) {
-        currentSessionId = tableWithSession.session_id;
-        saveSession(tableId, currentSessionId);
-      } else if (!currentSessionId) {
+      // Get session ID from database only - NO localStorage
+      let currentSessionId = tableWithSession?.session_id;
+      
+      // If no session from markTableOccupied, explicitly fetch/create one
+      if (!currentSessionId) {
         currentSessionId = await getOrCreateActiveSessionId(tableData.id);
-        saveSession(tableId, currentSessionId);
       }
 
+      console.log('✅ Database-driven session ID:', currentSessionId);
       setSessionId(currentSessionId);
 
       // Load shared cart from database

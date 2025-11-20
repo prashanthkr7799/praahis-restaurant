@@ -141,6 +141,7 @@ const ManagerDashboard = () => {
           total,
           created_at,
           table_id,
+          feedback_submitted,
           tables (table_number)
         `)
         .eq('restaurant_id', restaurantId)
