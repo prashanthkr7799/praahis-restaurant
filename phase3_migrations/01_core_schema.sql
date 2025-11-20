@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
   discount NUMERIC(10,2) DEFAULT 0 CHECK (discount >= 0),
   total NUMERIC(10,2) NOT NULL CHECK (total >= 0),
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending','paid','failed')),
+  payment_method TEXT DEFAULT 'cash' CHECK (payment_method IN ('cash','razorpay','upi','card')),
   order_status TEXT DEFAULT 'received' CHECK (order_status IN ('pending_payment','received','preparing','ready','served','cancelled')),
   special_instructions TEXT,
   order_token TEXT,

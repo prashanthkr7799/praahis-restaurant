@@ -49,7 +49,11 @@ DO $$ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='feedbacks' AND column_name='session_id') THEN
     ALTER TABLE public.feedbacks ADD COLUMN session_id UUID REFERENCES public.table_sessions(id) ON DELETE SET NULL;
-  END IF; 
+  END IF;
+  -- Add payment_method column if missing
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='payment_method') THEN
+    ALTER TABLE public.orders ADD COLUMN payment_method TEXT DEFAULT 'cash' CHECK (payment_method IN ('cash','razorpay','upi','card'));
+  END IF;
 END $$;
 
 -- Indexes
