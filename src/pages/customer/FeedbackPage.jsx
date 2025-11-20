@@ -96,17 +96,21 @@ const FeedbackPage = () => {
         .filter(Boolean)
         .join(' ');
 
-      // Create feedback record with session_id
-      const { error: feedbackError } = await supabase
-        .from('feedbacks')
-        .insert([{
-          session_id: sessionId,
-          rating: rating,
-          comment: composedComment || null,
-          restaurant_id: session.restaurant_id,
-          created_at: new Date().toISOString(),
-        }]);
-
+      // Create feedback record (supports old schema without restaurant_id by retrying)
+      const basePayload = {
+        session_id: sessionId,
+        rating,
+        comment: composedComment || null,
+        restaurant_id: session.restaurant_id,
+        created_at: new Date().toISOString(),
+      };
+      let { error: feedbackError } = await supabase.from('feedbacks').insert([basePayload]);
+      if (feedbackError?.code === 'PGRST204') {
+        // Column restaurant_id missing (older schema) – retry without it so user still can submit
+        const legacyPayload = { ...basePayload };
+        delete legacyPayload.restaurant_id;
+        ({ error: feedbackError } = await supabase.from('feedbacks').insert([legacyPayload]));
+      }
       if (feedbackError) {
         console.error('Feedback insert error:', feedbackError);
       }
