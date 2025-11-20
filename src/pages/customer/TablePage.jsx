@@ -523,8 +523,8 @@ const TablePage = () => {
         </div>
       )}
       
-      {/* Call Waiter Button - When cart is empty or hidden */}
-      {(cartItems.length === 0 || showCart) && (
+      {/* Call Waiter Button - only when cart is empty and sheet is not open */}
+      {cartItems.length === 0 && !showCart && (
         <CallWaiterButton tableNumber={table?.table_number} restaurantId={table?.restaurant_id} />
       )}
     </div>
