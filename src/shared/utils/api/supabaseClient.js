@@ -434,7 +434,11 @@ export const getSharedCart = async (sessionId) => {
  */
 export const updateSharedCart = async (sessionId, cartItems) => {
   try {
-    console.log('📤 Updating shared cart:', { sessionId, itemCount: cartItems.length });
+    console.log('📤 Updating shared cart:', { 
+      sessionId, 
+      itemCount: cartItems.length,
+      items: cartItems.map(i => ({ id: i.id, name: i.name, qty: i.quantity }))
+    });
     
     const { data, error } = await supabase
       .from('table_sessions')
@@ -452,7 +456,34 @@ export const updateSharedCart = async (sessionId, cartItems) => {
       throw error;
     }
     
-    console.log('✅ Cart updated successfully:', data);
+    if (!data || data.length === 0) {
+      console.error('⚠️ UPDATE returned 0 rows! Session might not be active or not exist.');
+      console.error('⚠️ Attempting update without status filter...');
+      
+      // Retry without status filter
+      const { data: retryData, error: retryError } = await supabase
+        .from('table_sessions')
+        .update({ 
+          cart_items: cartItems,
+          last_activity_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId)
+        .select();
+      
+      if (retryError) {
+        console.error('❌ Retry also failed:', retryError);
+        throw retryError;
+      }
+      
+      console.log('✅ Retry successful:', retryData);
+      return retryData?.[0]?.cart_items || [];
+    }
+    
+    console.log('✅ Cart updated successfully:', {
+      rowsAffected: data.length,
+      cartItemCount: data[0]?.cart_items?.length
+    });
     return data?.[0]?.cart_items || [];
   } catch (err) {
     console.error('❌ Error updating shared cart:', err);
