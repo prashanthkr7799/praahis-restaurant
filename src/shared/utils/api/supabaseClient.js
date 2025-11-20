@@ -563,9 +563,6 @@ export const subscribeToSharedCart = (sessionId, callback) => {
     channel.unsubscribe();
   };
 };
-    channel.unsubscribe();
-  };
-};
 
 // Fetch menu items
 export const getMenuItems = async (restaurantId) => {
