@@ -140,14 +140,17 @@ const TablePage = () => {
     if (!sessionId) return;
 
     console.log('🔔 Subscribing to shared cart updates for session:', sessionId);
+    console.log('🔔 Current cart state:', cartItems);
     
     const unsubscribe = subscribeToSharedCart(sessionId, (updatedCart) => {
       console.log('📥 Received cart update from remote:', updatedCart);
+      console.log('📥 isUpdatingFromRemote before:', isUpdatingFromRemote.current);
       isUpdatingFromRemote.current = true;
       setCartItems(updatedCart || []);
       // Reset flag after state update completes
       setTimeout(() => {
         isUpdatingFromRemote.current = false;
+        console.log('📥 isUpdatingFromRemote reset to false');
       }, 100);
     });
 
@@ -155,6 +158,7 @@ const TablePage = () => {
       console.log('🔕 Unsubscribing from shared cart');
       if (unsubscribe) unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   // Handle add to cart
