@@ -34,6 +34,8 @@ const TablePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [sessionId, setSessionId] = useState(null);
+  const [orderPaid, setOrderPaid] = useState(false); // Track if order is paid
+  const [paidOrderId, setPaidOrderId] = useState(null); // Store paid order ID
   const isUpdatingFromRemote = useRef(false);
 
   // Load initial data and mark table as occupied
@@ -91,6 +93,38 @@ const TablePage = () => {
 
       console.log('✅ Database-driven session ID:', currentSessionId);
       setSessionId(currentSessionId);
+
+      // Check if there's already a paid order for this session
+      if (currentSessionId) {
+        try {
+          const { data: existingOrders, error: orderError } = await supabase
+            .from('orders')
+            .select('id, payment_status, order_status')
+            .eq('session_id', currentSessionId)
+            .eq('payment_status', 'paid')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (orderError) throw orderError;
+
+          if (existingOrders && existingOrders.length > 0) {
+            const paidOrder = existingOrders[0];
+            console.log('💰 Found existing paid order:', paidOrder.id);
+            setOrderPaid(true);
+            setPaidOrderId(paidOrder.id);
+            
+            // Redirect to order status immediately
+            toast.info('You already have a paid order. Redirecting...');
+            setTimeout(() => {
+              navigate(`/order-status/${paidOrder.id}`, { replace: true });
+            }, 1000);
+            return; // Don't load cart or continue
+          }
+        } catch (err) {
+          console.error('Error checking for paid orders:', err);
+          // Continue loading - this is non-critical
+        }
+      }
 
       // Load shared cart from database
       if (currentSessionId) {
@@ -160,10 +194,62 @@ const TablePage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
+  // Subscribe to order payment status changes
+  useEffect(() => {
+    if (!sessionId || !table?.id) return;
+
+    console.log('💳 Subscribing to payment status changes for session:', sessionId);
+
+    // Subscribe to orders table for this session
+    const orderSubscription = supabase
+      .channel(`order-payment-${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `session_id=eq.${sessionId}`
+        },
+        (payload) => {
+          console.log('💰 Order UPDATE received:', payload);
+          
+          // Check if payment_status changed to 'paid'
+          if (payload.new.payment_status === 'paid' && payload.old.payment_status !== 'paid') {
+            console.log('🎉 PAYMENT DETECTED! Order is now paid:', payload.new.id);
+            setOrderPaid(true);
+            setPaidOrderId(payload.new.id);
+            
+            // Show toast notification
+            toast.success('🎉 Payment completed! Redirecting to order status...');
+            
+            // Redirect all devices to order status page
+            setTimeout(() => {
+              navigate(`/order-status/${payload.new.id}`, { replace: true });
+            }, 1500);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('💳 Order payment subscription status:', status);
+      });
+
+    return () => {
+      console.log('💳 Unsubscribing from payment status changes');
+      orderSubscription.unsubscribe();
+    };
+  }, [sessionId, table, navigate]);
+
   // Handle add to cart
   const handleAddToCart = async (item) => {
     if (!sessionId) {
       toast.error('Session not initialized. Please refresh the page.');
+      return;
+    }
+
+    // Block if order is already paid
+    if (orderPaid) {
+      toast.error('Order is already paid. You cannot add more items.');
       return;
     }
 
@@ -210,6 +296,12 @@ const TablePage = () => {
     if (!sessionId) return;
     if (isUpdatingFromRemote.current) return;
 
+    // Block if order is already paid
+    if (orderPaid) {
+      toast.error('Order is already paid. You cannot modify the cart.');
+      return;
+    }
+
     if (newQuantity <= 0) {
       handleRemoveItem(itemId);
       return;
@@ -236,6 +328,12 @@ const TablePage = () => {
     if (!sessionId) return;
     if (isUpdatingFromRemote.current) return;
 
+    // Block if order is already paid
+    if (orderPaid) {
+      toast.error('Order is already paid. You cannot modify the cart.');
+      return;
+    }
+
     const newCart = cartItems.filter(item => item.id !== itemId);
 
     // Optimistic update
@@ -256,6 +354,13 @@ const TablePage = () => {
   const handleProceedToPayment = async () => {
     if (cartItems.length === 0) {
       toast.error('Your cart is empty!');
+      return;
+    }
+
+    // Block if order is already paid
+    if (orderPaid) {
+      toast.error('Order is already paid. Please wait for your food.');
+      navigate(`/order-status/${paidOrderId}`, { replace: true });
       return;
     }
 
