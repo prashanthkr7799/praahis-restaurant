@@ -1,6 +1,6 @@
 /**
- * Manager Dashboard - Complete Redesign
- * Modern dashboard with organized sections, quick actions, and enhanced UX
+ * Manager Dashboard - Deep Space Glass Redesign
+ * Premium dark-mode dashboard with glassmorphism, neon accents, and mobile-first responsiveness
  */
 
 import React, { useState, useEffect } from 'react';
@@ -22,20 +22,22 @@ import {
   LayoutGrid,
   Bell,
   ChevronRight,
-  Clock
+  Clock,
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 import { supabase } from '@shared/utils/api/supabaseClient';
 import { formatCurrency } from '@shared/utils/helpers/formatters';
-import { getCurrentUser } from '@shared/utils/auth/auth';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 import toast from 'react-hot-toast';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
-import DashboardHeader from '@shared/components/compounds/DashboardHeader';
+import StatCard from './components/StatCard';
+import NavCard from './components/NavCard';
 import BillingWarningCard from '@domains/billing/components/BillingWarningCard';
 
 const ManagerDashboard = () => {
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     todayRevenue: 0,
     todayOrders: 0,
@@ -51,15 +53,9 @@ const ManagerDashboard = () => {
   const { restaurantId } = useRestaurant();
 
   useEffect(() => {
-    loadUser();
     loadDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
-
-  const loadUser = async () => {
-    const { user, profile } = await getCurrentUser();
-    setCurrentUser({ ...user, ...profile });
-  };
 
   const loadDashboardData = async () => {
     if (!restaurantId) {
@@ -69,17 +65,13 @@ const ManagerDashboard = () => {
     
     setLoading(true);
     try {
-      // Get today's date range
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-
-      // Get yesterday's date range
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
 
-      // Fetch today's orders
       const { data: todayOrders, error: ordersError } = await supabase
         .from('orders')
         .select('*')
@@ -89,7 +81,6 @@ const ManagerDashboard = () => {
 
       if (ordersError) throw ordersError;
 
-      // Fetch yesterday's orders
       const { data: yesterdayOrders, error: yesterdayOrdersError } = await supabase
         .from('orders')
         .select('*')
@@ -99,7 +90,6 @@ const ManagerDashboard = () => {
 
       if (yesterdayOrdersError) throw yesterdayOrdersError;
 
-      // Calculate revenues
       const todayRevenue = todayOrders
         ?.filter((o) => o.payment_status === 'paid')
         .reduce((sum, o) => sum + (o.total || 0), 0) || 0;
@@ -108,7 +98,6 @@ const ManagerDashboard = () => {
         ?.filter((o) => o.payment_status === 'paid')
         .reduce((sum, o) => sum + (o.total || 0), 0) || 0;
 
-      // Active orders (today and yesterday)
       const { data: activeOrdersToday, error: activeTodayError } = await supabase
         .from('orders')
         .select('id')
@@ -128,7 +117,6 @@ const ManagerDashboard = () => {
 
       if (activeYesterdayError) throw activeYesterdayError;
 
-      // Total staff
       const { data: staff, error: staffError } = await supabase
         .from('users')
         .select('id')
@@ -137,7 +125,6 @@ const ManagerDashboard = () => {
 
       if (staffError) throw staffError;
 
-      // Recent orders
       const { data: recent, error: recentError } = await supabase
         .from('orders')
         .select(`
@@ -164,7 +151,7 @@ const ManagerDashboard = () => {
         yesterdayRevenue,
         yesterdayOrders: yesterdayOrders?.length || 0,
         yesterdayActiveOrders: activeOrdersYesterday?.length || 0,
-        lastWeekStaff: staff?.length || 0, // In real app, fetch last week's count
+        lastWeekStaff: staff?.length || 0,
       });
 
       setRecentOrders(recent || []);
@@ -176,11 +163,73 @@ const ManagerDashboard = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadDashboardData();
+    setRefreshing(false);
+    toast.success('Dashboard refreshed');
+  };
+
+  const handleQuickUpdate = async (order) => {
+    try {
+      const statusFlow = {
+        'received': 'preparing',
+        'preparing': 'ready',
+        'ready': 'served',
+        'served': 'completed'
+      };
+
+      const newStatus = statusFlow[order.order_status];
+      if (!newStatus) {
+        toast.error('Order cannot be updated further');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('orders')
+        .update({ order_status: newStatus })
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      toast.success(`Order updated to ${newStatus}`);
+      loadDashboardData();
+    } catch (error) {
+      console.error('Error updating order:', error);
+      toast.error('Failed to update order');
+    }
+  };
+
+  const getQuickUpdateLabel = (status) => {
+    const labels = {
+      'received': 'Start Prep',
+      'preparing': 'Mark Ready',
+      'ready': 'Serve',
+      'served': 'Complete'
+    };
+    return labels[status] || 'Update';
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'received':
+        return <Clock className="text-amber-400" size={20} />;
+      case 'preparing':
+        return <RefreshCw className="text-sky-400" size={20} />;
+      case 'ready':
+        return <Bell className="text-emerald-400" size={20} />;
+      case 'served':
+        return <CheckCircle className="text-emerald-400" size={20} />;
+      default:
+        return <AlertCircle className="text-zinc-400" size={20} />;
+    }
+  };
+
   const calculateTrend = (current, previous) => {
     if (previous === 0) return { trend: 0, isPositive: true };
     const change = ((current - previous) / previous) * 100;
     return {
-      trend: Math.abs(change).toFixed(1),
+      trend: Math.abs(change).toFixed(1) + '%',
       isPositive: change >= 0,
     };
   };
@@ -198,477 +247,279 @@ const ManagerDashboard = () => {
   const activeTrend = calculateTrend(stats.activeOrders, stats.yesterdayActiveOrders);
 
   return (
-    <div className="space-y-6" aria-labelledby="dashboard-title">
-      {/* Page header */}
-      <DashboardHeader user={currentUser} />
-
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 id="dashboard-title" className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">Welcome back! Here's what's happening today.</p>
-        </div>
-        <button
-          onClick={loadDashboardData}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
-      </div>
-
-      {/* Quick Actions Bar - Professional Design */}
-      <div className="flex flex-wrap gap-3">
-        <button
-          onClick={() => navigate('/manager/orders')}
-          className="inline-flex items-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-smooth font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02]"
-        >
-          <Plus className="h-5 w-5" />
-          <span className="hidden sm:inline">New Order</span>
-        </button>
-        <button
-          onClick={() => navigate('/manager/tables')}
-          className="inline-flex items-center gap-2 px-5 py-3 bg-card border border-border text-foreground rounded-xl hover:bg-muted transition-smooth hover:scale-[1.02] hover:border-primary/30"
-        >
-          <LayoutGrid className="h-5 w-5" />
-          <span className="hidden sm:inline">Active Tables</span>
-        </button>
-        <button
-          onClick={() => navigate('/manager/reports')}
-          className="inline-flex items-center gap-2 px-5 py-3 bg-card border border-border text-foreground rounded-xl hover:bg-muted transition-smooth hover:scale-[1.02] hover:border-primary/30"
-        >
-          <FileText className="h-5 w-5" />
-          <span className="hidden sm:inline">Today's Report</span>
-        </button>
-        <button
-          onClick={() => navigate('/manager/billing')}
-          className="inline-flex items-center gap-2 px-5 py-3 bg-card border border-border text-foreground rounded-xl hover:bg-muted transition-smooth hover:scale-[1.02] hover:border-primary/30"
-        >
-          <CreditCard className="h-5 w-5" />
-          <span className="hidden sm:inline">Billing</span>
-        </button>
-        <button className="inline-flex items-center gap-2 px-5 py-3 bg-card border border-border text-foreground rounded-xl hover:bg-muted transition-smooth relative hover:scale-[1.02] hover:border-primary/30">
-          <Bell className="h-5 w-5" />
-          <span className="hidden sm:inline">Notifications</span>
-          {stats.activeOrders > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 h-6 w-6 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center font-bold ring-4 ring-background animate-pulse">
-              {stats.activeOrders}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* KPI Cards with Trends - Professional Design */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Today's Revenue - Emerald */}
-        <div className="group relative bg-card rounded-xl p-6 border border-border card-lift overflow-hidden">
-          {/* Subtle gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-success/5 to-transparent opacity-50" />
-          
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-success/10 rounded-xl ring-1 ring-success/20">
-                <DollarSign className="h-6 w-6 text-success" />
-              </div>
-              {revenueTrend.isPositive ? (
-                <div className="flex items-center gap-1 text-success text-sm font-medium">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>{revenueTrend.trend}%</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 text-destructive text-sm font-medium">
-                  <TrendingDown className="h-4 w-4" />
-                  <span>{revenueTrend.trend}%</span>
-                </div>
-              )}
-            </div>
-            
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">Today's Revenue</p>
-              <p className="text-3xl font-bold text-foreground tabular-nums">{formatCurrency(stats.todayRevenue)}</p>
-              <p className="text-xs text-muted-foreground">vs yesterday</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Today's Orders - Coral */}
-        <div className="group relative bg-card rounded-xl p-6 border border-border card-lift overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-50" />
-          
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-primary/10 rounded-xl ring-1 ring-primary/20">
-                <ShoppingCart className="h-6 w-6 text-primary" />
-              </div>
-              {ordersTrend.isPositive ? (
-                <div className="flex items-center gap-1 text-success text-sm font-medium">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>{ordersTrend.trend}%</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 text-destructive text-sm font-medium">
-                  <TrendingDown className="h-4 w-4" />
-                  <span>{ordersTrend.trend}%</span>
-                </div>
-              )}
-            </div>
-            
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">Today's Orders</p>
-              <p className="text-3xl font-bold text-foreground tabular-nums">{stats.todayOrders}</p>
-              <p className="text-xs text-muted-foreground">vs yesterday</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Active Orders - Amber */}
-        <div className="group relative bg-card rounded-xl p-6 border border-border card-lift overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-warning/5 to-transparent opacity-50" />
-          
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-warning/10 rounded-xl ring-1 ring-warning/20">
-                <TrendingUp className="h-6 w-6 text-warning" />
-              </div>
-              {activeTrend.isPositive ? (
-                <div className="flex items-center gap-1 text-success text-sm font-medium">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>{activeTrend.trend}%</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 text-destructive text-sm font-medium">
-                  <TrendingDown className="h-4 w-4" />
-                  <span>{activeTrend.trend}%</span>
-                </div>
-              )}
-            </div>
-            
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">Active Orders</p>
-              <p className="text-3xl font-bold text-foreground tabular-nums">{stats.activeOrders}</p>
-              <p className="text-xs text-muted-foreground">vs yesterday</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Total Staff - Info Blue */}
-        <div className="group relative bg-card rounded-xl p-6 border border-border card-lift overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-info/5 to-transparent opacity-50" />
-          
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-info/10 rounded-xl ring-1 ring-info/20">
-                <Users className="h-6 w-6 text-info" />
-              </div>
-              <div className="text-sm text-muted-foreground">
-                —
-              </div>
-            </div>
-            
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">Total Staff</p>
-              <p className="text-3xl font-bold text-foreground tabular-nums">{stats.totalStaff}</p>
-              <p className="text-xs text-muted-foreground">active members</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Billing Warning Card */}
-      <BillingWarningCard restaurantId={restaurantId} />
-
-      {/* SECTION 1: Daily Operations */}
-      <section aria-label="Daily Operations">
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold text-foreground">Daily Operations</h2>
-          <p className="text-sm text-muted-foreground mt-1">Manage day-to-day restaurant activities</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Menu */}
-          <button
-            onClick={() => navigate('/manager/menu')}
-            className="group relative bg-card border border-border rounded-xl p-6 card-lift text-left overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-smooth" />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-primary/10 rounded-xl ring-1 ring-primary/20 group-hover:bg-primary/20 group-hover:ring-primary/40 transition-smooth">
-                  <UtensilsCrossed className="h-6 w-6 text-primary" />
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-smooth" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1.5">Menu</h3>
-              <p className="text-sm text-muted-foreground">Manage items and categories</p>
-            </div>
-          </button>
-
-          {/* Tables */}
-          <button
-            onClick={() => navigate('/manager/tables')}
-            className="group relative bg-card border border-border rounded-xl p-6 card-lift text-left overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-success/5 to-transparent opacity-0 group-hover:opacity-100 transition-smooth" />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-success/10 rounded-xl ring-1 ring-success/20 group-hover:bg-success/20 group-hover:ring-success/40 transition-smooth">
-                  <LayoutGrid className="h-6 w-6 text-success" />
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-success group-hover:translate-x-1 transition-smooth" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1.5">Tables</h3>
-              <p className="text-sm text-muted-foreground">Manage table status and sessions</p>
-            </div>
-          </button>
-
-          {/* Orders */}
-          <button
-            onClick={() => navigate('/manager/orders')}
-            className="group relative bg-card border border-border rounded-xl p-6 card-lift text-left overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-info/5 to-transparent opacity-0 group-hover:opacity-100 transition-smooth" />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-info/10 rounded-xl ring-1 ring-info/20 group-hover:bg-info/20 group-hover:ring-info/40 transition-smooth">
-                  <ShoppingCart className="h-6 w-6 text-info" />
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-info group-hover:translate-x-1 transition-smooth" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1.5">Orders</h3>
-              <p className="text-sm text-muted-foreground">View and manage orders</p>
-            </div>
-          </button>
-
-          {/* Payments */}
-          <button
-            onClick={() => navigate('/manager/payments')}
-            className="group relative bg-card border border-border rounded-xl p-6 card-lift text-left overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-success/5 to-transparent opacity-0 group-hover:opacity-100 transition-smooth" />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-success/10 rounded-xl ring-1 ring-success/20 group-hover:bg-success/20 group-hover:ring-success/40 transition-smooth">
-                  <CreditCard className="h-6 w-6 text-success" />
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-success group-hover:translate-x-1 transition-smooth" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1.5">Payments</h3>
-              <p className="text-sm text-muted-foreground">Transactions and status</p>
-            </div>
-          </button>
-
-          {/* Offers disabled */}
-
-          {/* QR Codes */}
-          <button
-            onClick={() => navigate('/manager/qr-codes')}
-            className="group relative bg-card border border-border rounded-xl p-6 card-lift text-left overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-smooth" />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-primary/10 rounded-xl ring-1 ring-primary/20 group-hover:bg-primary/20 group-hover:ring-primary/40 transition-smooth">
-                  <QrCode className="h-6 w-6 text-primary" />
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-smooth" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1.5">QR Codes</h3>
-              <p className="text-sm text-muted-foreground">Manage table QR codes</p>
-            </div>
-          </button>
-        </div>
-      </section>
-
-      {/* SECTION 2: Insights & Admin */}
-      <section aria-label="Insights & Admin">
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold text-foreground">Insights & Admin</h2>
-          <p className="text-sm text-muted-foreground mt-1">Analytics, reports, and team management</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Analytics */}
-          <button
-            onClick={() => navigate('/manager/analytics')}
-            className="group relative bg-card border border-border rounded-xl p-6 card-lift text-left overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-info/5 to-transparent opacity-0 group-hover:opacity-100 transition-smooth" />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-info/10 rounded-xl ring-1 ring-info/20 group-hover:bg-info/20 group-hover:ring-info/40 transition-smooth">
-                  <BarChart3 className="h-6 w-6 text-info" />
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-info group-hover:translate-x-1 transition-smooth" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1.5">Analytics</h3>
-              <p className="text-sm text-muted-foreground">Sales and performance insights</p>
-            </div>
-          </button>
-
-          {/* Reports */}
-          <button
-            onClick={() => navigate('/manager/reports')}
-            className="group relative bg-card border border-border rounded-xl p-6 card-lift text-left overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-success/5 to-transparent opacity-0 group-hover:opacity-100 transition-smooth" />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-success/10 rounded-xl ring-1 ring-success/20 group-hover:bg-success/20 group-hover:ring-success/40 transition-smooth">
-                  <FileText className="h-6 w-6 text-success" />
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-success group-hover:translate-x-1 transition-smooth" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1.5">Reports</h3>
-              <p className="text-sm text-muted-foreground">Download daily/weekly summaries</p>
-            </div>
-          </button>
-
-          {/* Staff */}
-          <button
-            onClick={() => navigate('/manager/staff')}
-            className="group relative bg-card border border-border rounded-xl p-6 card-lift text-left overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-smooth" />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-primary/10 rounded-xl ring-1 ring-primary/20 group-hover:bg-primary/20 group-hover:ring-primary/40 transition-smooth">
-                  <Users className="h-6 w-6 text-primary" />
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-smooth" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1.5">Staff</h3>
-              <p className="text-sm text-muted-foreground">Invite and manage team members</p>
-            </div>
-          </button>
-        </div>
-      </section>
-
-      {/* SECTION 3: Configuration */}
-      <section aria-label="Configuration">
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold text-foreground">Configuration</h2>
-          <p className="text-sm text-muted-foreground mt-1">Restaurant settings and preferences</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Settings */}
-          <button
-            onClick={() => navigate('/manager/settings')}
-            className="group relative bg-card border border-border rounded-xl p-6 card-lift text-left overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-muted/30 to-transparent opacity-0 group-hover:opacity-100 transition-smooth" />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 bg-muted/30 rounded-xl ring-1 ring-border group-hover:bg-muted/50 group-hover:ring-muted transition-smooth">
-                  <Settings className="h-6 w-6 text-foreground" />
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-smooth" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-1.5">Settings</h3>
-              <p className="text-sm text-muted-foreground">Restaurant profile and configuration</p>
-            </div>
-          </button>
-        </div>
-      </section>
-
-      {/* Recent Orders Section */}
-      <section aria-label="Recent Orders">
-        <div className="flex items-center justify-between mb-4">
+    <div className="min-h-screen p-4 md:p-8">
+      {/* Header Section */}
+      <div className="mb-8 space-y-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Recent Orders</h2>
-            <p className="text-sm text-muted-foreground mt-1">Latest customer orders</p>
-          </div>
-          <button
-            onClick={() => navigate('/manager/orders')}
-            className="inline-flex items-center gap-2 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
-          >
-            View All
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-
-        {recentOrders.length === 0 ? (
-          <div className="bg-card border border-border rounded-xl p-16 text-center">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-muted/30 rounded-full mb-6">
-              <ShoppingCart className="h-10 w-10 text-muted-foreground/50" />
+            <h1 className="text-4xl font-bold text-white text-glow tracking-tight">Dashboard</h1>
+            <div className="flex items-center gap-2 mt-2 text-zinc-400 text-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              </span>
+              <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
             </div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">No orders yet today</h3>
-            <p className="text-muted-foreground mb-8 max-w-md mx-auto">Orders will appear here as customers place them. Start by creating a manual order for walk-in customers.</p>
-            <button
-              onClick={() => navigate('/manager/orders')}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-smooth font-semibold shadow-lg shadow-primary/20"
+          </div>
+
+          {/* Desktop Actions */}
+          <div className="hidden md:flex items-center gap-3">
+            <button 
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="glass-button"
             >
-              <Plus className="h-5 w-5" />
-              Create Manual Order
+              <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+              <span>Refresh</span>
+            </button>
+            <button 
+              onClick={() => navigate('/manager/orders')}
+              className="glass-button-primary"
+            >
+              <Plus size={18} />
+              <span>New Order</span>
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {recentOrders.map((order) => (
-              <div
-                key={order.id}
-                className="group relative bg-card border border-border rounded-xl p-6 card-lift cursor-pointer overflow-hidden"
-                onClick={() => navigate(`/manager/orders`)}
+        </div>
+
+        {/* Mobile Quick Actions (Mobile Only) */}
+        <div className="md:hidden overflow-x-auto pb-2 -mx-4 px-4">
+          <div className="flex gap-3 min-w-max">
+            <button
+              onClick={() => navigate('/manager/orders')}
+              className="glass-panel px-4 py-3 flex flex-col items-center gap-2 min-w-[80px] hover:bg-white/10 transition-all"
+            >
+              <Plus size={20} className="text-primary" />
+              <span className="text-xs text-zinc-300">New Order</span>
+            </button>
+            <button
+              onClick={() => navigate('/manager/tables')}
+              className="glass-panel px-4 py-3 flex flex-col items-center gap-2 min-w-[80px] hover:bg-white/10 transition-all"
+            >
+              <LayoutGrid size={20} className="text-sky-400" />
+              <span className="text-xs text-zinc-300">Tables</span>
+            </button>
+            <button
+              onClick={() => navigate('/manager/reports')}
+              className="glass-panel px-4 py-3 flex flex-col items-center gap-2 min-w-[80px] hover:bg-white/10 transition-all"
+            >
+              <BarChart3 size={20} className="text-emerald-400" />
+              <span className="text-xs text-zinc-300">Reports</span>
+            </button>
+            <button
+              onClick={() => navigate('/manager/billing')}
+              className="glass-panel px-4 py-3 flex flex-col items-center gap-2 min-w-[80px] hover:bg-white/10 transition-all"
+            >
+              <CreditCard size={20} className="text-amber-400" />
+              <span className="text-xs text-zinc-300">Billing</span>
+            </button>
+            <button
+              onClick={handleRefresh}
+              className="glass-panel px-4 py-3 flex flex-col items-center gap-2 min-w-[80px] hover:bg-white/10 transition-all"
+            >
+              <RefreshCw size={20} className={`text-zinc-400 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="text-xs text-zinc-300">Refresh</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Layout: 3-column on desktop, stacked on mobile */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Content (2 columns on desktop) */}
+        <div className="lg:col-span-2 space-y-8">
+          {/* KPI Stats Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              icon={DollarSign}
+              label="Today's Revenue"
+              value={formatCurrency(stats.todayRevenue)}
+              change={revenueTrend.trend}
+              changeType={revenueTrend.isPositive ? 'up' : 'down'}
+              iconColor="text-emerald-400"
+              iconBg="bg-emerald-500/10"
+            />
+            <StatCard
+              icon={ShoppingCart}
+              label="Orders"
+              value={stats.todayOrders}
+              change={ordersTrend.trend}
+              changeType={ordersTrend.isPositive ? 'up' : 'down'}
+              iconColor="text-sky-400"
+              iconBg="bg-sky-500/10"
+            />
+            <StatCard
+              icon={Clock}
+              label="Active"
+              value={stats.activeOrders}
+              change={activeTrend.trend}
+              changeType={activeTrend.isPositive ? 'up' : 'down'}
+              iconColor="text-amber-400"
+              iconBg="bg-amber-500/10"
+            />
+            <StatCard
+              icon={Users}
+              label="Staff"
+              value={stats.totalStaff}
+              iconColor="text-primary"
+              iconBg="bg-primary/10"
+            />
+          </div>
+
+          {/* Operations Grid */}
+          <div>
+            <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Operations</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <NavCard
+                icon={UtensilsCrossed}
+                title="Menu"
+                description="Items & categories"
+                onClick={() => navigate('/manager/menu')}
+                iconColor="text-rose-400"
+                iconBg="bg-rose-500/10"
+              />
+              <NavCard
+                icon={LayoutGrid}
+                title="Tables"
+                description="Status & QR codes"
+                onClick={() => navigate('/manager/tables')}
+                iconColor="text-sky-400"
+                iconBg="bg-sky-500/10"
+              />
+              <NavCard
+                icon={ShoppingCart}
+                title="Orders"
+                description="Active & history"
+                onClick={() => navigate('/manager/orders')}
+                iconColor="text-emerald-400"
+                iconBg="bg-emerald-500/10"
+              />
+              <NavCard
+                icon={CreditCard}
+                title="Payments"
+                description="Transactions"
+                onClick={() => navigate('/manager/payments')}
+                iconColor="text-amber-400"
+                iconBg="bg-amber-500/10"
+              />
+              <NavCard
+                icon={QrCode}
+                title="QR Codes"
+                description="Generate codes"
+                onClick={() => navigate('/manager/qr-codes')}
+                iconColor="text-primary"
+                iconBg="bg-primary/10"
+              />
+              <NavCard
+                icon={Users}
+                title="Staff"
+                description="Team members"
+                onClick={() => navigate('/manager/staff')}
+                iconColor="text-cyan-400"
+                iconBg="bg-cyan-500/10"
+              />
+            </div>
+          </div>
+
+          {/* Recent Orders */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Recent Orders</h2>
+              <button
+                onClick={() => navigate('/manager/orders')}
+                className="text-sm text-primary hover:text-primary-light flex items-center gap-1"
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-smooth" />
-                
-                <div className="relative">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-foreground mb-1">Order #{order.order_number}</h3>
-                      <p className="text-sm text-muted-foreground flex items-center gap-2">
-                        <LayoutGrid className="h-4 w-4" />
-                        Table {order.tables?.table_number || 'N/A'}
-                      </p>
+                View All <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="glass-panel p-6 space-y-3">
+              {recentOrders.length === 0 ? (
+                <div className="text-center py-8 text-zinc-500">
+                  <ShoppingCart size={48} className="mx-auto mb-3 opacity-20" />
+                  <p>No recent orders</p>
+                </div>
+              ) : (
+                recentOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all group"
+                  >
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className={`p-3 rounded-xl ${
+                        order.order_status === 'received' ? 'bg-amber-500/10' :
+                        order.order_status === 'preparing' ? 'bg-sky-500/10' :
+                        order.order_status === 'ready' ? 'bg-emerald-500/10' :
+                        'bg-white/5'
+                      }`}>
+                        {getStatusIcon(order.order_status)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-mono-nums font-bold text-white">
+                          #{order.order_number || order.id.slice(0, 8)}
+                        </p>
+                        <p className="text-sm text-zinc-400">
+                          Table {order.tables?.table_number || 'N/A'}
+                        </p>
+                      </div>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-smooth" />
-                  </div>
-
-                  <div className="flex items-center gap-3 mb-5">
-                    <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold capitalize transition-smooth ${
-                      order.order_status === 'preparing' ? 'badge-preparing' :
-                      order.order_status === 'ready' ? 'badge-ready' :
-                      order.order_status === 'received' ? 'badge-available' :
-                      'badge-completed'
-                    }`}>
-                      {order.order_status || 'Pending'}
-                    </span>
-                    <span className="text-xl font-bold text-primary tabular-nums">
-                      {formatCurrency(order.total || 0)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-border">
-                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4" />
-                      {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/manager/orders`);
-                        }}
-                        className="px-4 py-2 text-xs font-semibold border border-border rounded-lg hover:bg-muted transition-smooth"
-                      >
-                        View
-                      </button>
-                      {order.order_status !== 'served' && (
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono-nums font-bold text-white text-lg">
+                        {formatCurrency(order.total)}
+                      </span>
+                      {order.order_status !== 'completed' && order.order_status !== 'cancelled' && (
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Handle update
-                          }}
-                          className="px-4 py-2 text-xs font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-smooth shadow-sm shadow-primary/20"
+                          onClick={() => handleQuickUpdate(order)}
+                          className="glass-button-primary text-sm py-1.5 px-3 opacity-0 md:group-hover:opacity-100 md:opacity-100 transition-opacity"
                         >
-                          Update
+                          {getQuickUpdateLabel(order.order_status)}
                         </button>
                       )}
+                      <ChevronRight className="text-zinc-600 group-hover:text-zinc-400 transition-colors" size={20} />
                     </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                ))
+              )}
+            </div>
           </div>
-        )}
-      </section>
+        </div>
+
+        {/* Sidebar (1 column on desktop) */}
+        <div className="space-y-6">
+          {/* Billing Card */}
+          <BillingWarningCard />
+
+          {/* Admin Links */}
+          <div>
+            <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Admin</h2>
+            <div className="space-y-3">
+              <NavCard
+                icon={BarChart3}
+                title="Analytics"
+                description="Performance insights"
+                onClick={() => navigate('/manager/analytics')}
+                iconColor="text-primary"
+                iconBg="bg-primary/10"
+              />
+              <NavCard
+                icon={FileText}
+                title="Reports"
+                description="Business reports"
+                onClick={() => navigate('/manager/reports')}
+                iconColor="text-emerald-400"
+                iconBg="bg-emerald-500/10"
+              />
+              <NavCard
+                icon={Settings}
+                title="Settings"
+                description="Configuration"
+                onClick={() => navigate('/manager/settings')}
+                iconColor="text-zinc-400"
+                iconBg="bg-zinc-500/10"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
