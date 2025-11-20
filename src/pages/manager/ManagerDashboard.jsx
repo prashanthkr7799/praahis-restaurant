@@ -180,40 +180,6 @@ const ManagerDashboard = () => {
     };
   };
 
-  const handleQuickUpdate = async (e, order) => {
-    e.stopPropagation(); // Prevent row click navigation
-
-    let nextStatus = '';
-    switch (order.order_status) {
-      case 'pending':
-      case 'received':
-        nextStatus = 'preparing';
-        break;
-      case 'preparing':
-        nextStatus = 'ready';
-        break;
-      case 'ready':
-        nextStatus = 'served';
-        break;
-      case 'served':
-        nextStatus = 'completed';
-        break;
-      default:
-        return;
-    }
-
-    try {
-      // Use cascade function to update both order and all items
-      await updateOrderStatusCascade(order.id, nextStatus);
-
-      toast.success(`Order #${order.order_number} and all items updated to ${nextStatus}`);
-      loadDashboardData(); // Refresh data
-    } catch (error) {
-      console.error('Error updating order:', error);
-      toast.error('Failed to update order status');
-    }
-  };
-
   const handleMarkCashPaid = async (e, order) => {
     e.stopPropagation();
     try {
@@ -239,7 +205,7 @@ const ManagerDashboard = () => {
       }
 
       toast.success(`Order #${order.order_number} marked as cash paid`);
-      loadDashboardData();
+      // Real-time will update customer devices - no need to reload dashboard
     } catch (err) {
       console.error('Error marking cash payment:', err);
       toast.error('Failed to confirm cash payment');
@@ -534,18 +500,6 @@ const ManagerDashboard = () => {
                             className="glass-button px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 transition-all md:opacity-0 md:group-hover:opacity-100"
                           >
                             Cash Paid
-                          </button>
-                        )}
-
-                        {/* Quick Update Button */}
-                        {['pending', 'received', 'preparing', 'ready', 'served'].includes(order.order_status) && (
-                          <button
-                            onClick={(e) => handleQuickUpdate(e, order)}
-                            className="glass-button px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-primary/20 hover:text-primary hover:border-primary/30 transition-all md:opacity-0 md:group-hover:opacity-100"
-                          >
-                            {order.order_status === 'ready' ? 'Serve' :
-                              order.order_status === 'served' ? 'Complete' :
-                                'Update'}
                           </button>
                         )}
 
