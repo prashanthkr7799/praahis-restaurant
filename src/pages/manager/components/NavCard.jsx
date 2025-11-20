@@ -1,34 +1,65 @@
-import React from 'react';import React from 'react';
+import React from 'react';import React from 'react';import React from 'react';
+
+import { ChevronRight } from 'lucide-react';
 
 import { ChevronRight } from 'lucide-react';import { ChevronRight } from 'lucide-react';
 
-import { Link } from 'react-router-dom';
-
 const NavCard = ({ icon: Icon, title, description, onClick, iconColor, iconBg }) => {
 
-  return (const NavCard = ({ title, description, icon: Icon, to, color = "violet" }) => {
+  return (import { Link } from 'react-router-dom';
 
-    <button  const colorClasses = {
+    <button
 
-      onClick={onClick}    violet: "group-hover:text-violet-400 group-hover:bg-violet-500/10 group-hover:border-violet-500/20",
+      onClick={onClick}const NavCard = ({ icon: Icon, title, description, onClick, iconColor, iconBg }) => {
 
-      className="glass-panel p-6 text-left hover:bg-white/10 transition-all duration-300 group relative overflow-hidden"    emerald: "group-hover:text-emerald-400 group-hover:bg-emerald-500/10 group-hover:border-emerald-500/20",
+      className="glass-panel p-6 text-left hover:bg-white/10 transition-all duration-300 group relative overflow-hidden"
 
-    >    amber: "group-hover:text-amber-400 group-hover:bg-amber-500/10 group-hover:border-amber-500/20",
+    >  return (const NavCard = ({ title, description, icon: Icon, to, color = "violet" }) => {
 
-      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">    rose: "group-hover:text-rose-400 group-hover:bg-rose-500/10 group-hover:border-rose-500/20",
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
 
-        <Icon size={64} />    sky: "group-hover:text-sky-400 group-hover:bg-sky-500/10 group-hover:border-sky-500/20",
+        <Icon size={64} />    <button  const colorClasses = {
 
-      </div>    cyan: "group-hover:text-cyan-400 group-hover:bg-cyan-500/10 group-hover:border-cyan-500/20",
+      </div>
 
-      <div className="relative z-10 flex items-start justify-between gap-4">  };
+      <div className="relative z-10 flex items-start justify-between gap-4">      onClick={onClick}    violet: "group-hover:text-violet-400 group-hover:bg-violet-500/10 group-hover:border-violet-500/20",
 
         <div className="flex items-start gap-4 flex-1">
 
-          <div className={`p-3 rounded-xl ${iconBg} ${iconColor} flex-shrink-0`}>  return (
+          <div className={`p-3 rounded-xl ${iconBg} ${iconColor} flex-shrink-0`}>      className="glass-panel p-6 text-left hover:bg-white/10 transition-all duration-300 group relative overflow-hidden"    emerald: "group-hover:text-emerald-400 group-hover:bg-emerald-500/10 group-hover:border-emerald-500/20",
 
-            <Icon size={24} />    <Link to={to} className="glass-panel p-6 group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden block h-full">
+            <Icon size={24} />
+
+          </div>    >    amber: "group-hover:text-amber-400 group-hover:bg-amber-500/10 group-hover:border-amber-500/20",
+
+          <div className="flex-1 min-w-0">
+
+            <h3 className="text-lg font-bold text-white mb-1 group-hover:text-glow transition-all">      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">    rose: "group-hover:text-rose-400 group-hover:bg-rose-500/10 group-hover:border-rose-500/20",
+
+              {title}
+
+            </h3>        <Icon size={64} />    sky: "group-hover:text-sky-400 group-hover:bg-sky-500/10 group-hover:border-sky-500/20",
+
+            <p className="text-sm text-zinc-400">{description}</p>
+
+          </div>      </div>    cyan: "group-hover:text-cyan-400 group-hover:bg-cyan-500/10 group-hover:border-cyan-500/20",
+
+        </div>
+
+        <ChevronRight className="text-zinc-600 group-hover:text-primary group-hover:translate-x-1 transition-all flex-shrink-0" size={20} />      <div className="relative z-10 flex items-start justify-between gap-4">  };
+
+      </div>
+
+    </button>        <div className="flex items-start gap-4 flex-1">
+
+  );
+
+};          <div className={`p-3 rounded-xl ${iconBg} ${iconColor} flex-shrink-0`}>  return (
+
+
+
+export default NavCard;            <Icon size={24} />    <Link to={to} className="glass-panel p-6 group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden block h-full">
+
 
           </div>      <div className="flex items-start justify-between mb-4">
 
