@@ -717,7 +717,7 @@ export const getOrderByToken = async (orderToken) => {
 
 // Update order status
 export const updateOrderStatus = async (orderId, status) => {
-  const { data, error } = await supabase
+  const { data, error} = await supabase
     .from('orders')
     .update({ order_status: status, updated_at: new Date().toISOString() })
     .eq('id', orderId)
@@ -726,6 +726,29 @@ export const updateOrderStatus = async (orderId, status) => {
 
   if (error) throw error;
   return data;
+};
+
+// Update order status with cascade to all items
+// This ensures order_status and all item_status fields stay in sync
+export const updateOrderStatusCascade = async (orderId, status) => {
+  const { data, error } = await supabase
+    .rpc('update_order_status_cascade', {
+      p_order_id: orderId,
+      p_new_status: status
+    });
+
+  if (error) {
+    console.error('Error in updateOrderStatusCascade:', error);
+    throw error;
+  }
+
+  // RPC returns array, get first result
+  const result = Array.isArray(data) && data.length > 0 ? data[0] : null;
+  if (!result) {
+    throw new Error('No data returned from cascade update');
+  }
+
+  return result;
 };
 
 // Update order items and totals

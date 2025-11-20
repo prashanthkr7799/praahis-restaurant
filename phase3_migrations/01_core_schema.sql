@@ -249,5 +249,76 @@ DO $$ BEGIN
 END $$;
 
 -- ============================================================================
+-- FUNCTION: Cascade order status to all items
+-- Updates both orders.order_status AND all items[].item_status in one operation
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.update_order_status_cascade(
+  p_order_id UUID,
+  p_new_status TEXT
+)
+RETURNS TABLE (
+  id UUID,
+  order_status TEXT,
+  items JSONB,
+  updated_at TIMESTAMPTZ
+) AS $$
+DECLARE
+  v_items JSONB;
+  v_item JSONB;
+  v_updated_items JSONB := '[]'::JSONB;
+  v_now TIMESTAMPTZ := NOW();
+BEGIN
+  -- Validate status
+  IF p_new_status NOT IN ('pending_payment', 'received', 'preparing', 'ready', 'served', 'cancelled', 'completed') THEN
+    RAISE EXCEPTION 'Invalid order status: %', p_new_status;
+  END IF;
+
+  -- Fetch current items
+  SELECT o.items INTO v_items
+  FROM public.orders o
+  WHERE o.id = p_order_id;
+
+  IF v_items IS NULL THEN
+    RAISE EXCEPTION 'Order not found: %', p_order_id;
+  END IF;
+
+  -- Update each item's status to match order status
+  FOR v_item IN SELECT * FROM jsonb_array_elements(v_items)
+  LOOP
+    -- Set item_status to match order status
+    v_item := jsonb_set(v_item, '{item_status}', to_jsonb(p_new_status));
+    
+    -- Set timestamps based on status
+    IF p_new_status = 'preparing' AND (v_item->>'started_at' IS NULL) THEN
+      v_item := jsonb_set(v_item, '{started_at}', to_jsonb(v_now::TEXT));
+    END IF;
+    
+    IF p_new_status = 'ready' AND (v_item->>'ready_at' IS NULL) THEN
+      v_item := jsonb_set(v_item, '{ready_at}', to_jsonb(v_now::TEXT));
+    END IF;
+    
+    IF p_new_status = 'served' AND (v_item->>'served_at' IS NULL) THEN
+      v_item := jsonb_set(v_item, '{served_at}', to_jsonb(v_now::TEXT));
+    END IF;
+    
+    v_updated_items := v_updated_items || jsonb_build_array(v_item);
+  END LOOP;
+
+  -- Update order with new status and updated items
+  RETURN QUERY
+  UPDATE public.orders o
+  SET 
+    order_status = p_new_status,
+    items = v_updated_items,
+    updated_at = v_now
+  WHERE o.id = p_order_id
+  RETURNING o.id, o.order_status, o.items, o.updated_at;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+COMMENT ON FUNCTION public.update_order_status_cascade IS 
+'Cascades order status updates to all order items. Updates both orders.order_status and all items[].item_status in one atomic operation.';
+
+-- ============================================================================
 -- END CORE SCHEMA
 -- ============================================================================

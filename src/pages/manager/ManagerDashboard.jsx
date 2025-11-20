@@ -26,7 +26,7 @@ import {
   ArrowRight,
   CheckCircle
 } from 'lucide-react';
-import { supabase, createPayment, updatePaymentStatus } from '@shared/utils/api/supabaseClient';
+import { supabase, createPayment, updatePaymentStatus, updateOrderStatusCascade } from '@shared/utils/api/supabaseClient';
 import { formatCurrency } from '@shared/utils/helpers/formatters';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 import toast from 'react-hot-toast';
@@ -202,14 +202,10 @@ const ManagerDashboard = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ order_status: nextStatus })
-        .eq('id', order.id);
+      // Use cascade function to update both order and all items
+      await updateOrderStatusCascade(order.id, nextStatus);
 
-      if (error) throw error;
-
-      toast.success(`Order #${order.order_number} updated to ${nextStatus}`);
+      toast.success(`Order #${order.order_number} and all items updated to ${nextStatus}`);
       loadDashboardData(); // Refresh data
     } catch (error) {
       console.error('Error updating order:', error);
@@ -514,9 +510,16 @@ const ManagerDashboard = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-3 md:gap-6">
-                        <span className="text-sm md:text-base font-bold text-white font-mono-nums tracking-tight">
-                          {formatCurrency(order.total)}
-                        </span>
+                        <div className="text-right">
+                          <span className="text-sm md:text-base font-bold text-white font-mono-nums tracking-tight block">
+                            {formatCurrency(order.total)}
+                          </span>
+                          {order.feedback_submitted && (
+                            <span className="text-[9px] md:text-[10px] text-emerald-400 font-semibold uppercase tracking-wide mt-0.5 block">
+                              Completed ✓
+                            </span>
+                          )}
+                        </div>
 
                         {/* Cash Payment Confirmation */}
                         {order.payment_status !== 'paid' && (
