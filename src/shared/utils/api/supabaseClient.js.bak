@@ -519,50 +519,6 @@ export const clearSharedCart = async (sessionId) => {
  * Subscribe to shared cart updates for real-time sync across devices
  * Returns unsubscribe function
  */
-export const subscribeToSharedCart = (sessionId, callback) => {
-  console.log('🔌 Setting up real-time subscription for session:', sessionId);
-  
-  const channel = supabase
-    .channel(`table-session-${sessionId}`)
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'table_sessions',
-        filter: `id=eq.${sessionId}`
-      },
-      (payload) => {
-        console.log('🔔 Real-time UPDATE received (postgres_changes):', {
-          sessionId,
-          cartItems: payload.new.cart_items,
-          timestamp: payload.new.updated_at
-        });
-        callback(payload.new.cart_items || []);
-      }
-    )
-    .on('broadcast', { event: 'cart_update' }, (payload) => {
-      console.log('📻 Broadcast received (backup method):', payload);
-      if (payload.payload.sessionId === sessionId) {
-        callback(payload.payload.cartItems || []);
-      }
-    })
-    .subscribe((status) => {
-      console.log('📡 Subscription status:', status);
-      if (status === 'SUBSCRIBED') {
-        console.log('✅ Successfully subscribed to cart updates (postgres_changes + broadcast)');
-      } else if (status === 'CHANNEL_ERROR') {
-        console.error('❌ Subscription channel error');
-      } else if (status === 'TIMED_OUT') {
-        console.error('⏱️ Subscription timed out');
-      }
-    });
-
-  return () => {
-    console.log('🔕 Unsubscribing from cart updates');
-    channel.unsubscribe();
-  };
-};
     channel.unsubscribe();
   };
 };
