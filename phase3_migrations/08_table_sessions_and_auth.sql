@@ -210,5 +210,25 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_table_sessions_updated_at ON public.table_sessions;
 CREATE TRIGGER trg_table_sessions_updated_at BEFORE UPDATE ON public.table_sessions FOR EACH ROW EXECUTE FUNCTION public.update_table_sessions_updated_at();
 
+-- Enable Realtime for table_sessions (for shared cart sync across devices)
+-- Set replica identity to FULL so all column changes are broadcast
+ALTER TABLE public.table_sessions REPLICA IDENTITY FULL;
+
+-- Add table to supabase_realtime publication
+DO $$ 
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.table_sessions;
+        RAISE NOTICE '✅ Added table_sessions to supabase_realtime publication';
+    ELSE
+        RAISE NOTICE 'ℹ️ supabase_realtime publication does not exist - will be auto-created by Supabase';
+    END IF;
+EXCEPTION
+    WHEN duplicate_object THEN
+        RAISE NOTICE 'ℹ️ table_sessions already in realtime publication';
+    WHEN OTHERS THEN
+        RAISE NOTICE '⚠️ Could not add to publication: %', SQLERRM;
+END $$;
+
 -- END TABLE SESSIONS
 
