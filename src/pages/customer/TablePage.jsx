@@ -169,7 +169,8 @@ const TablePage = () => {
   };
 
   // Handle checkout
-  const handleCheckout = async () => {
+  // Create order and navigate to payment – only called from cart summary now
+  const handleProceedToPayment = async () => {
     if (cartItems.length === 0) {
       toast.error('Your cart is empty!');
       return;
@@ -189,18 +190,11 @@ const TablePage = () => {
 
     try {
       setSubmittingOrder(true);
-
-      // Prepare order data
-  const orderData = prepareOrderData(cartItems, table, table.restaurant_id);
-
-      // Create order in database
+      const orderData = prepareOrderData(cartItems, table, table.restaurant_id);
       const order = await createOrder(orderData);
-
-      // Clear cart
+      // Clear cart ONLY after order actually created
       clearCart(tableId);
       setCartItems([]);
-
-      // Navigate to payment page
       toast.success('Order created! Proceeding to payment...');
       navigate(`/payment/${order.id}`);
     } catch (err) {
@@ -412,7 +406,7 @@ const TablePage = () => {
                 cartItems={cartItems}
                 onUpdateQuantity={handleUpdateQuantity}
                 onRemoveItem={handleRemoveItem}
-                onCheckout={handleCheckout}
+                onCheckout={handleProceedToPayment}
               />
               {submittingOrder && (
                 <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-gray-900/90">
@@ -463,7 +457,7 @@ const TablePage = () => {
                 cartItems={cartItems}
                 onUpdateQuantity={handleUpdateQuantity}
                 onRemoveItem={handleRemoveItem}
-                onCheckout={handleCheckout}
+                onCheckout={handleProceedToPayment}
                 onClose={!submittingOrder ? () => setShowCart(false) : undefined}
               />
               {submittingOrder && (
@@ -479,28 +473,16 @@ const TablePage = () => {
       {/* Floating Bottom Bar (Mobile) - Cart info and actions */}
       {cartItems.length > 0 && !showCart && (
         <div className="fixed bottom-4 left-4 right-4 z-40 flex items-center gap-3 lg:hidden">
-          {/* Open Cart Button (small) */}
+          {/* Review Order Button (replaces Pay Now + Cart) */}
           <button
             type="button"
-            aria-label="Open cart"
+            aria-label="Review order"
             onClick={() => setShowCart(true)}
-            className="rounded-xl bg-gray-800/80 backdrop-blur px-3 py-3 text-white shadow-xl border border-gray-700 active:scale-95"
-          >
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" />
-              <span className="text-xs font-medium">Cart</span>
-            </div>
-          </button>
-
-          {/* Pay Now Button (primary) */}
-          <button
-            type="button"
-            disabled={submittingOrder}
-            onClick={handleCheckout}
-            className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-3.5 font-semibold text-white shadow-2xl transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-3.5 font-semibold text-white shadow-2xl transition-all active:scale-[0.98]"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
                 <span className="text-sm font-medium">
                   {cartItems.reduce((sum, item) => sum + item.quantity, 0)} items
                 </span>
@@ -510,16 +492,15 @@ const TablePage = () => {
                 </span>
               </div>
               <span className="text-sm font-semibold whitespace-nowrap">
-                {submittingOrder ? 'Creating…' : 'Pay Now →'}
+                Review →
               </span>
             </div>
           </button>
-
-          {/* Call Waiter Button - Compact */}
+          {/* Call Waiter Button - Compact repositioned */}
           <button
             type="button"
+            aria-label="Call waiter"
             onClick={async () => {
-              // Call waiter functionality
               try {
                 const channelName = table?.restaurant_id ? `waiter-alerts-${table.restaurant_id}` : 'waiter-alerts';
                 const channel = supabase.channel(channelName);
@@ -539,7 +520,7 @@ const TablePage = () => {
                     }, 3000);
                   }
                 });
-                toast.success('Waiter has been notified! 🔔', { icon: '👨‍🍳' });
+                toast.success('Waiter notified! 🔔');
               } catch (err) {
                 console.error('Failed to send waiter alert:', err);
               }
