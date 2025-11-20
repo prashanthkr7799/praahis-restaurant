@@ -1,89 +1,37 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@shared/utils/api/supabaseClient';
 import toast from 'react-hot-toast';
-import { QrCode, Plus, RefreshCw, Filter, Grid3x3, List } from 'lucide-react';
-import TableQRCard from '@shared/components/compounds/TableQRCard';
-import BulkQRDownload from '@shared/components/compounds/BulkQRDownload';
-import Modal from '@shared/components/compounds/Modal';
+import { 
+  Plus, 
+  Grid3x3, 
+  List,
+  CheckSquare,
+  Square,
+  Printer,
+  Download,
+  Trash2,
+  CheckCircle,
+  XCircle
+} from 'lucide-react';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
+import QRCode from 'react-qr-code';
 
-/**
- * QR Codes Management Page
- * Enhanced QR code generation and management for all tables
- */
-const QRCodesManagement = () => {
+const QRCodesManagementPage = () => {
   const [tables, setTables] = useState([]);
   const [filteredTables, setFilteredTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTables, setSelectedTables] = useState([]);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-  const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'available', 'occupied'
+  const [viewMode, setViewMode] = useState('grid');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newTableNumber, setNewTableNumber] = useState('');
-  const [newTableCapacity, setNewTableCapacity] = useState('4');
+  const [newTableData, setNewTableData] = useState({ number: '', capacity: '4', zone: 'Main Hall' });
 
   const { restaurantId } = useRestaurant();
-
-  useEffect(() => {
-    if (!restaurantId) {
-      setLoading(false);
-      return;
-    }
-    loadTables();
-
-    // Set up realtime subscription for table status updates
-    const channel = supabase
-      .channel('qr-tables-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tables',
-          filter: `restaurant_id=eq.${restaurantId}`
-        },
-        (payload) => {
-          console.log('Table change detected in QR page:', payload);
-          loadTables();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurantId]);
-
-  const applyFilters = useCallback(() => {
-    let filtered = [...tables];
-
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter((table) =>
-        filterStatus === 'occupied' ? table.status === 'occupied' : table.status === 'available'
-      );
-    }
-
-    setFilteredTables(filtered);
-  }, [tables, filterStatus]);
-
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
 
   const loadTables = async () => {
     try {
       setLoading(true);
-      
-      // Don't query if restaurantId is null
-      if (!restaurantId) {
-        console.warn('Cannot load tables: restaurantId is null');
-        setTables([]);
-        setLoading(false);
-        return;
-      }
-      
       const { data, error } = await supabase
         .from('tables')
         .select('*')
@@ -100,276 +48,331 @@ const QRCodesManagement = () => {
     }
   };
 
-  
+  useEffect(() => {
+    if (restaurantId) loadTables();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantId]);
+
+  useEffect(() => {
+    let filtered = [...tables];
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter((table) =>
+        filterStatus === 'occupied' ? table.status === 'occupied' : table.status === 'available'
+      );
+    }
+    setFilteredTables(filtered);
+  }, [tables, filterStatus]);
 
   const handleAddTable = async () => {
-    if (!newTableNumber.trim()) {
-      toast.error('Please enter a table number');
-      return;
-    }
-
     try {
-      const { data: _data, error } = await supabase
-        .from('tables')
-        .insert({
-          table_number: newTableNumber,
-          capacity: parseInt(newTableCapacity),
-          status: 'available',
-          restaurant_id: restaurantId,
-        })
-        .select()
-        .single();
+      const { error } = await supabase.from('tables').insert([{
+        restaurant_id: restaurantId,
+        table_number: newTableData.number,
+        capacity: parseInt(newTableData.capacity),
+        status: 'available'
+      }]);
 
       if (error) throw error;
-
-      toast.success(`Table ${newTableNumber} added successfully!`);
+      toast.success('Table added successfully');
       setShowAddModal(false);
-      setNewTableNumber('');
-      setNewTableCapacity('4');
+      setNewTableData({ number: '', capacity: '4', zone: 'Main Hall' });
       loadTables();
     } catch (error) {
       console.error('Error adding table:', error);
-      if (error.code === '23505') {
-        toast.error('Table number already exists');
-      } else {
-        toast.error('Failed to add table');
-      }
+      toast.error('Failed to add table');
     }
   };
 
-  const handleSelectTable = (tableId) => {
-    setSelectedTables((prev) =>
-      prev.includes(tableId) ? prev.filter((id) => id !== tableId) : [...prev, tableId]
+  const toggleSelection = (tableId) => {
+    setSelectedTables(prev => 
+      prev.includes(tableId) 
+        ? prev.filter(id => id !== tableId)
+        : [...prev, tableId]
     );
   };
 
-  const handleSelectAll = () => {
+  const selectAll = () => {
     if (selectedTables.length === filteredTables.length) {
       setSelectedTables([]);
     } else {
-      setSelectedTables(filteredTables.map((t) => t.id));
+      setSelectedTables(filteredTables.map(t => t.id));
     }
   };
 
-  const getSelectedTableObjects = () => {
-    return tables.filter((t) => selectedTables.includes(t.id));
+  const getTableUrl = (tableId) => {
+    return `${window.location.origin}/customer/menu/${restaurantId}/${tableId}`;
   };
 
-  if (loading) {
-    return <LoadingSpinner />;
-  }
+  if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <QrCode className="w-8 h-8 text-primary" />
-            QR Code Management
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Generate, download, and print QR codes for all tables
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={loadTables}
-            className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground border border-border rounded-lg hover:opacity-90 transition"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
-          <button
+    <div className="p-4 md:p-8 space-y-8">
+      {/* Header & Stats */}
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-4xl font-bold text-white text-glow tracking-tight">QR Codes</h1>
+            <p className="text-zinc-400 mt-1">Manage tables and generate QR codes</p>
+          </div>
+          <button 
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition"
+            className="glass-button-primary"
           >
-            <Plus className="w-4 h-4" />
-            Add Table
+            <Plus size={20} />
+            <span>Add Table</span>
           </button>
         </div>
-      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card p-6 rounded-lg shadow-sm border border-border">
-          <div className="text-sm text-muted-foreground mb-1">Total Tables</div>
-          <div className="text-3xl font-bold text-foreground">{tables.length}</div>
-        </div>
-        <div className="bg-card p-6 rounded-lg shadow-sm border border-border">
-          <div className="text-sm text-muted-foreground mb-1">Available</div>
-          <div className="text-3xl font-bold text-success">
-            {tables.filter((t) => t.status === 'available').length}
-          </div>
-        </div>
-        <div className="bg-card p-6 rounded-lg shadow-sm border border-border">
-          <div className="text-sm text-muted-foreground mb-1">Occupied</div>
-          <div className="text-3xl font-bold text-warning">
-            {tables.filter((t) => t.status === 'occupied').length}
-          </div>
-        </div>
-        <div className="bg-card p-6 rounded-lg shadow-sm border border-border">
-          <div className="text-sm text-muted-foreground mb-1">Selected</div>
-          <div className="text-3xl font-bold text-primary">{selectedTables.length}</div>
-        </div>
-      </div>
-
-      {/* Bulk Operations */}
-      {tables.length > 0 && (
-        <BulkQRDownload tables={tables} selectedTables={getSelectedTableObjects()} />
-      )}
-
-      {/* Filters and View Controls */}
-      <div className="bg-card rounded-lg shadow-sm border border-border p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          {/* Filters */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground font-medium">Filter:</span>
-            <div className="flex gap-2">
-              {['all', 'available', 'occupied'].map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setFilterStatus(status)}
-                  className={`px-3 py-1 text-sm rounded-lg transition ${
-                    filterStatus === status
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-foreground hover:opacity-90'
-                  }`}
-                >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </button>
-              ))}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="glass-panel p-4 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-zinc-500/10 text-zinc-400">
+              <Grid3x3 size={24} />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white font-mono-nums">{tables.length}</p>
+              <p className="text-xs uppercase tracking-wider text-zinc-500">Total Tables</p>
             </div>
           </div>
-
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground font-medium">View:</span>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-lg transition ${
-                viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
-              }`}
-            >
-              <Grid3x3 className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 rounded-lg transition ${
-                viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
-              }`}
-            >
-              <List className="w-5 h-5" />
-            </button>
+          <div className="glass-panel p-4 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
+              <CheckCircle size={24} />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white font-mono-nums">
+                {tables.filter(t => t.status === 'available').length}
+              </p>
+              <p className="text-xs uppercase tracking-wider text-zinc-500">Available</p>
+            </div>
           </div>
-
-          {/* Select All */}
-          <button
-            onClick={handleSelectAll}
-            className="px-4 py-2 text-sm bg-muted text-foreground border border-border rounded-lg hover:opacity-90 transition"
-          >
-            {selectedTables.length === filteredTables.length ? 'Deselect All' : 'Select All'}
-          </button>
+          <div className="glass-panel p-4 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-rose-500/10 text-rose-400">
+              <XCircle size={24} />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white font-mono-nums">
+                {tables.filter(t => t.status === 'occupied').length}
+              </p>
+              <p className="text-xs uppercase tracking-wider text-zinc-500">Occupied</p>
+            </div>
+          </div>
+          <div className="glass-panel p-4 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-primary/10 text-primary">
+              <CheckSquare size={24} />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white font-mono-nums">{selectedTables.length}</p>
+              <p className="text-xs uppercase tracking-wider text-zinc-500">Selected</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Tables Grid/List */}
-      {filteredTables.length === 0 ? (
-        <div className="bg-card rounded-lg shadow-sm border border-border p-12 text-center">
-          <QrCode className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-foreground mb-2">No tables found</h3>
-          <p className="text-muted-foreground mb-4">
-            {filterStatus !== 'all'
-              ? 'Try changing the filter'
-              : 'Get started by adding your first table'}
-          </p>
-          {filterStatus === 'all' && (
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition"
-            >
-              Add First Table
-            </button>
-          )}
+      {/* Toolbar */}
+      <div className="glass-panel p-4 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setFilterStatus('all')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              filterStatus === 'all' ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            All
+          </button>
+          <button 
+            onClick={() => setFilterStatus('available')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              filterStatus === 'available' ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Available
+          </button>
+          <button 
+            onClick={() => setFilterStatus('occupied')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              filterStatus === 'occupied' ? 'bg-rose-500/10 text-rose-400' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Occupied
+          </button>
         </div>
-      ) : (
-        <div
-          className={
-            viewMode === 'grid'
-              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-              : 'space-y-4'
-          }
-        >
+
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={selectAll}
+            className="text-sm text-zinc-400 hover:text-white transition-colors flex items-center gap-2"
+          >
+            {selectedTables.length === filteredTables.length ? <CheckSquare size={18} /> : <Square size={18} />}
+            Select All
+          </button>
+          <div className="h-6 w-px bg-white/10" />
+          <div className="flex bg-white/5 rounded-lg p-1">
+            <button 
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-zinc-400'}`}
+            >
+              <Grid3x3 size={18} />
+            </button>
+            <button 
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white/10 text-white' : 'text-zinc-400'}`}
+            >
+              <List size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid/List View */}
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredTables.map((table) => (
-            <div key={table.id} className="relative">
-              {/* Selection Checkbox */}
-              <div className="absolute top-4 left-4 z-10">
-                <input
-                  type="checkbox"
-                  checked={selectedTables.includes(table.id)}
-                  onChange={() => handleSelectTable(table.id)}
-                  className="w-5 h-5 text-primary rounded focus:ring-2 focus:ring-info cursor-pointer"
-                />
+            <div 
+              key={table.id}
+              className={`glass-panel p-6 group relative transition-all duration-300 ${
+                selectedTables.includes(table.id) ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-white/10'
+              }`}
+            >
+              <div 
+                className="absolute top-4 right-4 z-10 cursor-pointer"
+                onClick={() => toggleSelection(table.id)}
+              >
+                {selectedTables.includes(table.id) ? (
+                  <CheckSquare className="text-primary" size={20} />
+                ) : (
+                  <Square className="text-zinc-600 group-hover:text-zinc-400" size={20} />
+                )}
               </div>
-              <TableQRCard table={table} onRegenerate={loadTables} />
+
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="text-lg font-bold text-white">Table {table.table_number}</div>
+                <div className="p-4 bg-white rounded-xl">
+                  <QRCode value={getTableUrl(table.id)} size={120} />
+                </div>
+                <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  table.status === 'available' 
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                }`}>
+                  {table.status.toUpperCase()}
+                </div>
+                
+                <div className="flex items-center gap-2 w-full pt-4 border-t border-white/10">
+                  <button className="flex-1 p-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors" title="Print">
+                    <Printer size={18} className="mx-auto" />
+                  </button>
+                  <button className="flex-1 p-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors" title="Download">
+                    <Download size={18} className="mx-auto" />
+                  </button>
+                  <button className="flex-1 p-2 rounded-lg hover:bg-rose-500/10 text-zinc-400 hover:text-rose-400 transition-colors" title="Delete">
+                    <Trash2 size={18} className="mx-auto" />
+                  </button>
+                </div>
+              </div>
             </div>
           ))}
+        </div>
+      ) : (
+        <div className="glass-panel overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-white/5 text-xs uppercase text-zinc-500">
+              <tr>
+                <th className="p-4 w-12">
+                  <button onClick={selectAll}>
+                    {selectedTables.length === filteredTables.length ? <CheckSquare size={16} /> : <Square size={16} />}
+                  </button>
+                </th>
+                <th className="p-4">Table Number</th>
+                <th className="p-4">Capacity</th>
+                <th className="p-4">Status</th>
+                <th className="p-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {filteredTables.map((table) => (
+                <tr key={table.id} className="hover:bg-white/5 transition-colors">
+                  <td className="p-4">
+                    <button onClick={() => toggleSelection(table.id)}>
+                      {selectedTables.includes(table.id) ? (
+                        <CheckSquare size={16} className="text-primary" />
+                      ) : (
+                        <Square size={16} className="text-zinc-600" />
+                      )}
+                    </button>
+                  </td>
+                  <td className="p-4 font-mono-nums text-white font-bold">{table.table_number}</td>
+                  <td className="p-4 text-zinc-400">{table.capacity} Seats</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      table.status === 'available' ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'
+                    }`}>
+                      {table.status}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button className="p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white">
+                        <Printer size={16} />
+                      </button>
+                      <button className="p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white">
+                        <Download size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* Add Table Modal */}
-      <Modal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        title="Add New Table"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Table Number *
-            </label>
-            <input
-              type="number"
-              value={newTableNumber}
-              onChange={(e) => setNewTableNumber(e.target.value)}
-              placeholder="e.g., 1, 2, 3..."
-              className="w-full px-4 py-2 border border-border bg-transparent text-foreground rounded-lg focus:ring-2 focus:ring-info focus:border-transparent"
-            />
-          </div>
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="glass-panel w-full max-w-md p-6 space-y-6 animate-scale-in">
+            <h2 className="text-2xl font-bold text-white">Add New Table</h2>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs uppercase tracking-wider text-zinc-400 font-bold">Table Number</label>
+                <input 
+                  type="text" 
+                  value={newTableData.number}
+                  onChange={(e) => setNewTableData({...newTableData, number: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 outline-none"
+                  placeholder="e.g. T-12"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs uppercase tracking-wider text-zinc-400 font-bold">Capacity</label>
+                <input 
+                  type="number" 
+                  value={newTableData.capacity}
+                  onChange={(e) => setNewTableData({...newTableData, capacity: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 outline-none"
+                  placeholder="4"
+                />
+              </div>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Seating Capacity
-            </label>
-            <input
-              type="number"
-              value={newTableCapacity}
-              onChange={(e) => setNewTableCapacity(e.target.value)}
-              min="1"
-              max="20"
-              className="w-full px-4 py-2 border border-border bg-transparent text-foreground rounded-lg focus:ring-2 focus:ring-info focus:border-transparent"
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              onClick={() => setShowAddModal(false)}
-              className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-muted transition"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleAddTable}
-              className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition"
-            >
-              Add Table
-            </button>
+            <div className="flex gap-4 pt-4">
+              <button 
+                onClick={() => setShowAddModal(false)}
+                className="flex-1 glass-button"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleAddTable}
+                className="flex-1 glass-button-primary"
+              >
+                Add Table
+              </button>
+            </div>
           </div>
         </div>
-      </Modal>
+      )}
     </div>
   );
 };
 
-export default QRCodesManagement;
+export default QRCodesManagementPage;

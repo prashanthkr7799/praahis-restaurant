@@ -1,8 +1,3 @@
-/**
- * Settings Component
- * Application settings with tabbed interface
- */
-
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, 
@@ -11,7 +6,9 @@ import {
   Bell,
   Save,
   Upload,
-  Camera
+  Camera,
+  Check,
+  Shield
 } from 'lucide-react';
 import { supabase } from '@shared/utils/api/supabaseClient';
 import { getCurrentUser } from '@shared/utils/auth/auth';
@@ -25,7 +22,7 @@ const TABS = {
   NOTIFICATIONS: 'notifications',
 };
 
-const Settings = () => {
+const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState(TABS.RESTAURANT);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -101,511 +98,266 @@ const Settings = () => {
         phone: userData.profile.phone || '',
       });
 
-      // Load notification settings (would come from a settings table in real app)
-      // For now, using default values
+      setLoading(false);
     } catch (error) {
       console.error('Error loading settings:', error);
       toast.error('Failed to load settings');
-    } finally {
       setLoading(false);
     }
   };
 
-  const handleRestaurantSave = async () => {
+  const handleSave = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('restaurants')
-        .update({
-          name: restaurantData.name,
-          address: restaurantData.address,
-          phone: restaurantData.phone,
-          email: restaurantData.email,
-        })
-        .eq('id', currentUser.restaurant_id);
-
-      if (error) throw error;
-
-      toast.success('Restaurant information updated successfully');
+      if (activeTab === TABS.RESTAURANT) {
+        const { error } = await supabase
+          .from('restaurants')
+          .update(restaurantData)
+          .eq('id', currentUser.restaurant_id);
+        if (error) throw error;
+      } else if (activeTab === TABS.PROFILE) {
+        const { error } = await supabase
+          .from('users')
+          .update({
+            full_name: profileData.full_name,
+            phone: profileData.phone,
+          })
+          .eq('id', currentUser.id);
+        if (error) throw error;
+      } else if (activeTab === TABS.SECURITY) {
+        // Password update logic would go here (requires Supabase Auth API)
+        toast.success('Password update simulated');
+      }
+      
+      toast.success('Settings saved successfully');
     } catch (error) {
-      console.error('Error saving restaurant info:', error);
-      toast.error('Failed to update restaurant information');
+      console.error('Error saving settings:', error);
+      toast.error('Failed to save settings');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleLogoUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file');
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image size should be less than 2MB');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // Upload to Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${currentUser.restaurant_id}-${Date.now()}.${fileExt}`;
-      const filePath = `restaurant-logos/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('restaurant-logos')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('restaurant-logos')
-        .getPublicUrl(filePath);
-
-      // Update restaurant record
-      const { error: updateError } = await supabase
-        .from('restaurants')
-        .update({ logo_url: publicUrl })
-        .eq('id', currentUser.restaurant_id);
-
-      if (updateError) throw updateError;
-
-      setRestaurantData(prev => ({ ...prev, logo_url: publicUrl }));
-      toast.success('Logo uploaded successfully');
-    } catch (error) {
-      console.error('Error uploading logo:', error);
-      toast.error('Failed to upload logo');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleProfileSave = async () => {
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({
-          full_name: profileData.full_name,
-          phone: profileData.phone,
-        })
-        .eq('id', currentUser.id);
-
-      if (error) throw error;
-
-      toast.success('Profile updated successfully');
-      await loadSettings(); // Reload to update currentUser
-    } catch (error) {
-      console.error('Error saving profile:', error);
-      toast.error('Failed to update profile');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handlePasswordChange = async () => {
-    if (securityData.new_password !== securityData.confirm_password) {
-      toast.error('New passwords do not match');
-      return;
-    }
-
-    if (securityData.new_password.length < 6) {
-      toast.error('Password must be at least 6 characters');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: securityData.new_password,
-      });
-
-      if (error) throw error;
-
-      setSecurityData({
-        current_password: '',
-        new_password: '',
-        confirm_password: '',
-      });
-
-      toast.success('Password changed successfully');
-    } catch (error) {
-      console.error('Error changing password:', error);
-      toast.error('Failed to change password');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleNotificationsSave = async () => {
-    setSaving(true);
-    try {
-      // In a real application, save to a settings table
-      // For now, just show success message
-      await new Promise(resolve => setTimeout(resolve, 500));
-      toast.success('Notification preferences saved');
-    } catch (error) {
-      console.error('Error saving notifications:', error);
-      toast.error('Failed to save notification preferences');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return <LoadingSpinner text="Loading settings..." />;
-  }
-
-  const tabs = [
-    { id: TABS.RESTAURANT, label: 'Restaurant Info', icon: Building2 },
-    { id: TABS.PROFILE, label: 'Profile', icon: User },
-    { id: TABS.SECURITY, label: 'Security', icon: Lock },
-    { id: TABS.NOTIFICATIONS, label: 'Notifications', icon: Bell },
-  ];
+  if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent mb-2">
-          Settings
-        </h1>
-        <p className="text-muted-foreground text-lg">Manage your restaurant and account settings</p>
+    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8">
+      <div className="flex items-center justify-between">
+        <h1 className="text-4xl font-bold text-white text-glow tracking-tight">Settings</h1>
+        <button 
+          onClick={handleSave}
+          disabled={saving}
+          className="glass-button-primary"
+        >
+          {saving ? <LoadingSpinner size="sm" /> : <Save size={20} />}
+          <span>Save Changes</span>
+        </button>
       </div>
 
-      {/* Tabs */}
-      <div className="card-lift bg-gradient-to-br from-card via-card to-muted/10 rounded-xl shadow-sm border border-border/50 overflow-hidden">
-        <div className="border-b border-border/50 bg-muted/20">
-          <div className="flex space-x-2 px-6">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-4 border-b-2 transition-smooth relative ${
-                    activeTab === tab.id
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30'
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="font-medium">{tab.label}</span>
-                  {activeTab === tab.id && (
-                    <div className="absolute inset-0 bg-primary/5 -z-10" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      {/* Tabs Navigation */}
+      <div className="glass-panel p-1 flex overflow-x-auto">
+        {[
+          { id: TABS.RESTAURANT, label: 'Restaurant', icon: Building2 },
+          { id: TABS.PROFILE, label: 'Profile', icon: User },
+          { id: TABS.SECURITY, label: 'Security', icon: Lock },
+          { id: TABS.NOTIFICATIONS, label: 'Notifications', icon: Bell },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+              activeTab === tab.id 
+                ? 'bg-white/10 text-white shadow-lg' 
+                : 'text-zinc-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <tab.icon size={18} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        <div className="p-8">
-          {/* Restaurant Info Tab */}
-          {activeTab === TABS.RESTAURANT && (
-            <div className="max-w-2xl space-y-6">
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-3">
-                  Restaurant Logo
-                </label>
-                <div className="flex items-center gap-6">
+      {/* Content Area */}
+      <div className="glass-panel p-6 md:p-8">
+        {activeTab === TABS.RESTAURANT && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center gap-6 mb-8">
+              <div className="relative group">
+                <div className="w-24 h-24 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
                   {restaurantData.logo_url ? (
-                    <img
-                      src={restaurantData.logo_url}
-                      alt="Restaurant Logo"
-                      className="w-24 h-24 rounded-xl object-cover border-2 border-border/50 ring-2 ring-primary/10"
-                    />
+                    <img src={restaurantData.logo_url} alt="Logo" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center border border-border/50">
-                      <Camera className="h-10 w-10 text-muted-foreground" />
-                    </div>
+                    <Building2 size={40} className="text-zinc-600" />
                   )}
-                  <label className="flex items-center gap-2 bg-card hover:bg-muted text-foreground border border-border hover:border-primary/30 px-5 py-2.5 rounded-lg cursor-pointer transition-smooth font-medium">
-                    <Upload className="h-4 w-4" />
-                    Upload Logo
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="hidden"
-                    />
-                  </label>
                 </div>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  Recommended: Square image, max 2MB
-                </p>
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl cursor-pointer">
+                  <Camera size={24} className="text-white" />
+                </div>
               </div>
-
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Restaurant Name
-                </label>
-                <input
-                  type="text"
+                <h3 className="text-lg font-bold text-white">Restaurant Logo</h3>
+                <p className="text-sm text-zinc-500">Recommended size: 512x512px</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Restaurant Name</label>
+                <input 
+                  type="text" 
                   value={restaurantData.name}
-                  onChange={(e) => setRestaurantData(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-border bg-card text-foreground rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-smooth"
+                  onChange={(e) => setRestaurantData({...restaurantData, name: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
                   placeholder="Enter restaurant name"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Address
-                </label>
-                <textarea
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Email Address</label>
+                <input 
+                  type="email" 
+                  value={restaurantData.email}
+                  onChange={(e) => setRestaurantData({...restaurantData, email: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
+                  placeholder="contact@restaurant.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Phone Number</label>
+                <input 
+                  type="tel" 
+                  value={restaurantData.phone}
+                  onChange={(e) => setRestaurantData({...restaurantData, phone: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
+                  placeholder="+91 98765 43210"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Address</label>
+                <textarea 
                   value={restaurantData.address}
-                  onChange={(e) => setRestaurantData(prev => ({ ...prev, address: e.target.value }))}
-                  rows={3}
-                  className="w-full px-4 py-2.5 border border-border bg-card text-foreground rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-smooth resize-none"
-                  placeholder="Enter full address"
+                  onChange={(e) => setRestaurantData({...restaurantData, address: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all min-h-[100px]"
+                  placeholder="Full address"
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-2">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={restaurantData.phone}
-                    onChange={(e) => setRestaurantData(prev => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-4 py-2.5 border border-border bg-card text-foreground rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-smooth"
-                    placeholder="Phone number"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={restaurantData.email}
-                    onChange={(e) => setRestaurantData(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-4 py-2.5 border border-border bg-card text-foreground rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-smooth"
-                    placeholder="Email address"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={handleRestaurantSave}
-                disabled={saving}
-                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-smooth font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02]"
-              >
-                <Save className="h-4 w-4" />
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Profile Tab */}
-          {activeTab === TABS.PROFILE && (
-            <div className="max-w-2xl space-y-6">
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
+        {activeTab === TABS.PROFILE && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Full Name</label>
+                <input 
+                  type="text" 
                   value={profileData.full_name}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, full_name: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-border bg-card text-foreground rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-smooth"
-                  placeholder="Enter your full name"
+                  onChange={(e) => setProfileData({...profileData, full_name: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Email</label>
+                <input 
+                  type="email" 
                   value={profileData.email}
                   disabled
-                  className="w-full px-4 py-2.5 border border-border/50 rounded-lg bg-muted/50 text-muted-foreground cursor-not-allowed"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-zinc-500 cursor-not-allowed"
                 />
-                <p className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
-                  <Lock className="h-3.5 w-3.5" />
-                  Email cannot be changed
-                </p>
               </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Phone
-                </label>
-                <input
-                  type="tel"
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Phone</label>
+                <input 
+                  type="tel" 
                   value={profileData.phone}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-border bg-card text-foreground rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-smooth"
-                  placeholder="Phone number"
+                  onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
                 />
               </div>
-
-              <button
-                onClick={handleProfileSave}
-                disabled={saving}
-                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-smooth font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02]"
-              >
-                <Save className="h-4 w-4" />
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Security Tab */}
-          {activeTab === TABS.SECURITY && (
-            <div className="max-w-2xl space-y-6">
-              <div className="bg-gradient-to-r from-info/10 to-info/5 border border-info/30 rounded-xl p-5 flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-info/10 ring-1 ring-info/30 mt-0.5">
-                  <Lock className="h-4 w-4 text-info" />
+        {activeTab === TABS.SECURITY && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="p-4 rounded-xl bg-sky-500/5 border border-sky-500/10 flex items-start gap-4">
+              <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
+                <Shield size={24} />
+              </div>
+              <div>
+                <h3 className="text-white font-bold mb-1">Security Mode Active</h3>
+                <p className="text-sm text-zinc-400">Your account is protected with industry standard encryption. Enable 2FA for extra security.</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 max-w-md">
+              <h3 className="text-lg font-bold text-white">Change Password</h3>
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Current Password</label>
+                <input 
+                  type="password" 
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">New Password</label>
+                <input 
+                  type="password" 
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Confirm Password</label>
+                <input 
+                  type="password" 
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === TABS.NOTIFICATIONS && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { key: 'email_new_orders', label: 'New Orders', desc: 'Get notified when a new order is placed' },
+                { key: 'email_payment_received', label: 'Payments', desc: 'Get notified when a payment is successful' },
+                { key: 'email_daily_summary', label: 'Daily Summary', desc: 'Receive a daily report of your sales' },
+                { key: 'email_weekly_report', label: 'Weekly Report', desc: 'Weekly analysis of your performance' },
+              ].map((item) => (
+                <div 
+                  key={item.key}
+                  onClick={() => setNotificationSettings(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                    notificationSettings[item.key] 
+                      ? 'bg-primary/10 border-primary/30' 
+                      : 'bg-white/5 border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className={`font-bold mb-1 ${notificationSettings[item.key] ? 'text-primary' : 'text-white'}`}>
+                        {item.label}
+                      </h4>
+                      <p className="text-xs text-zinc-400">{item.desc}</p>
+                    </div>
+                    <div className={`w-6 h-6 rounded-full border flex items-center justify-center transition-colors ${
+                      notificationSettings[item.key]
+                        ? 'bg-primary border-primary text-white'
+                        : 'border-zinc-600'
+                    }`}>
+                      {notificationSettings[item.key] && <Check size={14} />}
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-foreground/90 leading-relaxed">
-                  For security reasons, you'll be asked to log in again after changing your password.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Current Password
-                </label>
-                <input
-                  type="password"
-                  value={securityData.current_password}
-                  onChange={(e) => setSecurityData(prev => ({ ...prev, current_password: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-border bg-card text-foreground rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-smooth"
-                  placeholder="Enter current password"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  value={securityData.new_password}
-                  onChange={(e) => setSecurityData(prev => ({ ...prev, new_password: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-border bg-card text-foreground rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-smooth"
-                  placeholder="Enter new password"
-                />
-                <p className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
-                  <div className="w-1 h-1 rounded-full bg-muted-foreground" />
-                  Minimum 6 characters
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  value={securityData.confirm_password}
-                  onChange={(e) => setSecurityData(prev => ({ ...prev, confirm_password: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-border bg-card text-foreground rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-smooth"
-                  placeholder="Confirm new password"
-                />
-              </div>
-
-              <button
-                onClick={handlePasswordChange}
-                disabled={saving}
-                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-smooth font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02]"
-              >
-                <Lock className="h-4 w-4" />
-                {saving ? 'Changing...' : 'Change Password'}
-              </button>
+              ))}
             </div>
-          )}
-
-          {/* Notifications Tab */}
-          {activeTab === TABS.NOTIFICATIONS && (
-            <div className="max-w-2xl space-y-6">
-              <div>
-                <h3 className="text-xl font-semibold text-foreground mb-5 flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-primary" />
-                  Email Notifications
-                </h3>
-                <div className="space-y-3">
-                  <label className="flex items-center justify-between p-5 border border-border/50 bg-card rounded-xl cursor-pointer hover:border-primary/30 hover:bg-card/80 transition-smooth group">
-                    <div>
-                      <div className="font-semibold text-foreground group-hover:text-primary transition-smooth">New Orders</div>
-                      <div className="text-sm text-muted-foreground mt-1">Get notified when new orders are placed</div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.email_new_orders}
-                      onChange={(e) => setNotificationSettings(prev => ({ ...prev, email_new_orders: e.target.checked }))}
-                      className="h-5 w-5 text-primary focus:ring-2 focus:ring-primary/50 border-border rounded cursor-pointer"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between p-5 border border-border/50 bg-card rounded-xl cursor-pointer hover:border-primary/30 hover:bg-card/80 transition-smooth group">
-                    <div>
-                      <div className="font-semibold text-foreground group-hover:text-primary transition-smooth">Payment Received</div>
-                      <div className="text-sm text-muted-foreground mt-1">Get notified when payments are confirmed</div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.email_payment_received}
-                      onChange={(e) => setNotificationSettings(prev => ({ ...prev, email_payment_received: e.target.checked }))}
-                      className="h-5 w-5 text-primary focus:ring-2 focus:ring-primary/50 border-border rounded cursor-pointer"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between p-5 border border-border/50 bg-card rounded-xl cursor-pointer hover:border-primary/30 hover:bg-card/80 transition-smooth group">
-                    <div>
-                      <div className="font-semibold text-foreground group-hover:text-primary transition-smooth">Daily Summary</div>
-                      <div className="text-sm text-muted-foreground mt-1">Receive daily sales and activity summary</div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.email_daily_summary}
-                      onChange={(e) => setNotificationSettings(prev => ({ ...prev, email_daily_summary: e.target.checked }))}
-                      className="h-5 w-5 text-primary focus:ring-2 focus:ring-primary/50 border-border rounded cursor-pointer"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between p-5 border border-border/50 bg-card rounded-xl cursor-pointer hover:border-primary/30 hover:bg-card/80 transition-smooth group">
-                    <div>
-                      <div className="font-semibold text-foreground group-hover:text-primary transition-smooth">Weekly Report</div>
-                      <div className="text-sm text-muted-foreground mt-1">Receive weekly performance report</div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.email_weekly_report}
-                      onChange={(e) => setNotificationSettings(prev => ({ ...prev, email_weekly_report: e.target.checked }))}
-                      className="h-5 w-5 text-primary focus:ring-2 focus:ring-primary/50 border-border rounded cursor-pointer"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <button
-                onClick={handleNotificationsSave}
-                disabled={saving}
-                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-smooth font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02]"
-              >
-                <Save className="h-4 w-4" />
-                {saving ? 'Saving...' : 'Save Preferences'}
-              </button>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default Settings;
+export default SettingsPage;

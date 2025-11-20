@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,86 +7,99 @@
 @layer base {
   :root {
     font-family: "Inter", sans-serif;
-    font-weight: 400;
     
-    /* Professional Dark Theme - Design tokens (HSL) */
-    /* Base - Deep Charcoal Palette */
-    --background: 216 28% 7%;           /* Deep charcoal #0F1419 */
-    --foreground: 0 0% 98%;             /* Near-white #FAFAFA */
-    --card: 217 28% 10%;                /* Elevated charcoal #171D25 */
-    --card-foreground: 0 0% 98%;        /* Near-white */
-    --muted: 217 28% 14%;               /* Secondary surface #1E252E */
-    --muted-foreground: 215 16% 65%;    /* Muted gray #9CA3AF */
-    --border: 217 28% 18%;              /* Subtle border #262E3A */
-    --input: 217 28% 18%;               /* Input background */
-    --ring: 16 100% 62%;                /* Coral focus ring */
+    /* Deep Space Glass Theme */
+    --background: 222 47% 11%; /* Slate 950 #020617 */
+    --foreground: 210 40% 98%; /* Zinc 50 */
+    
+    --primary: 263 87% 66%;    /* Vivid Violet #8B5CF6 */
+    --primary-foreground: 0 0% 100%;
+    
+    --success: 151 84% 39%;    /* Emerald #10B981 */
+    --warning: 38 92% 50%;     /* Amber #F59E0B */
+    --danger: 343 88% 60%;     /* Rose #F43F5E */
+    --info: 199 89% 48%;       /* Sky #0EA5E9 */
+    --accent: 189 94% 43%;     /* Cyan #06B6D4 */
+    
+    --muted: 217 28% 14%;
+    --muted-foreground: 215 16% 65%;
+    
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    
+    --border: 217 28% 18%;
+    --input: 217 28% 18%;
+    --ring: 263 87% 66%;
+    
+    --radius: 0.75rem;
+  }
 
-    /* Brand - Vibrant Coral Accent */
-    --primary: 16 100% 62%;             /* Vibrant coral #FF6B3D */
-    --primary-foreground: 0 0% 100%;    /* Pure white */
-
-    /* Accent - Emerald Green */
-    --accent: 142 76% 36%;              /* Emerald #22C55E */
-    --accent-foreground: 0 0% 100%;     /* Pure white */
-
-    /* Semantic Colors */
-    --success: 142 76% 36%;             /* Emerald green #22C55E */
-    --success-foreground: 0 0% 100%;
-    --success-light: 142 76% 36% / 0.15;
-    
-    --warning: 38 92% 50%;              /* Bright amber #F59E0B */
-    --warning-foreground: 0 0% 0%;
-    --warning-light: 38 92% 50% / 0.15;
-    
-    --info: 199 89% 48%;                /* Sky blue #0EA5E9 */
-    --info-foreground: 0 0% 100%;
-    --info-light: 199 89% 48% / 0.15;
-    
-    --destructive: 0 84% 60%;           /* Red #EF4444 */
-    --destructive-foreground: 0 0% 100%;
-    --destructive-light: 0 84% 60% / 0.15;
-    
-    --upgrade: 271 81% 56%;             /* Purple - upgrade actions */
-    --upgrade-foreground: 0 0% 100%;
-    --upgrade-light: 271 81% 56% / 0.15;
-    
-    /* Customer Page - Dark Premium Theme */
-    --customer-bg: 220 15% 8%;          /* Deep slate navy background */
-    --customer-card: 220 15% 20%;       /* Lighter slate for cards */
-    --customer-primary: 25 95% 53%;     /* Vibrant orange (#FF8C42) */
-    --customer-success: 142 76% 36%;    /* Green for veg indicators */
-    --customer-rating: 45 93% 47%;      /* Yellow for star ratings */
-    --customer-foreground: 0 0% 98%;    /* Near-white text */
-    --customer-border: 220 15% 30%;     /* Subtle border */
-    
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --shadow-premium: 0 10px 30px -5px rgb(0 0 0 / 0.3);
-    
-    /* Border Radius */
-    --radius: 0.75rem;  /* 12px - consistent roundness */
+  body {
+    @apply bg-slate-950 text-zinc-400 antialiased;
+    background-image: radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.15), transparent 40%);
+    min-height: 100vh;
   }
   
-  body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-
-  /* Global form control legibility */
-  input, select, textarea {
-    color: hsl(var(--foreground));
-    background-color: transparent;
-  }
-  input::placeholder, textarea::placeholder {
-    color: hsl(var(--muted-foreground));
-    opacity: 0.9; /* Increase placeholder visibility */
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-white font-bold tracking-tight;
   }
 }
 
 @layer components {
+  .glass-panel {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-xl rounded-xl;
+    transition: background-color 0.2s, border-color 0.2s;
+  }
+  
+  .glass-panel:hover {
+    @apply bg-white/10 border-white/20;
+  }
+
+  .glass-button {
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2;
+    @apply bg-white/5 border border-white/10 text-zinc-300;
+  }
+  
+  .glass-button:hover {
+    @apply bg-white/10 text-white border-white/20;
+  }
+  
+  .glass-button-primary {
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-200 flex items-center justify-center gap-2;
+    @apply bg-gradient-to-r from-violet-600 to-violet-500 text-white shadow-lg shadow-violet-500/20;
+  }
+  
+  .glass-button-primary:hover {
+    @apply brightness-110 -translate-y-0.5 shadow-violet-500/30;
+  }
+  
+  .text-glow {
+    text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+  }
+  
+  .font-mono-nums {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Scrollbar styling for dark theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-950;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-white/20;
+  }
+
   /* Uiverse.io (Priyanshu02020) login styles - scoped */
   .uiverse-priyanshu .container {
     --form-width: 360px;
