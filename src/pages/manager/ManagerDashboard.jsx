@@ -500,9 +500,16 @@ const ManagerDashboard = () => {
                         </div>
                         <div>
                           <h4 className="text-sm md:text-base font-bold text-white font-mono-nums tracking-tight">#{order.order_number}</h4>
-                          <p className="text-[10px] md:text-xs text-zinc-400 mt-0.5 md:mt-1 font-medium">
-                            Table {order.tables?.table_number || 'N/A'}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-[10px] md:text-xs text-zinc-400 mt-0.5 md:mt-1 font-medium">
+                              Table {order.tables?.table_number || 'N/A'}
+                            </p>
+                            {order.feedback_submitted && (
+                              <span className="text-[9px] md:text-[10px] px-1.5 md:px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold uppercase tracking-wide">
+                                Feedback ✓
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 md:gap-6">

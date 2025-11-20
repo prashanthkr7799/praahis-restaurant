@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS public.table_sessions (
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   ended_at TIMESTAMPTZ,
   status TEXT DEFAULT 'active' CHECK (status IN ('active','completed','cancelled')),
+  cart_items JSONB DEFAULT '[]'::jsonb, -- Shared cart for all devices at this table
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -27,7 +28,19 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Add cart_items column for shared cart (idempotent)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name='table_sessions' AND column_name='cart_items'
+  ) THEN
+    ALTER TABLE public.table_sessions ADD COLUMN cart_items JSONB DEFAULT '[]'::jsonb;
+    UPDATE public.table_sessions SET cart_items = '[]'::jsonb WHERE cart_items IS NULL;
+  END IF;
+END $$;
+
 COMMENT ON COLUMN public.table_sessions.last_activity_at IS 'Timestamp of last customer activity (menu browse, cart update, etc.) - used for 5-minute timeout';
+COMMENT ON COLUMN public.table_sessions.cart_items IS 'Shared cart JSONB array synced across all devices at this table';
 
 -- Add session_id columns if missing
 DO $$ BEGIN

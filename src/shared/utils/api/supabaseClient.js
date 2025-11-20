@@ -400,6 +400,108 @@ export const forceReleaseTableSession = async (sessionId = null, tableId = null)
   }
 };
 
+// =============================================
+// Shared Cart Management (Multi-Device Sync)
+// =============================================
+
+/**
+ * Get shared cart from table_sessions.cart_items
+ * All devices at the same table see the same cart
+ */
+export const getSharedCart = async (sessionId) => {
+  try {
+    const { data, error } = await supabase
+      .from('table_sessions')
+      .select('cart_items')
+      .eq('id', sessionId)
+      .eq('status', 'active')
+      .single();
+
+    if (error) throw error;
+    
+    return data?.cart_items || [];
+  } catch (err) {
+    console.error('❌ Error getting shared cart:', err);
+    return [];
+  }
+};
+
+/**
+ * Update shared cart in table_sessions.cart_items
+ * Updates propagate to all devices via real-time subscription
+ */
+export const updateSharedCart = async (sessionId, cartItems) => {
+  try {
+    const { data, error } = await supabase
+      .from('table_sessions')
+      .update({ 
+        cart_items: cartItems,
+        last_activity_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId)
+      .eq('status', 'active')
+      .select();
+
+    if (error) throw error;
+    
+    return data?.[0]?.cart_items || [];
+  } catch (err) {
+    console.error('❌ Error updating shared cart:', err);
+    throw err;
+  }
+};
+
+/**
+ * Clear shared cart (after order creation)
+ */
+export const clearSharedCart = async (sessionId) => {
+  try {
+    const { error } = await supabase
+      .from('table_sessions')
+      .update({ 
+        cart_items: [],
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId)
+      .eq('status', 'active');
+
+    if (error) throw error;
+    
+    return true;
+  } catch (err) {
+    console.error('❌ Error clearing shared cart:', err);
+    return false;
+  }
+};
+
+/**
+ * Subscribe to shared cart updates for real-time sync across devices
+ * Returns unsubscribe function
+ */
+export const subscribeToSharedCart = (sessionId, callback) => {
+  const channel = supabase
+    .channel(`table-session-${sessionId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'table_sessions',
+        filter: `id=eq.${sessionId}`
+      },
+      (payload) => {
+        console.log('🔄 Cart updated:', payload.new.cart_items);
+        callback(payload.new.cart_items || []);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    channel.unsubscribe();
+  };
+};
+
 // Fetch menu items
 export const getMenuItems = async (restaurantId) => {
   const rid = resolveRestaurantId(restaurantId);

@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ShoppingCart, ArrowLeft, Search, X, Bell } from 'lucide-react';
 import { AnimatePresence, m } from 'framer-motion';
 // Mark 'm' as used for ESLint while also enabling JSX usage like <m.div>
 const MOTION = m;
 import toast from 'react-hot-toast';
-import { getTable, getMenuItems, createOrder, markTableOccupied, supabase, getOrCreateActiveSessionId } from '@shared/utils/api/supabaseClient';
-import { getCart, saveCart, clearCart, getSession, saveSession } from '@/shared/utils/helpers/localStorage';
+import { getTable, getMenuItems, createOrder, markTableOccupied, supabase, getOrCreateActiveSessionId, getSharedCart, updateSharedCart, clearSharedCart, subscribeToSharedCart } from '@shared/utils/api/supabaseClient';
+import { getSession, saveSession } from '@/shared/utils/helpers/localStorage';
 import { startSessionTracking, stopSessionTracking } from '@/shared/utils/helpers/sessionActivityTracker';
 import { groupByCategory, getCategories, prepareOrderData } from '@domains/ordering/utils/orderHelpers';
 import MenuItem from '@domains/ordering/components/MenuItem';
@@ -34,6 +34,8 @@ const TablePage = () => {
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const isUpdatingFromRemote = useRef(false);
 
   // Load initial data and mark table as occupied
   // Ensure RestaurantContext is set from ?restaurant=slug before loading
@@ -49,10 +51,6 @@ const TablePage = () => {
     // Customer pages don't need restaurant context - load data directly
     console.log('🔵 useEffect triggered - starting loadData()');
     loadData();
-    
-    // Load cart from localStorage
-    const savedCart = getCart(tableId);
-    setCartItems(savedCart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId]);
 
@@ -93,6 +91,22 @@ const TablePage = () => {
         saveSession(tableId, currentSessionId);
       }
 
+      setSessionId(currentSessionId);
+
+      // Load shared cart from database
+      if (currentSessionId) {
+        try {
+          const sharedCart = await getSharedCart(currentSessionId);
+          if (sharedCart && Array.isArray(sharedCart)) {
+            setCartItems(sharedCart);
+            console.log('🛒 Loaded shared cart:', sharedCart.length, 'items');
+          }
+        } catch (err) {
+          console.error('Failed to load shared cart:', err);
+          // Continue without cart - user can still add items
+        }
+      }
+
       // Start activity tracking for this session
       if (currentSessionId) {
         console.log('🟢 Starting session activity tracking:', currentSessionId);
@@ -121,8 +135,40 @@ const TablePage = () => {
     };
   }, []);
 
+  // Subscribe to shared cart updates
+  useEffect(() => {
+    if (!sessionId) return;
+
+    console.log('🔔 Subscribing to shared cart updates for session:', sessionId);
+    
+    const unsubscribe = subscribeToSharedCart(sessionId, (updatedCart) => {
+      console.log('📥 Received cart update from remote:', updatedCart);
+      isUpdatingFromRemote.current = true;
+      setCartItems(updatedCart || []);
+      // Reset flag after state update completes
+      setTimeout(() => {
+        isUpdatingFromRemote.current = false;
+      }, 100);
+    });
+
+    return () => {
+      console.log('🔕 Unsubscribing from shared cart');
+      if (unsubscribe) unsubscribe();
+    };
+  }, [sessionId]);
+
   // Handle add to cart
-  const handleAddToCart = (item) => {
+  const handleAddToCart = async (item) => {
+    if (!sessionId) {
+      toast.error('Session not initialized. Please refresh the page.');
+      return;
+    }
+
+    // Skip if update is from remote device
+    if (isUpdatingFromRemote.current) {
+      return;
+    }
+
     const existingItemIndex = cartItems.findIndex(cartItem => cartItem.id === item.id);
     let newCart;
 
@@ -138,16 +184,29 @@ const TablePage = () => {
       newCart = [...cartItems, item];
     }
 
+    // Optimistic update
     setCartItems(newCart);
-    saveCart(tableId, newCart);
-    toast.success(`${item.name} added to cart!`);
+
+    // Save to database
+    try {
+      await updateSharedCart(sessionId, newCart);
+      toast.success(`${item.name} added to cart!`);
+    } catch (err) {
+      console.error('Failed to update shared cart:', err);
+      // Rollback on error
+      setCartItems(cartItems);
+      toast.error('Failed to update cart. Please try again.');
+    }
     
     // Do NOT auto-open cart on mobile - let user use the bottom button instead
     // This provides better UX and control
   };
 
   // Handle update quantity
-  const handleUpdateQuantity = (itemId, newQuantity) => {
+  const handleUpdateQuantity = async (itemId, newQuantity) => {
+    if (!sessionId) return;
+    if (isUpdatingFromRemote.current) return;
+
     if (newQuantity <= 0) {
       handleRemoveItem(itemId);
       return;
@@ -156,16 +215,37 @@ const TablePage = () => {
     const newCart = cartItems.map(item =>
       item.id === itemId ? { ...item, quantity: newQuantity } : item
     );
+
+    // Optimistic update
     setCartItems(newCart);
-    saveCart(tableId, newCart);
+
+    try {
+      await updateSharedCart(sessionId, newCart);
+    } catch (err) {
+      console.error('Failed to update cart quantity:', err);
+      setCartItems(cartItems);
+      toast.error('Failed to update quantity');
+    }
   };
 
   // Handle remove item
-  const handleRemoveItem = (itemId) => {
+  const handleRemoveItem = async (itemId) => {
+    if (!sessionId) return;
+    if (isUpdatingFromRemote.current) return;
+
     const newCart = cartItems.filter(item => item.id !== itemId);
+
+    // Optimistic update
     setCartItems(newCart);
-    saveCart(tableId, newCart);
-    toast.success('Item removed from cart');
+
+    try {
+      await updateSharedCart(sessionId, newCart);
+      toast.success('Item removed from cart');
+    } catch (err) {
+      console.error('Failed to remove item:', err);
+      setCartItems(cartItems);
+      toast.error('Failed to remove item');
+    }
   };
 
   // Handle checkout
@@ -188,6 +268,11 @@ const TablePage = () => {
       return;
     }
 
+    if (!sessionId) {
+      toast.error('Session not initialized. Please refresh the page.');
+      return;
+    }
+
     try {
       setSubmittingOrder(true);
       toast.dismiss('order-progress');
@@ -198,8 +283,11 @@ const TablePage = () => {
       if (!order || !order.id) {
         throw new Error('Order response missing ID');
       }
-      clearCart(tableId);
+
+      // Clear shared cart in database
+      await clearSharedCart(sessionId);
       setCartItems([]);
+
       toast.success('Order created! Redirecting to payment...', { id: 'order-progress' });
       setShowCart(false); // Close sheet to avoid overlay blocking navigation perception
       navigate(`/payment/${order.id}`);
