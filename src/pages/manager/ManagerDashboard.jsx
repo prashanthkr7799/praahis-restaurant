@@ -1,29 +1,29 @@
 /**
- * Manager Dashboard - Deep Space Glass Redesign
- * Premium dark-mode dashboard with glassmorphism, neon accents, and mobile-first responsiveness
+ * Manager Dashboard - Complete Redesign
+ * Modern dashboard with organized sections, quick actions, and enhanced UX
  */
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  TrendingUp, 
+import {
+  TrendingUp,
   TrendingDown,
-  ShoppingCart, 
-  Users, 
-  DollarSign, 
-  RefreshCw, 
-  UtensilsCrossed, 
-  CreditCard, 
-  QrCode, 
-  BarChart3, 
-  Settings, 
+  ShoppingCart,
+  Users,
+  DollarSign,
+  RefreshCw,
+  UtensilsCrossed,
+  CreditCard,
+  QrCode,
+  BarChart3,
+  Settings,
   FileText,
   Plus,
   LayoutGrid,
   Bell,
   ChevronRight,
   Clock,
-  AlertCircle,
+  ArrowRight,
   CheckCircle
 } from 'lucide-react';
 import { supabase } from '@shared/utils/api/supabaseClient';
@@ -31,13 +31,10 @@ import { formatCurrency } from '@shared/utils/helpers/formatters';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 import toast from 'react-hot-toast';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
-import StatCard from './components/StatCard';
-import NavCard from './components/NavCard';
 import BillingWarningCard from '@domains/billing/components/BillingWarningCard';
 
 const ManagerDashboard = () => {
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     todayRevenue: 0,
     todayOrders: 0,
@@ -62,16 +59,20 @@ const ManagerDashboard = () => {
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
     try {
+      // Get today's date range
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Get yesterday's date range
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
 
+      // Fetch today's orders
       const { data: todayOrders, error: ordersError } = await supabase
         .from('orders')
         .select('*')
@@ -81,6 +82,7 @@ const ManagerDashboard = () => {
 
       if (ordersError) throw ordersError;
 
+      // Fetch yesterday's orders
       const { data: yesterdayOrders, error: yesterdayOrdersError } = await supabase
         .from('orders')
         .select('*')
@@ -90,6 +92,7 @@ const ManagerDashboard = () => {
 
       if (yesterdayOrdersError) throw yesterdayOrdersError;
 
+      // Calculate revenues
       const todayRevenue = todayOrders
         ?.filter((o) => o.payment_status === 'paid')
         .reduce((sum, o) => sum + (o.total || 0), 0) || 0;
@@ -98,6 +101,7 @@ const ManagerDashboard = () => {
         ?.filter((o) => o.payment_status === 'paid')
         .reduce((sum, o) => sum + (o.total || 0), 0) || 0;
 
+      // Active orders (today and yesterday)
       const { data: activeOrdersToday, error: activeTodayError } = await supabase
         .from('orders')
         .select('id')
@@ -117,6 +121,7 @@ const ManagerDashboard = () => {
 
       if (activeYesterdayError) throw activeYesterdayError;
 
+      // Total staff
       const { data: staff, error: staffError } = await supabase
         .from('users')
         .select('id')
@@ -125,6 +130,7 @@ const ManagerDashboard = () => {
 
       if (staffError) throw staffError;
 
+      // Recent orders
       const { data: recent, error: recentError } = await supabase
         .from('orders')
         .select(`
@@ -163,75 +169,51 @@ const ManagerDashboard = () => {
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadDashboardData();
-    setRefreshing(false);
-    toast.success('Dashboard refreshed');
-  };
-
-  const handleQuickUpdate = async (order) => {
-    try {
-      const statusFlow = {
-        'received': 'preparing',
-        'preparing': 'ready',
-        'ready': 'served',
-        'served': 'completed'
-      };
-
-      const newStatus = statusFlow[order.order_status];
-      if (!newStatus) {
-        toast.error('Order cannot be updated further');
-        return;
-      }
-
-      const { error } = await supabase
-        .from('orders')
-        .update({ order_status: newStatus })
-        .eq('id', order.id);
-
-      if (error) throw error;
-
-      toast.success(`Order updated to ${newStatus}`);
-      loadDashboardData();
-    } catch (error) {
-      console.error('Error updating order:', error);
-      toast.error('Failed to update order');
-    }
-  };
-
-  const getQuickUpdateLabel = (status) => {
-    const labels = {
-      'received': 'Start Prep',
-      'preparing': 'Mark Ready',
-      'ready': 'Serve',
-      'served': 'Complete'
-    };
-    return labels[status] || 'Update';
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'received':
-        return <Clock className="text-amber-400" size={20} />;
-      case 'preparing':
-        return <RefreshCw className="text-sky-400" size={20} />;
-      case 'ready':
-        return <Bell className="text-emerald-400" size={20} />;
-      case 'served':
-        return <CheckCircle className="text-emerald-400" size={20} />;
-      default:
-        return <AlertCircle className="text-zinc-400" size={20} />;
-    }
-  };
-
   const calculateTrend = (current, previous) => {
     if (previous === 0) return { trend: 0, isPositive: true };
     const change = ((current - previous) / previous) * 100;
     return {
-      trend: Math.abs(change).toFixed(1) + '%',
+      trend: Math.abs(change).toFixed(1),
       isPositive: change >= 0,
     };
+  };
+
+  const handleQuickUpdate = async (e, order) => {
+    e.stopPropagation(); // Prevent row click navigation
+
+    let nextStatus = '';
+    switch (order.order_status) {
+      case 'pending':
+      case 'received':
+        nextStatus = 'preparing';
+        break;
+      case 'preparing':
+        nextStatus = 'ready';
+        break;
+      case 'ready':
+        nextStatus = 'served';
+        break;
+      case 'served':
+        nextStatus = 'completed';
+        break;
+      default:
+        return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ order_status: nextStatus })
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      toast.success(`Order #${order.order_number} updated to ${nextStatus}`);
+      loadDashboardData(); // Refresh data
+    } catch (error) {
+      console.error('Error updating order:', error);
+      toast.error('Failed to update order status');
+    }
   };
 
   if (loading) {
@@ -246,282 +228,333 @@ const ManagerDashboard = () => {
   const ordersTrend = calculateTrend(stats.todayOrders, stats.yesterdayOrders);
   const activeTrend = calculateTrend(stats.activeOrders, stats.yesterdayActiveOrders);
 
-  return (
-    <div className="min-h-screen p-4 md:p-8">
-      {/* Header Section */}
-      <div className="mb-8 space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-4xl font-bold text-white text-glow tracking-tight">Dashboard</h1>
-            <div className="flex items-center gap-2 mt-2 text-zinc-400 text-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-              </span>
-              <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-            </div>
-          </div>
-
-          {/* Desktop Actions */}
-          <div className="hidden md:flex items-center gap-3">
-            <button 
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="glass-button"
-            >
-              <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
-              <span>Refresh</span>
-            </button>
-            <button 
-              onClick={() => navigate('/manager/orders')}
-              className="glass-button-primary"
-            >
-              <Plus size={18} />
-              <span>New Order</span>
-            </button>
-          </div>
+  // Component for quick action buttons
+  // eslint-disable-next-line no-unused-vars
+  const QuickAction = ({ icon: IconComponent, label, onClick, badge, color = "text-primary" }) => {
+    return (
+      <button
+        onClick={onClick}
+        className="flex flex-col items-center gap-2 min-w-[72px] p-2 rounded-2xl hover:bg-white/5 transition-all active:scale-95 group border border-transparent hover:border-white/5"
+      >
+        <div className={`p-3 rounded-xl bg-white/5 border border-white/5 group-hover:border-white/20 transition-all relative shadow-lg ${color.replace('text-', 'shadow-')}/20`}>
+          <IconComponent className={`h-5 w-5 md:h-6 md:w-6 ${color} drop-shadow-md`} />
+          {badge > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 h-4 w-4 md:h-5 md:w-5 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold ring-2 ring-black shadow-lg shadow-rose-500/50">
+              {badge}
+            </span>
+          )}
         </div>
+        <span className="text-[10px] md:text-xs font-medium text-zinc-400 group-hover:text-white transition-colors text-center whitespace-nowrap">
+          {label}
+        </span>
+      </button>
+    );
+  };
 
-        {/* Mobile Quick Actions (Mobile Only) */}
-        <div className="md:hidden overflow-x-auto pb-2 -mx-4 px-4">
-          <div className="flex gap-3 min-w-max">
-            <button
-              onClick={() => navigate('/manager/orders')}
-              className="glass-panel px-4 py-3 flex flex-col items-center gap-2 min-w-[80px] hover:bg-white/10 transition-all"
-            >
-              <Plus size={20} className="text-primary" />
-              <span className="text-xs text-zinc-300">New Order</span>
-            </button>
-            <button
-              onClick={() => navigate('/manager/tables')}
-              className="glass-panel px-4 py-3 flex flex-col items-center gap-2 min-w-[80px] hover:bg-white/10 transition-all"
-            >
-              <LayoutGrid size={20} className="text-sky-400" />
-              <span className="text-xs text-zinc-300">Tables</span>
-            </button>
-            <button
-              onClick={() => navigate('/manager/reports')}
-              className="glass-panel px-4 py-3 flex flex-col items-center gap-2 min-w-[80px] hover:bg-white/10 transition-all"
-            >
-              <BarChart3 size={20} className="text-emerald-400" />
-              <span className="text-xs text-zinc-300">Reports</span>
-            </button>
-            <button
-              onClick={() => navigate('/manager/billing')}
-              className="glass-panel px-4 py-3 flex flex-col items-center gap-2 min-w-[80px] hover:bg-white/10 transition-all"
-            >
-              <CreditCard size={20} className="text-amber-400" />
-              <span className="text-xs text-zinc-300">Billing</span>
-            </button>
-            <button
-              onClick={handleRefresh}
-              className="glass-panel px-4 py-3 flex flex-col items-center gap-2 min-w-[80px] hover:bg-white/10 transition-all"
-            >
-              <RefreshCw size={20} className={`text-zinc-400 ${refreshing ? 'animate-spin' : ''}`} />
-              <span className="text-xs text-zinc-300">Refresh</span>
-            </button>
-          </div>
+  // Component for stat cards
+  // eslint-disable-next-line no-unused-vars
+  const StatCard = ({ title, value, subtext, icon: IconComponent, trend, color = "text-white" }) => (
+    <div className="glass-panel p-4 md:p-6 rounded-2xl group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden border border-white/10">
+      <div className={`absolute -right-6 -top-6 opacity-10 group-hover:opacity-20 transition-opacity duration-500`}>
+        <IconComponent className={`h-24 w-24 md:h-32 md:w-32 ${color}`} />
+      </div>
+
+      <div className="flex items-center justify-between mb-3 md:mb-4 relative z-10">
+        <p className="text-[10px] md:text-xs font-bold text-zinc-400 uppercase tracking-widest">{title}</p>
+        <div className={`p-1.5 md:p-2 rounded-lg bg-white/5 border border-white/5 ${color}`}>
+          <IconComponent className="h-3.5 w-3.5 md:h-4 md:w-4" />
         </div>
       </div>
 
-      {/* Main Layout: 3-column on desktop, stacked on mobile */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content (2 columns on desktop) */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* KPI Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              icon={DollarSign}
-              label="Today's Revenue"
-              value={formatCurrency(stats.todayRevenue)}
-              change={revenueTrend.trend}
-              changeType={revenueTrend.isPositive ? 'up' : 'down'}
-              iconColor="text-emerald-400"
-              iconBg="bg-emerald-500/10"
-            />
-            <StatCard
-              icon={ShoppingCart}
-              label="Orders"
-              value={stats.todayOrders}
-              change={ordersTrend.trend}
-              changeType={ordersTrend.isPositive ? 'up' : 'down'}
-              iconColor="text-sky-400"
-              iconBg="bg-sky-500/10"
-            />
-            <StatCard
-              icon={Clock}
-              label="Active"
-              value={stats.activeOrders}
-              change={activeTrend.trend}
-              changeType={activeTrend.isPositive ? 'up' : 'down'}
-              iconColor="text-amber-400"
-              iconBg="bg-amber-500/10"
-            />
-            <StatCard
-              icon={Users}
-              label="Staff"
-              value={stats.totalStaff}
-              iconColor="text-primary"
-              iconBg="bg-primary/10"
-            />
+      <div className="flex flex-col md:flex-row md:items-end justify-between relative z-10 gap-2 md:gap-0">
+        <div>
+          <h3 className="text-2xl md:text-3xl font-bold text-white font-mono-nums tracking-tight drop-shadow-lg">{value}</h3>
+          {subtext && <p className="text-[10px] md:text-xs text-zinc-400 mt-1 font-medium">{subtext}</p>}
+        </div>
+        {trend && (
+          <div className={`self-start md:self-auto flex items-center gap-1 text-[10px] md:text-xs font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded-lg backdrop-blur-md border border-white/5 ${trend.isPositive ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
+            {trend.isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            <span className="font-mono-nums">{trend.trend}%</span>
           </div>
+        )}
+      </div>
+    </div>
+  );
 
+  // Component for navigation cards
+  // eslint-disable-next-line no-unused-vars
+  const NavCard = ({ title, description, icon: IconComponent, onClick, color = "text-primary" }) => (
+    <button
+      onClick={onClick}
+      className="glass-panel p-4 md:p-5 text-left group hover:border-primary/30 transition-all flex flex-col h-full rounded-2xl hover:shadow-[0_0_30px_rgba(0,0,0,0.3)] border border-white/10"
+    >
+      <div className="flex items-start justify-between mb-3 md:mb-4">
+        <div className={`p-2.5 md:p-3 rounded-xl bg-white/5 border border-white/5 group-hover:bg-white/10 transition-colors ${color}`}>
+          <IconComponent className="h-4 w-4 md:h-5 md:w-5" />
+        </div>
+        <ArrowRight className="h-3.5 w-3.5 md:h-4 md:w-4 text-zinc-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
+      </div>
+      <h3 className="text-sm md:text-base font-bold text-white mb-1 group-hover:text-primary transition-colors">{title}</h3>
+      <p className="text-[10px] md:text-xs text-zinc-400 line-clamp-2 font-medium">{description}</p>
+    </button>
+  );
+
+  return (
+    <div className="space-y-6 md:space-y-8 animate-fade-in pb-8 md:pb-0 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 pb-2">
+        <div>
+          <h1 className="text-2xl md:text-4xl font-bold text-white tracking-tight text-glow">
+            Dashboard
+          </h1>
+          <p className="text-xs md:text-sm text-zinc-400 mt-1 md:mt-2 font-medium flex items-center gap-2">
+            <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 md:gap-4 self-end md:self-auto">
+          <button
+            onClick={loadDashboardData}
+            className="glass-button p-2 md:p-3 rounded-xl hover:rotate-180 transition-all duration-500"
+            title="Refresh Data"
+          >
+            <RefreshCw className="h-4 w-4 md:h-5 md:w-5" />
+          </button>
+          <button
+            onClick={() => navigate('/manager/orders')}
+            className="hidden md:flex items-center gap-2 px-6 py-3 glass-button-primary rounded-xl transition-all font-bold text-sm tracking-wide uppercase"
+          >
+            <Plus className="h-4 w-4" />
+            New Order
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Quick Actions - Horizontal Scroll */}
+      <div className="md:hidden -mx-4 px-4 overflow-x-auto scrollbar-hide pb-2">
+        <div className="flex gap-2 min-w-max">
+          <QuickAction icon={Plus} label="New Order" onClick={() => navigate('/manager/orders')} color="text-primary" />
+          <QuickAction icon={LayoutGrid} label="Tables" onClick={() => navigate('/manager/tables')} color="text-accent" />
+          <QuickAction icon={FileText} label="Reports" onClick={() => navigate('/manager/reports')} color="text-emerald-400" />
+          <QuickAction icon={CreditCard} label="Billing" onClick={() => navigate('/manager/billing')} color="text-rose-400" />
+          <QuickAction icon={Bell} label="Alerts" onClick={() => { }} badge={stats.activeOrders} color="text-amber-400" />
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+        <StatCard
+          title="REVENUE"
+          value={formatCurrency(stats.todayRevenue)}
+          subtext="vs yesterday"
+          icon={DollarSign}
+          trend={revenueTrend}
+          color="text-emerald-400"
+        />
+        <StatCard
+          title="ORDERS"
+          value={stats.todayOrders}
+          subtext="vs yesterday"
+          icon={ShoppingCart}
+          trend={ordersTrend}
+          color="text-primary"
+        />
+        <StatCard
+          title="ACTIVE"
+          value={stats.activeOrders}
+          subtext="in progress"
+          icon={Clock}
+          trend={activeTrend}
+          color="text-amber-400"
+        />
+        <StatCard
+          title="STAFF"
+          value={stats.totalStaff}
+          subtext="active now"
+          icon={Users}
+          color="text-accent"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+        {/* Main Content Column (2/3) */}
+        <div className="lg:col-span-2 space-y-6 md:space-y-8">
           {/* Operations Grid */}
-          <div>
-            <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Operations</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <section>
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <h2 className="text-xs md:text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                <UtensilsCrossed className="h-3.5 w-3.5 md:h-4 md:w-4" /> Operations
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
               <NavCard
-                icon={UtensilsCrossed}
                 title="Menu"
                 description="Items & categories"
+                icon={UtensilsCrossed}
                 onClick={() => navigate('/manager/menu')}
-                iconColor="text-rose-400"
-                iconBg="bg-rose-500/10"
+                color="text-rose-400"
               />
               <NavCard
-                icon={LayoutGrid}
                 title="Tables"
                 description="Status & QR codes"
+                icon={LayoutGrid}
                 onClick={() => navigate('/manager/tables')}
-                iconColor="text-sky-400"
-                iconBg="bg-sky-500/10"
+                color="text-accent"
               />
               <NavCard
-                icon={ShoppingCart}
                 title="Orders"
                 description="Active & history"
+                icon={ShoppingCart}
                 onClick={() => navigate('/manager/orders')}
-                iconColor="text-emerald-400"
-                iconBg="bg-emerald-500/10"
+                color="text-primary"
               />
               <NavCard
-                icon={CreditCard}
                 title="Payments"
                 description="Transactions"
+                icon={CreditCard}
                 onClick={() => navigate('/manager/payments')}
-                iconColor="text-amber-400"
-                iconBg="bg-amber-500/10"
+                color="text-emerald-400"
               />
               <NavCard
-                icon={QrCode}
                 title="QR Codes"
                 description="Generate codes"
+                icon={QrCode}
                 onClick={() => navigate('/manager/qr-codes')}
-                iconColor="text-primary"
-                iconBg="bg-primary/10"
+                color="text-amber-400"
               />
               <NavCard
-                icon={Users}
                 title="Staff"
                 description="Team members"
+                icon={Users}
                 onClick={() => navigate('/manager/staff')}
-                iconColor="text-cyan-400"
-                iconBg="bg-cyan-500/10"
+                color="text-primary"
               />
             </div>
-          </div>
+          </section>
 
-          {/* Recent Orders */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Recent Orders</h2>
+          {/* Recent Orders List */}
+          <section>
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <h2 className="text-xs md:text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5 md:h-4 md:w-4" /> Recent Orders
+              </h2>
               <button
                 onClick={() => navigate('/manager/orders')}
-                className="text-sm text-primary hover:text-primary-light flex items-center gap-1"
+                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-bold uppercase tracking-wider transition-colors"
               >
-                View All <ChevronRight size={16} />
+                View All
               </button>
             </div>
-            <div className="glass-panel p-6 space-y-3">
+
+            <div className="glass-panel rounded-2xl overflow-hidden border border-white/10">
               {recentOrders.length === 0 ? (
-                <div className="text-center py-8 text-zinc-500">
-                  <ShoppingCart size={48} className="mx-auto mb-3 opacity-20" />
-                  <p>No recent orders</p>
+                <div className="p-8 md:p-12 text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-white/5 rounded-2xl mb-4 border border-white/5 shadow-inner">
+                    <ShoppingCart className="h-6 w-6 md:h-8 md:w-8 text-zinc-600" />
+                  </div>
+                  <p className="text-xs md:text-sm text-zinc-400 font-medium">No orders yet today</p>
                 </div>
               ) : (
-                recentOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all group"
-                  >
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className={`p-3 rounded-xl ${
-                        order.order_status === 'received' ? 'bg-amber-500/10' :
-                        order.order_status === 'preparing' ? 'bg-sky-500/10' :
-                        order.order_status === 'ready' ? 'bg-emerald-500/10' :
-                        'bg-white/5'
-                      }`}>
-                        {getStatusIcon(order.order_status)}
+                <div className="divide-y divide-white/5">
+                  {recentOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      onClick={() => navigate('/manager/orders')}
+                      className="p-4 md:p-5 hover:bg-white/5 transition-all cursor-pointer flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-3 md:gap-5">
+                        <div className={`p-2 md:p-3 rounded-xl border shadow-lg ${order.order_status === 'preparing' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500 shadow-amber-500/10' :
+                          order.order_status === 'ready' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-emerald-500/10' :
+                            order.order_status === 'served' ? 'bg-blue-500/10 border-blue-500/20 text-blue-500 shadow-blue-500/10' :
+                              order.order_status === 'completed' ? 'bg-zinc-500/10 border-zinc-500/20 text-zinc-500 shadow-zinc-500/10' :
+                                'bg-white/5 border-white/10 text-zinc-400'
+                          }`}>
+                          <ShoppingBagIcon status={order.order_status} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm md:text-base font-bold text-white font-mono-nums tracking-tight">#{order.order_number}</h4>
+                          <p className="text-[10px] md:text-xs text-zinc-400 mt-0.5 md:mt-1 font-medium">
+                            Table {order.tables?.table_number || 'N/A'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-mono-nums font-bold text-white">
-                          #{order.order_number || order.id.slice(0, 8)}
-                        </p>
-                        <p className="text-sm text-zinc-400">
-                          Table {order.tables?.table_number || 'N/A'}
-                        </p>
+                      <div className="flex items-center gap-3 md:gap-6">
+                        <span className="text-sm md:text-base font-bold text-white font-mono-nums tracking-tight">
+                          {formatCurrency(order.total)}
+                        </span>
+
+                        {/* Quick Update Button */}
+                        {['pending', 'received', 'preparing', 'ready', 'served'].includes(order.order_status) && (
+                          <button
+                            onClick={(e) => handleQuickUpdate(e, order)}
+                            className="glass-button px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-primary/20 hover:text-primary hover:border-primary/30 transition-all md:opacity-0 md:group-hover:opacity-100"
+                          >
+                            {order.order_status === 'ready' ? 'Serve' :
+                              order.order_status === 'served' ? 'Complete' :
+                                'Update'}
+                          </button>
+                        )}
+
+                        <div className="p-1.5 md:p-2 rounded-full bg-white/5 group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+                          <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono-nums font-bold text-white text-lg">
-                        {formatCurrency(order.total)}
-                      </span>
-                      {order.order_status !== 'completed' && order.order_status !== 'cancelled' && (
-                        <button
-                          onClick={() => handleQuickUpdate(order)}
-                          className="glass-button-primary text-sm py-1.5 px-3 opacity-0 md:group-hover:opacity-100 md:opacity-100 transition-opacity"
-                        >
-                          {getQuickUpdateLabel(order.order_status)}
-                        </button>
-                      )}
-                      <ChevronRight className="text-zinc-600 group-hover:text-zinc-400 transition-colors" size={20} />
-                    </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
-          </div>
+          </section>
         </div>
 
-        {/* Sidebar (1 column on desktop) */}
-        <div className="space-y-6">
-          {/* Billing Card */}
-          <BillingWarningCard />
+        {/* Sidebar Column (1/3) */}
+        <div className="space-y-6 md:space-y-8">
+          {/* Billing Status Card */}
+          <BillingWarningCard restaurantId={restaurantId} />
 
-          {/* Admin Links */}
-          <div>
-            <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Admin</h2>
-            <div className="space-y-3">
+          {/* Admin Section */}
+          <section>
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <h2 className="text-xs md:text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                <Settings className="h-3.5 w-3.5 md:h-4 md:w-4" /> Admin
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 md:gap-4">
               <NavCard
-                icon={BarChart3}
                 title="Analytics"
                 description="Performance insights"
+                icon={BarChart3}
                 onClick={() => navigate('/manager/analytics')}
-                iconColor="text-primary"
-                iconBg="bg-primary/10"
+                color="text-primary"
               />
               <NavCard
-                icon={FileText}
                 title="Reports"
-                description="Business reports"
+                description="Download summaries"
+                icon={FileText}
                 onClick={() => navigate('/manager/reports')}
-                iconColor="text-emerald-400"
-                iconBg="bg-emerald-500/10"
+                color="text-emerald-400"
               />
               <NavCard
-                icon={Settings}
                 title="Settings"
                 description="Configuration"
+                icon={Settings}
                 onClick={() => navigate('/manager/settings')}
-                iconColor="text-zinc-400"
-                iconBg="bg-zinc-500/10"
+                color="text-zinc-400"
               />
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </div>
   );
+};
+
+const ShoppingBagIcon = ({ status }) => {
+  if (status === 'preparing') return <Clock className="h-5 w-5" />;
+  if (status === 'ready') return <Bell className="h-5 w-5" />;
+  if (status === 'served') return <CheckCircle className="h-5 w-5" />;
+  if (status === 'completed') return <CheckCircle className="h-5 w-5" />;
+  return <ShoppingCart className="h-5 w-5" />;
 };
 
 export default ManagerDashboard;
