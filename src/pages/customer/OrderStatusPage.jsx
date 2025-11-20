@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { CheckCircle, Clock, ChefHat, UtensilsCrossed, Home, Bell } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { CheckCircle, Clock, ChefHat, UtensilsCrossed, Bell } from 'lucide-react';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -199,24 +199,15 @@ const OrderStatusPage = () => {
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border bg-card">
         <div className="mx-auto w-full max-w-[1400px] px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Order Status</h1>
-              <p className="text-base sm:text-2xl font-semibold tracking-tight text-foreground ml-1 sm:ml-4">Order #{order?.order_number || order?.id}</p>
-              {status !== 'served' && (
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="h-2 w-2 animate-pulse rounded-full bg-success" />
-                  <span className="text-xs text-muted-foreground ml-2">Auto-updating • Tracking your order in real-time</span>
-                </div>
-              )}
-            </div>
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 rounded-lg bg-warning px-4 py-2 text-sm font-semibold text-background transition-colors hover:brightness-110"
-            >
-              <Home className="h-4 w-4" />
-              Home
-            </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Order Status</h1>
+            <p className="text-base sm:text-2xl font-semibold tracking-tight text-foreground ml-1 sm:ml-4">Order #{order?.order_number || order?.id}</p>
+            {status !== 'served' && (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-success" />
+                <span className="text-xs text-muted-foreground ml-2">Auto-updating • Tracking your order in real-time</span>
+              </div>
+            )}
           </div>
         </div>
       </header>

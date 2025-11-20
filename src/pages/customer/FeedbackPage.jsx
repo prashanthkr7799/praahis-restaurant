@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Star, Send, Home } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Star, Send } from 'lucide-react';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -228,18 +228,9 @@ const FeedbackPage = () => {
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="bg-card border-b border-border">
-        <div className="mx-auto w-full max-w-3xl px-4 py-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Share Your Feedback</h1>
-            <p className="text-lg text-muted-foreground">We'd love to hear from you!</p>
-          </div>
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 rounded-lg bg-warning px-4 py-2 text-sm font-semibold text-background transition-colors hover:brightness-110"
-          >
-            <Home className="h-4 w-4" />
-            Home
-          </Link>
+        <div className="mx-auto w-full max-w-3xl px-4 py-6">
+          <h1 className="text-3xl font-bold tracking-tight">Share Your Feedback</h1>
+          <p className="text-lg text-muted-foreground">We'd love to hear from you!</p>
         </div>
       </header>
 
