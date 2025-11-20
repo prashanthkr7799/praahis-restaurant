@@ -138,6 +138,7 @@ const ManagerDashboard = () => {
           order_number,
           order_status,
           payment_status,
+          payment_method,
           total,
           created_at,
           table_id,
@@ -232,7 +233,12 @@ const ManagerDashboard = () => {
       // Update order payment status to paid
       await updatePaymentStatus(order.id, 'paid');
 
-      toast.success(`Marked order #${order.order_number} as cash paid`);
+      // If order is still in 'pending' status, move it to 'received' and cascade to items
+      if (order.order_status === 'pending') {
+        await updateOrderStatusCascade(order.id, 'received');
+      }
+
+      toast.success(`Order #${order.order_number} marked as cash paid`);
       loadDashboardData();
     } catch (err) {
       console.error('Error marking cash payment:', err);
@@ -521,8 +527,8 @@ const ManagerDashboard = () => {
                           )}
                         </div>
 
-                        {/* Cash Payment Confirmation */}
-                        {order.payment_status !== 'paid' && (
+                        {/* Cash Payment Confirmation - Only for cash orders that are unpaid */}
+                        {order.payment_method === 'cash' && order.payment_status === 'pending' && (
                           <button
                             onClick={(e) => handleMarkCashPaid(e, order)}
                             className="glass-button px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 transition-all md:opacity-0 md:group-hover:opacity-100"
