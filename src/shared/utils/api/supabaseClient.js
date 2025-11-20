@@ -364,6 +364,42 @@ export const endTableSession = async (sessionId) => {
   }
 };
 
+// Update session activity timestamp (for inactivity tracking)
+export const updateSessionActivity = async (sessionId) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('update_session_activity', { p_session_id: sessionId });
+
+    if (error) {
+      console.error('⚠️ Failed to update session activity:', error);
+      return false;
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('⚠️ Error updating session activity:', err);
+    return false;
+  }
+};
+
+// Force release a table session (manager override)
+export const forceReleaseTableSession = async (sessionId = null, tableId = null) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('force_release_table_session', { 
+        p_session_id: sessionId,
+        p_table_id: tableId
+      });
+
+    if (error) throw error;
+    
+    return data;
+  } catch (err) {
+    console.error('❌ Error force-releasing table session:', err);
+    throw err;
+  }
+};
+
 // Fetch menu items
 export const getMenuItems = async (restaurantId) => {
   const rid = resolveRestaurantId(restaurantId);

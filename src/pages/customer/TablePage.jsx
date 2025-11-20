@@ -7,6 +7,7 @@ const MOTION = m;
 import toast from 'react-hot-toast';
 import { getTable, getMenuItems, createOrder, markTableOccupied, supabase, getOrCreateActiveSessionId } from '@shared/utils/api/supabaseClient';
 import { getCart, saveCart, clearCart, getSession, saveSession } from '@/shared/utils/helpers/localStorage';
+import { startSessionTracking, stopSessionTracking } from '@/shared/utils/helpers/sessionActivityTracker';
 import { groupByCategory, getCategories, prepareOrderData } from '@domains/ordering/utils/orderHelpers';
 import MenuItem from '@domains/ordering/components/MenuItem';
 import CategoryTabs from '@domains/ordering/components/CategoryTabs';
@@ -34,17 +35,6 @@ const TablePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  // SECURITY: Check if this session is already completed
-  // If the user tries to navigate back to the menu after finishing an order,
-  // we immediately redirect them back to the Thank You page (which will auto-close).
-  useEffect(() => {
-    const isOrderCompleted = sessionStorage.getItem('order_completed');
-    if (isOrderCompleted === 'true') {
-      // Redirect immediately
-      navigate('/thank-you', { replace: true });
-    }
-  }, [navigate]);
-
   // Load initial data and mark table as occupied
   // Ensure RestaurantContext is set from ?restaurant=slug before loading
   useEffect(() => {
@@ -66,55 +56,6 @@ const TablePage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId]);
 
-  // Cleanup: Release table when customer leaves
-  useEffect(() => {
-    let hasLeft = false;
-    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-
-    const releaseTable = async () => {
-      if (hasLeft || !tableId) return;
-      hasLeft = true;
-
-      const sessionId = getSession(tableId);
-      
-      try {
-        console.log('Releasing table:', tableId, 'session:', sessionId);
-        
-        // Call Edge Function to release table
-        await fetch(`${SUPABASE_URL}/functions/v1/release-table`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
-          },
-          body: JSON.stringify({ tableId, sessionId })
-        });
-      } catch (error) {
-        console.error('Error releasing table:', error);
-        // Fail silently - user is leaving anyway
-      }
-    };
-
-    // Handle tab close or refresh
-    const handleBeforeUnload = () => {
-      releaseTable();
-    };
-
-    // Handle tab visibility change (switch away, minimize)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        releaseTable();
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [tableId]);
 
 
   const loadData = async () => {
@@ -152,6 +93,12 @@ const TablePage = () => {
         saveSession(tableId, currentSessionId);
       }
 
+      // Start activity tracking for this session
+      if (currentSessionId) {
+        console.log('🟢 Starting session activity tracking:', currentSessionId);
+        startSessionTracking(currentSessionId);
+      }
+
       // Set first category as active
       if (menuData && menuData.length > 0) {
         const categories = getCategories(menuData);
@@ -165,6 +112,14 @@ const TablePage = () => {
       setLoading(false);
     }
   };
+
+  // Cleanup activity tracker on unmount
+  useEffect(() => {
+    return () => {
+      console.log('🔴 Stopping session activity tracking on unmount');
+      stopSessionTracking();
+    };
+  }, []);
 
   // Handle add to cart
   const handleAddToCart = (item) => {

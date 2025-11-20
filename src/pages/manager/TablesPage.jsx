@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, QrCode, Users, Clock, ChevronRight, Search, Filter, RefreshCw } from 'lucide-react';
-import { supabase } from '@shared/utils/api/supabaseClient';
+import { LayoutGrid, QrCode, Users, Clock, ChevronRight, Search, Filter, RefreshCw, XCircle, AlertCircle } from 'lucide-react';
+import { supabase, forceReleaseTableSession } from '@shared/utils/api/supabaseClient';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 import toast from 'react-hot-toast';
@@ -17,51 +17,60 @@ const TablesPage = () => {
   const [tables, setTables] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [releasingTableId, setReleasingTableId] = useState(null);
   const { restaurantId } = useRestaurant();
   const navigate = useNavigate();
 
   useEffect(() => {
     loadTables();
-    
-    // Set up realtime subscription for table updates
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantId]);
+
+  // Set up real-time subscriptions for table and session updates
+  useEffect(() => {
     if (!restaurantId) return;
 
-    const channel = supabase
-      .channel('tables-realtime')
+    // Subscribe to table changes
+    const tablesSubscription = supabase
+      .channel('manager-tables-changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'tables',
-          filter: `restaurant_id=eq.${restaurantId}`
+          filter: `restaurant_id=eq.${restaurantId}`,
         },
         (payload) => {
-          console.log('Table change detected:', payload);
-          // Reload tables when any change occurs
+          console.log('🔄 Table change detected:', payload);
           loadTables();
         }
       )
+      .subscribe();
+
+    // Subscribe to table_sessions changes
+    const sessionsSubscription = supabase
+      .channel('manager-sessions-changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'table_sessions',
+          filter: `restaurant_id=eq.${restaurantId}`,
         },
         (payload) => {
-          console.log('Session change detected:', payload);
-          // Reload tables when sessions change
+          console.log('🔄 Session change detected:', payload);
           loadTables();
         }
       )
       .subscribe();
 
-    // Cleanup subscription on unmount
+    // Cleanup subscriptions on unmount
     return () => {
-      supabase.removeChannel(channel);
+      tablesSubscription.unsubscribe();
+      sessionsSubscription.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
 
   const loadTables = async () => {
@@ -121,6 +130,37 @@ const TablesPage = () => {
         return '○';
       default:
         return '—';
+    }
+  };
+
+  const handleForceRelease = async (table, e) => {
+    e.stopPropagation(); // Prevent navigation to table details
+
+    const confirmMessage = `Are you sure you want to force-release Table ${table.table_number}? This will:\n\n• End the current session\n• Clear all cart data\n• Mark table as available\n\nThis action cannot be undone.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setReleasingTableId(table.id);
+    
+    try {
+      const result = await forceReleaseTableSession(
+        table.activeSession?.id,
+        table.id
+      );
+
+      if (result.success) {
+        toast.success(`Table ${table.table_number} released successfully`);
+        await loadTables(); // Refresh table list
+      } else {
+        toast.error(result.message || 'Failed to release table');
+      }
+    } catch (error) {
+      console.error('Error force-releasing table:', error);
+      toast.error('Failed to release table. Please try again.');
+    } finally {
+      setReleasingTableId(null);
     }
   };
 
@@ -320,7 +360,7 @@ const TablesPage = () => {
 
                 {/* Active Session Info */}
                 {table.activeSession && (
-                  <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg p-4 mb-4 space-y-2 border border-primary/20">
+                  <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg p-4 mb-4 space-y-3 border border-primary/20">
                     <div className="flex items-center gap-2 text-sm">
                       <Clock className="h-3.5 w-3.5 text-primary" />
                       <span className="text-foreground/80 font-medium">
@@ -330,6 +370,26 @@ const TablesPage = () => {
                     <div className="text-xl font-bold text-primary">
                       {formatCurrency(table.activeSession.total_spent || 0)}
                     </div>
+                    
+                    {/* Force Release Button */}
+                    <button
+                      onClick={(e) => handleForceRelease(table, e)}
+                      disabled={releasingTableId === table.id}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/30 rounded-lg transition-smooth disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                      title="Force release this table"
+                    >
+                      {releasingTableId === table.id ? (
+                        <>
+                          <div className="h-4 w-4 border-2 border-destructive/30 border-t-destructive rounded-full animate-spin" />
+                          <span>Releasing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-4 w-4" />
+                          <span>Force Release</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 )}
 
