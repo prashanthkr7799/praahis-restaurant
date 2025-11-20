@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
   total NUMERIC(10,2) NOT NULL CHECK (total >= 0),
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending','paid','failed')),
   payment_method TEXT DEFAULT 'cash' CHECK (payment_method IN ('cash','razorpay','upi','card')),
-  order_status TEXT DEFAULT 'received' CHECK (order_status IN ('pending_payment','received','preparing','ready','served','cancelled')),
+  order_status TEXT DEFAULT 'received' CHECK (order_status IN ('pending_payment','received','preparing','ready','served','completed','cancelled')),
   special_instructions TEXT,
   order_token TEXT,
   feedback_submitted BOOLEAN DEFAULT false,
@@ -237,7 +237,7 @@ CREATE INDEX IF NOT EXISTS idx_order_payments_order ON public.order_payments(ord
 -- Add tables.booked_at if missing
 ALTER TABLE public.tables ADD COLUMN IF NOT EXISTS booked_at TIMESTAMPTZ;
 
--- Relax/align orders.order_status to include 'pending_payment'
+-- Relax/align orders.order_status to include 'pending_payment' and 'completed'
 DO $$ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_constraint 
@@ -246,7 +246,7 @@ DO $$ BEGIN
   ) THEN
     EXECUTE 'ALTER TABLE public.orders DROP CONSTRAINT orders_order_status_check';
   END IF;
-  EXECUTE 'ALTER TABLE public.orders ADD CONSTRAINT orders_order_status_check CHECK (order_status IN (''pending_payment'',''received'',''preparing'',''ready'',''served'',''cancelled''))';
+  EXECUTE 'ALTER TABLE public.orders ADD CONSTRAINT orders_order_status_check CHECK (order_status IN (''pending_payment'',''received'',''preparing'',''ready'',''served'',''completed'',''cancelled''))';
 END $$;
 
 -- ============================================================================
