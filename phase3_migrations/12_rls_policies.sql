@@ -13,6 +13,7 @@ ALTER TABLE public.order_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.table_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.menu_item_ratings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feedbacks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payment_credential_audit ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.auth_activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
@@ -117,6 +118,16 @@ DROP POLICY IF EXISTS menu_item_ratings_update ON public.menu_item_ratings;
 CREATE POLICY menu_item_ratings_update ON public.menu_item_ratings FOR UPDATE TO authenticated USING (true) WITH CHECK (rating BETWEEN 1 AND 5);
 DROP POLICY IF EXISTS menu_item_ratings_delete ON public.menu_item_ratings;
 CREATE POLICY menu_item_ratings_delete ON public.menu_item_ratings FOR DELETE TO authenticated USING (true);
+
+-- FEEDBACKS (simple open insert/select; rating constrained by CHECK)
+DROP POLICY IF EXISTS feedbacks_select ON public.feedbacks;
+CREATE POLICY feedbacks_select ON public.feedbacks FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS feedbacks_insert ON public.feedbacks;
+CREATE POLICY feedbacks_insert ON public.feedbacks FOR INSERT TO anon, authenticated WITH CHECK (rating BETWEEN 1 AND 5);
+DROP POLICY IF EXISTS feedbacks_update ON public.feedbacks;
+CREATE POLICY feedbacks_update ON public.feedbacks FOR UPDATE TO authenticated USING (true) WITH CHECK (rating BETWEEN 1 AND 5);
+DROP POLICY IF EXISTS feedbacks_delete ON public.feedbacks;
+CREATE POLICY feedbacks_delete ON public.feedbacks FOR DELETE TO authenticated USING (true);
 
 -- PAYMENT CREDENTIAL AUDIT
 DROP POLICY IF EXISTS payment_credential_audit_select ON public.payment_credential_audit;

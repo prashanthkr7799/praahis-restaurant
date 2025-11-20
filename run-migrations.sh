@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ============================================================================
-# Supabase Migration Runner - Execute All 17 Canonical Migrations
+# Supabase Migration Runner - Execute All 16 Canonical Migrations (integrated feedbacks)
 # ============================================================================
 # Project: Praahis Restaurant Management
 # New Project ID: hpcwpkjbmcelptwwxicn
@@ -10,7 +10,7 @@
 
 set -e  # Exit on any error
 
-echo "🚀 Starting Supabase Migration Process (17 migrations)..."
+echo "🚀 Starting Supabase Migration Process (16 migrations)..."
 echo "Project: hpcwpkjbmcelptwwxicn (Singapore)"
 echo "============================================"
 echo ""
@@ -46,7 +46,6 @@ MIGRATIONS=(
     "14_seed_initial_data.sql"
     "15_compatibility_views.sql"
     "16_auto_enable_payments.sql"
-    "17_feedbacks_add_restaurant_id.sql"
 )
 
 MIGRATION_DIR="phase3_migrations"
@@ -82,7 +81,7 @@ for i in "${!MIGRATIONS[@]}"; do
 done
 
 echo "============================================"
-echo "✅ All $TOTAL migrations completed successfully!"
+echo "✅ All $TOTAL migrations completed successfully! (feedbacks integrated)"
 echo "============================================"
 echo ""
 echo "Next steps:"

@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
 CREATE TABLE IF NOT EXISTS public.feedbacks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
+  restaurant_id UUID REFERENCES public.restaurants(id) ON DELETE CASCADE,
   rating INT CHECK (rating BETWEEN 1 AND 5),
   comment TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),

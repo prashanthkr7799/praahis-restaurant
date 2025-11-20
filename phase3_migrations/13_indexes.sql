@@ -30,6 +30,8 @@ CREATE INDEX IF NOT EXISTS idx_order_payments_status ON public.order_payments(st
 
 -- Feedbacks
 CREATE INDEX IF NOT EXISTS idx_feedbacks_order ON public.feedbacks(order_id);
+CREATE INDEX IF NOT EXISTS idx_feedbacks_restaurant ON public.feedbacks(restaurant_id);
+CREATE INDEX IF NOT EXISTS idx_feedbacks_session ON public.feedbacks(session_id);
 CREATE INDEX IF NOT EXISTS idx_feedbacks_created ON public.feedbacks(created_at DESC);
 
 -- Users
