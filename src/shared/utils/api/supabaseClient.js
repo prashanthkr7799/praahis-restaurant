@@ -466,8 +466,12 @@ export const createOrder = async (orderData) => {
   if (!data || data.length === 0) {
     throw new Error('Order creation failed: No data returned');
   }
-  
-  const createdOrder = data[0]; // Get first item from array
+  // Some supabase configurations may return the inserted row directly (object) instead of array
+  const createdOrder = Array.isArray(data) ? data[0] : data;
+  if (!createdOrder || !createdOrder.id) {
+    console.error('createOrder: Missing id in returned data', createdOrder);
+    throw new Error('Order creation failed: Missing order ID in response');
+  }
   
   // Update table status to occupied when order is created (and keep/ensure session id)
   if (orderData.table_id) {

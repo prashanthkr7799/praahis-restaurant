@@ -190,6 +190,8 @@ const TablePage = () => {
 
     try {
       setSubmittingOrder(true);
+      toast.dismiss('order-progress');
+      toast.loading('Creating your order...', { id: 'order-progress' });
       console.log('[Checkout] Creating order for table:', table?.id, 'items:', cartItems.length);
       const orderData = prepareOrderData(cartItems, table, table.restaurant_id);
       const order = await createOrder(orderData);
@@ -198,14 +200,14 @@ const TablePage = () => {
       }
       clearCart(tableId);
       setCartItems([]);
-      toast.success('Order created! Proceeding to payment...');
+      toast.success('Order created! Redirecting to payment...', { id: 'order-progress' });
       setShowCart(false); // Close sheet to avoid overlay blocking navigation perception
       navigate(`/payment/${order.id}`);
     } catch (err) {
       console.error('Error creating order:', err);
       console.error('Error message:', err.message);
       console.error('Error details:', JSON.stringify(err, null, 2));
-      toast.error(`Failed to create order: ${err.message || 'Please try again.'}`);
+      toast.error(`Failed to create order: ${err.message || 'Please try again.'}`, { id: 'order-progress' });
     } finally {
       setSubmittingOrder(false);
     }
