@@ -418,57 +418,40 @@ const TablePage = () => {
         </div>
       </div>
 
-      {/* Cart modal (mobile) */}
-      <AnimatePresence mode="wait">
-        {showCart && (
-          <m.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-50 bg-black/70 lg:hidden"
-            onClick={(e) => {
-              // Only close if clicking directly on backdrop, not on cart panel
-              if (e.target === e.currentTarget && !submittingOrder) {
-                setShowCart(false);
-              }
-            }}
+      {/* Cart bottom sheet (mobile) */}
+      {showCart && (
+        <div
+          className="fixed inset-0 z-50 lg:hidden flex flex-col justify-end"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !submittingOrder) setShowCart(false);
+          }}
+        >
+          {/* Dim backdrop */}
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div
+            className="relative bg-gray-900 rounded-t-3xl shadow-2xl border-t border-gray-800 max-h-[85vh] flex flex-col w-full"
           >
-            <m.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25 }}
-              className="absolute right-0 top-0 h-full w-full max-w-md customer-card shadow-2xl sm:w-96"
-              onClick={(e) => {
-                // Prevent click events from bubbling to backdrop
-                e.stopPropagation();
-              }}
-              onMouseDown={(e) => {
-                // Prevent mousedown events from bubbling to backdrop
-                e.stopPropagation();
-              }}
-              onTouchStart={(e) => {
-                // Prevent touch events from bubbling to backdrop (important for mobile)
-                e.stopPropagation();
-              }}
-            >
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-800">
+              <h2 className="text-white font-semibold">Review Order</h2>
+              <button
+                type="button"
+                onClick={() => !submittingOrder && setShowCart(false)}
+                className="rounded-full p-2 hover:bg-gray-800 transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-300" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
               <CartSummary
                 cartItems={cartItems}
                 onUpdateQuantity={handleUpdateQuantity}
                 onRemoveItem={handleRemoveItem}
                 onCheckout={handleProceedToPayment}
-                onClose={!submittingOrder ? () => setShowCart(false) : undefined}
               />
-              {submittingOrder && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-900/90 rounded-xl">
-                  <LoadingSpinner text="Creating order..." />
-                </div>
-              )}
-            </m.div>
-          </m.div>
-        )}
-      </AnimatePresence>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Bottom Bar (Mobile) - Cart info and actions */}
       {cartItems.length > 0 && !showCart && (
