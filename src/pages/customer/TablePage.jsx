@@ -190,12 +190,16 @@ const TablePage = () => {
 
     try {
       setSubmittingOrder(true);
+      console.log('[Checkout] Creating order for table:', table?.id, 'items:', cartItems.length);
       const orderData = prepareOrderData(cartItems, table, table.restaurant_id);
       const order = await createOrder(orderData);
-      // Clear cart ONLY after order actually created
+      if (!order || !order.id) {
+        throw new Error('Order response missing ID');
+      }
       clearCart(tableId);
       setCartItems([]);
       toast.success('Order created! Proceeding to payment...');
+      setShowCart(false); // Close sheet to avoid overlay blocking navigation perception
       navigate(`/payment/${order.id}`);
     } catch (err) {
       console.error('Error creating order:', err);
@@ -407,6 +411,7 @@ const TablePage = () => {
                 onUpdateQuantity={handleUpdateQuantity}
                 onRemoveItem={handleRemoveItem}
                 onCheckout={handleProceedToPayment}
+                isProcessing={submittingOrder}
               />
               {submittingOrder && (
                 <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-gray-900/90">
@@ -447,6 +452,7 @@ const TablePage = () => {
                 onUpdateQuantity={handleUpdateQuantity}
                 onRemoveItem={handleRemoveItem}
                 onCheckout={handleProceedToPayment}
+                isProcessing={submittingOrder}
               />
             </div>
           </div>

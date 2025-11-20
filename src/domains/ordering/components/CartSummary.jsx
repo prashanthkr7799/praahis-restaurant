@@ -4,7 +4,7 @@ import { ShoppingCart, Trash2, Plus, Minus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency, calculateSubtotal, calculateTax, calculateTotal } from '@domains/ordering/utils/orderHelpers';
 
-const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, onClose }) => {
+const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, onClose, isProcessing = false }) => {
   const subtotal = calculateSubtotal(cartItems);
   const tax = calculateTax(subtotal);
   const total = calculateTotal(subtotal, tax);
@@ -151,18 +151,21 @@ const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, on
 
         <button
           type="button"
+          disabled={isProcessing}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onCheckout();
+            if (!isProcessing) {
+              onCheckout();
+            }
           }}
           onTouchEnd={(e) => {
             e.preventDefault();
             e.stopPropagation();
           }}
-          className="w-full rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white transition-all active:brightness-90 shadow-lg touch-manipulation"
+          className={`w-full rounded-xl px-6 py-3 font-semibold text-white transition-all shadow-lg touch-manipulation ${isProcessing ? 'bg-orange-500/60 cursor-not-allowed' : 'bg-orange-500 active:brightness-90 hover:brightness-110'}`}
         >
-          Proceed to Payment
+          {isProcessing ? 'Creating order…' : 'Proceed to Payment'}
         </button>
       </div>
     </div>
