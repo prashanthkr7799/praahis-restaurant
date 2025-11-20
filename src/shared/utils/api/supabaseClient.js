@@ -414,8 +414,7 @@ export const getSharedCart = async (sessionId) => {
       .from('table_sessions')
       .select('cart_items')
       .eq('id', sessionId)
-      .eq('status', 'active')
-      .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows gracefully
+      .maybeSingle(); // Removed status filter - session exists if we have the ID
 
     if (error) throw error;
     
@@ -440,6 +439,8 @@ export const updateSharedCart = async (sessionId, cartItems) => {
       items: cartItems.map(i => ({ id: i.id, name: i.name, qty: i.quantity }))
     });
     
+    // Update without status filter to avoid race conditions
+    // The session exists if we have a sessionId, we don't need to check status
     const { data, error } = await supabase
       .from('table_sessions')
       .update({ 
@@ -448,7 +449,6 @@ export const updateSharedCart = async (sessionId, cartItems) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', sessionId)
-      .eq('status', 'active')
       .select();
 
     if (error) {
@@ -457,32 +457,14 @@ export const updateSharedCart = async (sessionId, cartItems) => {
     }
     
     if (!data || data.length === 0) {
-      console.error('⚠️ UPDATE returned 0 rows! Session might not be active or not exist.');
-      console.error('⚠️ Attempting update without status filter...');
-      
-      // Retry without status filter
-      const { data: retryData, error: retryError } = await supabase
-        .from('table_sessions')
-        .update({ 
-          cart_items: cartItems,
-          last_activity_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', sessionId)
-        .select();
-      
-      if (retryError) {
-        console.error('❌ Retry also failed:', retryError);
-        throw retryError;
-      }
-      
-      console.log('✅ Retry successful:', retryData);
-      return retryData?.[0]?.cart_items || [];
+      console.error('⚠️ Session not found in database:', sessionId);
+      throw new Error('Session not found');
     }
     
     console.log('✅ Cart updated successfully:', {
       rowsAffected: data.length,
-      cartItemCount: data[0]?.cart_items?.length
+      cartItemCount: data[0]?.cart_items?.length,
+      sessionStatus: data[0]?.status
     });
     return data?.[0]?.cart_items || [];
   } catch (err) {
@@ -502,11 +484,11 @@ export const clearSharedCart = async (sessionId) => {
         cart_items: [],
         updated_at: new Date().toISOString()
       })
-      .eq('id', sessionId)
-      .eq('status', 'active');
+      .eq('id', sessionId); // Removed status filter
 
     if (error) throw error;
     
+    console.log('🗑️ Cart cleared for session:', sessionId);
     return true;
   } catch (err) {
     console.error('❌ Error clearing shared cart:', err);
