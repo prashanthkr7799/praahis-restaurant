@@ -22,6 +22,7 @@ import Footer from '@/shared/components/marketing/Footer'
 
 // Customer Pages (NEW PATHS)
 const TablePage = lazy(() => import('@/pages/customer/TablePage'))
+const LegacyCustomerMenuRedirect = lazy(() => import('@/pages/customer/LegacyCustomerMenuRedirect'))
 const PaymentPage = lazy(() => import('@/pages/customer/PaymentPage'))
 const OrderStatusPage = lazy(() => import('@/pages/customer/OrderStatusPage'))
 const PostMealOptions = lazy(() => import('@/pages/customer/PostMealOptions'))
@@ -124,6 +125,8 @@ const App = () => {
             {/* Public Routes */}
             <Route path="/" element={<HomePage />} />
             <Route path="/table/:id" element={<TablePage />} />
+            {/* Legacy QR route pattern support */}
+            <Route path="/customer/menu/:restaurantId/:tableId" element={<LegacyCustomerMenuRedirect />} />
             <Route path="/payment/:orderId" element={<PaymentPage />} />
             <Route path="/order-status/:orderId" element={<OrderStatusPage />} />
             
