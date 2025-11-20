@@ -2,7 +2,16 @@
 -- 09_notifications.sql
 -- App notifications system with RLS & helper creation function
 -- ============================================================================
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Try to create pgcrypto extension (may already exist in Supabase)
+DO $$
+BEGIN
+  CREATE EXTENSION IF NOT EXISTS pgcrypto;
+  RAISE NOTICE '✅ pgcrypto extension available';
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE NOTICE 'ℹ️ pgcrypto extension handling: %', SQLERRM;
+END$$;
 
 CREATE TABLE IF NOT EXISTS public.notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -56,14 +65,17 @@ GRANT EXECUTE ON FUNCTION public.create_notification TO authenticated;
 -- Add to realtime publication idempotently
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime'
-      AND schemaname = 'public'
-      AND tablename = 'notifications'
-  ) THEN
-    EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications';
-  END IF;
+  -- Try to add table to realtime publication
+  -- Use exception handling instead of checking pg_publication_tables
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+  RAISE NOTICE '✅ Added notifications to supabase_realtime publication';
+EXCEPTION
+  WHEN duplicate_object THEN
+    RAISE NOTICE 'ℹ️ notifications already in realtime publication';
+  WHEN undefined_object THEN
+    RAISE NOTICE 'ℹ️ supabase_realtime publication does not exist - will be auto-created by Supabase';
+  WHEN OTHERS THEN
+    RAISE NOTICE '⚠️ Could not add to publication: %', SQLERRM;
 END$$;
 
 -- END NOTIFICATIONS
