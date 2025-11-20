@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Filter, Download, Eye, Clock, CheckCircle, XCircle, DollarSign } from 'lucide-react';
-import { supabase, fromRestaurant } from '@shared/utils/api/supabaseClient';
+import { supabase, fromRestaurant, updateOrderStatusCascade } from '@shared/utils/api/supabaseClient';
 import { formatCurrency, formatDateTime } from '@shared/utils/helpers/formatters';
 import { exportOrders } from '@domains/analytics/utils/exportHelpers';
 import { logOrderStatusChanged } from '@domains/staff/utils/activityLogger';
@@ -197,16 +197,12 @@ const OrdersManagement = () => {
 
   const handleStatusUpdate = async (orderId, newStatus) => {
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ order_status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', orderId);
-
-      if (error) throw error;
+      // Use cascade function to update both order and all items
+      await updateOrderStatusCascade(orderId, newStatus);
 
       await logOrderStatusChanged(orderId, newStatus);
 
-      toast.success('Order status updated');
+      toast.success('Order and all items updated');
       loadOrders();
     } catch (error) {
       console.error('Error updating order status:', error);
