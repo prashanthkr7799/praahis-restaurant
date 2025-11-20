@@ -114,7 +114,10 @@ const TablePage = () => {
             setPaidOrderId(paidOrder.id);
             
             // Redirect to order status immediately
-            toast.info('You already have a paid order. Redirecting...');
+            toast('You already have a paid order. Redirecting...', { 
+              icon: 'ℹ️',
+              duration: 2000 
+            });
             setTimeout(() => {
               navigate(`/order-status/${paidOrder.id}`, { replace: true });
             }, 1000);
