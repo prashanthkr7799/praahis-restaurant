@@ -104,8 +104,8 @@ DROP POLICY IF EXISTS table_sessions_select_any ON public.table_sessions;
 CREATE POLICY table_sessions_select_any ON public.table_sessions FOR SELECT USING (true);
 DROP POLICY IF EXISTS table_sessions_insert_any ON public.table_sessions;
 CREATE POLICY table_sessions_insert_any ON public.table_sessions FOR INSERT WITH CHECK (true);
-DROP POLICY IF EXISTS table_sessions_update_authenticated ON public.table_sessions;
-CREATE POLICY table_sessions_update_authenticated ON public.table_sessions FOR UPDATE USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS table_sessions_update_any ON public.table_sessions;
+CREATE POLICY table_sessions_update_any ON public.table_sessions FOR UPDATE USING (true);
 DROP POLICY IF EXISTS table_sessions_delete_authenticated ON public.table_sessions;
 CREATE POLICY table_sessions_delete_authenticated ON public.table_sessions FOR DELETE USING (auth.role() = 'authenticated');
 
