@@ -26,7 +26,7 @@ import {
   ArrowRight,
   CheckCircle
 } from 'lucide-react';
-import { supabase } from '@shared/utils/api/supabaseClient';
+import { supabase, createPayment, updatePaymentStatus } from '@shared/utils/api/supabaseClient';
 import { formatCurrency } from '@shared/utils/helpers/formatters';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 import toast from 'react-hot-toast';
@@ -213,6 +213,33 @@ const ManagerDashboard = () => {
     } catch (error) {
       console.error('Error updating order:', error);
       toast.error('Failed to update order status');
+    }
+  };
+
+  const handleMarkCashPaid = async (e, order) => {
+    e.stopPropagation();
+    try {
+      // Create a payment record for cash
+      await createPayment({
+        order_id: order.id,
+        restaurant_id: restaurantId,
+        amount: order.total,
+        currency: 'INR',
+        status: 'captured',
+        payment_method: 'cash',
+        payment_details: {
+          completed_at: new Date().toISOString(),
+        },
+      });
+
+      // Update order payment status to paid
+      await updatePaymentStatus(order.id, 'paid');
+
+      toast.success(`Marked order #${order.order_number} as cash paid`);
+      loadDashboardData();
+    } catch (err) {
+      console.error('Error marking cash payment:', err);
+      toast.error('Failed to confirm cash payment');
     }
   };
 
@@ -482,6 +509,16 @@ const ManagerDashboard = () => {
                         <span className="text-sm md:text-base font-bold text-white font-mono-nums tracking-tight">
                           {formatCurrency(order.total)}
                         </span>
+
+                        {/* Cash Payment Confirmation */}
+                        {order.payment_status !== 'paid' && (
+                          <button
+                            onClick={(e) => handleMarkCashPaid(e, order)}
+                            className="glass-button px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 transition-all md:opacity-0 md:group-hover:opacity-100"
+                          >
+                            Cash Paid
+                          </button>
+                        )}
 
                         {/* Quick Update Button */}
                         {['pending', 'received', 'preparing', 'ready', 'served'].includes(order.order_status) && (
