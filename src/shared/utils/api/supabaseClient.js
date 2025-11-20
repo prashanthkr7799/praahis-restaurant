@@ -415,11 +415,13 @@ export const getSharedCart = async (sessionId) => {
       .select('cart_items')
       .eq('id', sessionId)
       .eq('status', 'active')
-      .single();
+      .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows gracefully
 
     if (error) throw error;
     
-    return data?.cart_items || [];
+    const cart = data?.cart_items || [];
+    console.log('📦 getSharedCart result:', { sessionId, cartLength: cart.length, cart });
+    return cart;
   } catch (err) {
     console.error('❌ Error getting shared cart:', err);
     return [];
@@ -432,6 +434,8 @@ export const getSharedCart = async (sessionId) => {
  */
 export const updateSharedCart = async (sessionId, cartItems) => {
   try {
+    console.log('📤 Updating shared cart:', { sessionId, itemCount: cartItems.length });
+    
     const { data, error } = await supabase
       .from('table_sessions')
       .update({ 
@@ -443,8 +447,12 @@ export const updateSharedCart = async (sessionId, cartItems) => {
       .eq('status', 'active')
       .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Update error:', error);
+      throw error;
+    }
     
+    console.log('✅ Cart updated successfully:', data);
     return data?.[0]?.cart_items || [];
   } catch (err) {
     console.error('❌ Error updating shared cart:', err);
@@ -480,6 +488,8 @@ export const clearSharedCart = async (sessionId) => {
  * Returns unsubscribe function
  */
 export const subscribeToSharedCart = (sessionId, callback) => {
+  console.log('🔌 Setting up real-time subscription for session:', sessionId);
+  
   const channel = supabase
     .channel(`table-session-${sessionId}`)
     .on(
@@ -491,13 +501,27 @@ export const subscribeToSharedCart = (sessionId, callback) => {
         filter: `id=eq.${sessionId}`
       },
       (payload) => {
-        console.log('🔄 Cart updated:', payload.new.cart_items);
+        console.log('� Real-time UPDATE received:', {
+          sessionId,
+          cartItems: payload.new.cart_items,
+          timestamp: payload.new.updated_at
+        });
         callback(payload.new.cart_items || []);
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log('📡 Subscription status:', status);
+      if (status === 'SUBSCRIBED') {
+        console.log('✅ Successfully subscribed to cart updates');
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('❌ Subscription channel error');
+      } else if (status === 'TIMED_OUT') {
+        console.error('⏱️ Subscription timed out');
+      }
+    });
 
   return () => {
+    console.log('🔕 Unsubscribing from cart updates');
     channel.unsubscribe();
   };
 };
