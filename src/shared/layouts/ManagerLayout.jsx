@@ -1,15 +1,20 @@
 /**
- * AdminLayout Component
- * Main layout wrapper for admin portal with top header (no sidebar)
+ * ManagerLayout Component
+ * Main layout wrapper for manager portal with header only (sidebar removed)
+ * - Full-width content area
+ * - Navigation via tabs within dashboard
  */
 
 import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import ManagerHeader from './ManagerHeader';
+// SIDEBAR REMOVED - Removed import: import ManagerSidebar from './ManagerSidebar';
 import { getCurrentUser } from '@shared/utils/auth/auth';
 
-const AdminLayout = () => {
+const ManagerLayout = () => {
   const [currentUser, setCurrentUser] = useState(null);
+  // SIDEBAR REMOVED - No sidebar state needed
+  // const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
 
   useEffect(() => {
     loadUser();
@@ -20,23 +25,48 @@ const AdminLayout = () => {
     setCurrentUser({ ...user, ...profile });
   };
 
+  // SIDEBAR REMOVED - No toggle function needed
+  // const toggleSidebar = () => {
+  //   setSidebarOpen((prev) => !prev);
+  // };
+
+  // SIDEBAR REMOVED - No close function needed
+  // const closeSidebar = () => {
+  //   if (window.innerWidth < 1024) {
+  //     setSidebarOpen(false);
+  //   }
+  // };
+
   const location = useLocation();
   const onManagerDashboard = location.pathname === '/manager' || location.pathname === '/manager/';
   const onManagerDashboardExact = location.pathname === '/manager/dashboard';
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header: hide default on manager dashboard so the page can render its own */}
-      {!(onManagerDashboard || onManagerDashboardExact) && (
-        <ManagerHeader user={currentUser} />
-      )}
+      {/* SIDEBAR REMOVED - Sidebar component no longer rendered */}
+      {/* <ManagerSidebar isOpen={sidebarOpen} onClose={closeSidebar} /> */}
 
-      {/* Page Content */}
-      <main role="main" aria-label="Admin content" className="p-6">
-        <Outlet />
-      </main>
+      {/* Main Content Area - Full Width */}
+      <div className="w-full">
+        {/* Header */}
+        <ManagerHeader 
+          user={currentUser} 
+          onMenuClick={() => {}} // SIDEBAR REMOVED - No menu click handler needed
+          hideOnDashboard={onManagerDashboard || onManagerDashboardExact}
+        />
+
+        {/* Page Content */}
+        <main 
+          role="main" 
+          aria-label="Manager content" 
+          className="p-4 md:p-6"
+        >
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 };
 
-export default AdminLayout;
+export default ManagerLayout;
+

@@ -9,6 +9,8 @@
  * Usage: Import and call at app initialization
  */
 
+import { logger } from './logger';
+
 /**
  * Clear invalid or expired authentication tokens from localStorage
  */
@@ -27,12 +29,12 @@ export const clearInvalidTokens = () => {
         if (!parsed || !parsed.refresh_token || !parsed.access_token) {
           localStorage.removeItem('sb-manager-session');
           cleared = true;
-          console.info('🧹 Cleared invalid manager session');
+          logger.info('🧹 Cleared invalid manager session');
         }
       } catch {
         localStorage.removeItem('sb-manager-session');
         cleared = true;
-        console.info('🧹 Cleared malformed manager session');
+        logger.info('🧹 Cleared malformed manager session');
       }
     }
     
@@ -43,22 +45,22 @@ export const clearInvalidTokens = () => {
         if (!parsed || !parsed.refresh_token || !parsed.access_token) {
           localStorage.removeItem('sb-owner-session');
           cleared = true;
-          console.info('🧹 Cleared invalid owner session');
+          logger.info('🧹 Cleared invalid owner session');
         }
       } catch {
         localStorage.removeItem('sb-owner-session');
         cleared = true;
-        console.info('🧹 Cleared malformed owner session');
+        logger.info('🧹 Cleared malformed owner session');
       }
     }
     
     if (cleared) {
-      console.info('✅ Token cleanup complete - please refresh if needed');
+      logger.info('✅ Token cleanup complete - please refresh if needed');
     }
     
     return cleared;
   } catch (error) {
-    console.error('Error during token cleanup:', error);
+    logger.error('Error during token cleanup:', error);
     return false;
   }
 };
@@ -73,14 +75,14 @@ export const handleAuthError = (error) => {
   
   // Handle invalid refresh token
   if (errorMessage.includes('refresh token') && errorMessage.includes('not found')) {
-    console.warn('⚠️ Invalid refresh token detected - clearing session');
+    logger.warn('⚠️ Invalid refresh token detected - clearing session');
     clearInvalidTokens();
     return true;
   }
   
   // Handle expired token
   if (errorMessage.includes('expired') || errorMessage.includes('invalid')) {
-    console.warn('⚠️ Token expired or invalid');
+    logger.warn('⚠️ Token expired or invalid');
     return true;
   }
   
@@ -121,7 +123,7 @@ export const initAuthErrorHandling = () => {
   // Suppress expected multi-client warning
   suppressMultiClientWarning();
   
-  console.info('✅ Auth error handling initialized');
+  logger.info('✅ Auth error handling initialized');
 };
 
 /**
@@ -139,14 +141,14 @@ export const isValidSession = (sessionKey = 'sb-manager-session') => {
     if (parsed.expires_at) {
       const expiresAt = new Date(parsed.expires_at * 1000);
       if (expiresAt < new Date()) {
-        console.info('ℹ️ Session expired');
+        logger.info('ℹ️ Session expired');
         return false;
       }
     }
     
     return true;
   } catch (error) {
-    console.error('Error checking session validity:', error);
+    logger.error('Error checking session validity:', error);
     return false;
   }
 };
@@ -170,7 +172,7 @@ export const clearAllSessions = () => {
     }
   });
   
-  console.info('🔒 All sessions cleared');
+  logger.info('🔒 All sessions cleared');
 };
 
 export default {

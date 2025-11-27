@@ -9,7 +9,7 @@ import { supabase } from '@shared/utils/api/supabaseClient';
 import { ROLES, getRoleDisplayName, getRoleBadgeColor } from '@shared/utils/permissions/permissions';
 import { formatDateTime } from '@shared/utils/helpers/formatters';
 import { logUserDeactivated } from '@domains/staff/utils/activityLogger';
-import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
+import { TableSkeleton } from '@shared/components/feedback/LoadingSkeleton';
 import DataTable from '@shared/components/compounds/DataTable';
 import Modal from '@shared/components/compounds/Modal';
 import ConfirmDialog from '@shared/components/compounds/ConfirmDialog';
@@ -181,10 +181,10 @@ const StaffManagement = () => {
       render: (row) => (
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-400 to-red-500 flex items-center justify-center text-white font-semibold">
-            {row.full_name.charAt(0)}
+            {(row.full_name || row.name || row.email || '?').charAt(0).toUpperCase()}
           </div>
           <div>
-            <div className="font-medium text-foreground">{row.full_name}</div>
+            <div className="font-medium text-foreground">{row.full_name || row.name || 'Unknown'}</div>
             <div className="text-sm text-muted-foreground">{row.email}</div>
           </div>
         </div>
@@ -310,7 +310,18 @@ const StaffManagement = () => {
   ];
 
   if (loading) {
-    return <LoadingSpinner text="Loading staff..." />;
+    return (
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <div className="h-8 w-48 bg-white/10 rounded animate-pulse mb-2"></div>
+            <div className="h-4 w-72 bg-white/5 rounded animate-pulse"></div>
+          </div>
+          <div className="h-10 w-40 bg-white/10 rounded-lg animate-pulse"></div>
+        </div>
+        <TableSkeleton rows={5} columns={6} />
+      </div>
+    );
   }
 
   return (

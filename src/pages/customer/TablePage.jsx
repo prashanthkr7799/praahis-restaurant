@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ShoppingCart, ArrowLeft, Search, X, Bell } from 'lucide-react';
-import { AnimatePresence, m } from 'framer-motion';
-// Mark 'm' as used for ESLint while also enabling JSX usage like <m.div>
-const MOTION = m;
 import toast from 'react-hot-toast';
 import { getTable, getMenuItems, createOrder, markTableOccupied, supabase, getOrCreateActiveSessionId, getSharedCart, updateSharedCart, clearSharedCart, subscribeToSharedCart } from '@shared/utils/api/supabaseClient';
 import { startSessionTracking, stopSessionTracking } from '@/shared/utils/helpers/sessionActivityTracker';
 import { groupByCategory, getCategories, prepareOrderData } from '@domains/ordering/utils/orderHelpers';
 import MenuItem from '@domains/ordering/components/MenuItem';
+import MenuItemSkeleton from '@domains/ordering/components/MenuItemSkeleton';
 import CategoryTabs from '@domains/ordering/components/CategoryTabs';
 import CartSummary from '@domains/ordering/components/CartSummary';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
@@ -50,7 +48,15 @@ const TablePage = () => {
 
   useEffect(() => {
     // Customer pages don't need restaurant context - load data directly
-    console.log('🔵 useEffect triggered - starting loadData()');
+    
+    // Guard: Check if tableId is valid
+    if (!tableId || tableId === 'undefined') {
+      console.error('❌ Invalid table ID:', tableId);
+      setError('Invalid table ID. Please scan a valid QR code.');
+      setLoading(false);
+      return;
+    }
+    
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId]);
@@ -91,7 +97,6 @@ const TablePage = () => {
         currentSessionId = await getOrCreateActiveSessionId(tableData.id);
       }
 
-      console.log('✅ Database-driven session ID:', currentSessionId);
       setSessionId(currentSessionId);
 
       // Check if there's already a paid order for this session
@@ -109,7 +114,6 @@ const TablePage = () => {
 
           if (existingOrders && existingOrders.length > 0) {
             const paidOrder = existingOrders[0];
-            console.log('💰 Found existing paid order:', paidOrder.id);
             setOrderPaid(true);
             setPaidOrderId(paidOrder.id);
             
@@ -135,7 +139,6 @@ const TablePage = () => {
           const sharedCart = await getSharedCart(currentSessionId);
           if (sharedCart && Array.isArray(sharedCart)) {
             setCartItems(sharedCart);
-            console.log('🛒 Loaded shared cart:', sharedCart.length, 'items');
           }
         } catch (err) {
           console.error('Failed to load shared cart:', err);
@@ -145,7 +148,6 @@ const TablePage = () => {
 
       // Start activity tracking for this session
       if (currentSessionId) {
-        console.log('🟢 Starting session activity tracking:', currentSessionId);
         startSessionTracking(currentSessionId);
       }
 
@@ -166,7 +168,6 @@ const TablePage = () => {
   // Cleanup activity tracker on unmount
   useEffect(() => {
     return () => {
-      console.log('🔴 Stopping session activity tracking on unmount');
       stopSessionTracking();
     };
   }, []);
@@ -175,33 +176,25 @@ const TablePage = () => {
   useEffect(() => {
     if (!sessionId) return;
 
-    console.log('🔔 Subscribing to shared cart updates for session:', sessionId);
-    console.log('🔔 Current cart state:', cartItems);
     
     const unsubscribe = subscribeToSharedCart(sessionId, (updatedCart) => {
-      console.log('📥 Received cart update from remote:', updatedCart);
-      console.log('📥 isUpdatingFromRemote before:', isUpdatingFromRemote.current);
       isUpdatingFromRemote.current = true;
       setCartItems(updatedCart || []);
       // Reset flag after state update completes
       setTimeout(() => {
         isUpdatingFromRemote.current = false;
-        console.log('📥 isUpdatingFromRemote reset to false');
       }, 100);
     });
 
     return () => {
-      console.log('🔕 Unsubscribing from shared cart');
       if (unsubscribe) unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   // Subscribe to order payment status changes
   useEffect(() => {
     if (!sessionId || !table?.id) return;
 
-    console.log('💳 Subscribing to payment status changes for session:', sessionId);
 
     // Subscribe to orders table for this session
     const orderSubscription = supabase
@@ -215,11 +208,9 @@ const TablePage = () => {
           filter: `session_id=eq.${sessionId}`
         },
         (payload) => {
-          console.log('💰 Order UPDATE received:', payload);
           
           // Check if payment_status changed to 'paid'
           if (payload.new.payment_status === 'paid' && payload.old.payment_status !== 'paid') {
-            console.log('🎉 PAYMENT DETECTED! Order is now paid:', payload.new.id);
             setOrderPaid(true);
             setPaidOrderId(payload.new.id);
             
@@ -233,12 +224,10 @@ const TablePage = () => {
           }
         }
       )
-      .subscribe((status) => {
-        console.log('💳 Order payment subscription status:', status);
+      .subscribe((_status) => {
       });
 
     return () => {
-      console.log('💳 Unsubscribing from payment status changes');
       orderSubscription.unsubscribe();
     };
   }, [sessionId, table, navigate]);
@@ -388,7 +377,6 @@ const TablePage = () => {
       setSubmittingOrder(true);
       toast.dismiss('order-progress');
       toast.loading('Creating your order...', { id: 'order-progress' });
-      console.log('[Checkout] Creating order for table:', table?.id, 'items:', cartItems.length);
       const orderData = prepareOrderData(cartItems, table, table.restaurant_id);
       const order = await createOrder(orderData);
       if (!order || !order.id) {
@@ -440,8 +428,27 @@ const TablePage = () => {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen customer-theme flex items-center justify-center">
-        <LoadingSpinner size="large" text="Loading menu..." />
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <div className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-2xl shadow-xl border-b border-white/5">
+          <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-white/10 rounded-full animate-pulse"></div>
+              <div className="h-6 w-32 bg-white/10 rounded animate-pulse"></div>
+            </div>
+            <div className="w-9 h-9 bg-white/10 rounded-full animate-pulse"></div>
+          </div>
+          <div className="max-w-7xl mx-auto px-4 pb-4">
+            <div className="h-10 bg-white/10 rounded-xl animate-pulse"></div>
+          </div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+            {[...Array(8)].map((_, i) => (
+              <MenuItemSkeleton key={i} />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -449,9 +456,9 @@ const TablePage = () => {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen customer-theme flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
         {/* Dark theme compatible error message override */}
-        <div className="w-full max-w-md customer-card">
+        <div className="w-full max-w-md bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
           <ErrorMessage error={error} onRetry={loadData} />
         </div>
       </div>
@@ -459,28 +466,30 @@ const TablePage = () => {
   }
 
   return (
-    <div className="min-h-screen customer-theme">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Header - Sticky */}
-      <div className="sticky top-0 z-50 customer-card shadow-xl">
+      <div className="sticky top-0 z-50 bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-900/80 backdrop-blur-2xl shadow-xl border-b border-white/5">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-4">
           {/* Left: Back + Restaurant Info */}
           <div className="flex items-center gap-3">
-            <Link to="/" className="rounded-full p-2 hover:bg-gray-700 transition-colors">
+            <Link to="/" className="rounded-full p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
               <ArrowLeft className="h-5 w-5 text-white" />
             </Link>
             <div className="flex items-center gap-3">
               <img src="/logo.svg" alt="Restaurant logo" className="h-6 sm:h-7 w-auto object-contain" />
-              <p className="text-xs text-gray-400">Table #{table?.table_number}</p>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 bg-gradient-to-r from-orange-500/20 to-amber-500/20 rounded-lg border border-orange-500/30 text-xs font-bold text-orange-400">
+                  Table #{table?.table_number}
+                </span>
+              </div>
             </div>
           </div>
 
           {/* Right: Actions */}
           <div className="flex items-center gap-2">
-            {/* Cart button removed from mobile view - cart opens automatically after adding items */}
-            
             {/* Profile Icon (placeholder) */}
-            <div className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full bg-gray-700 text-white">
-              <span className="text-sm font-semibold">
+            <div className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/20 ring-2 ring-orange-400/20">
+              <span className="text-sm font-bold">
                 {table?.table_number || 'T'}
               </span>
             </div>
@@ -490,7 +499,7 @@ const TablePage = () => {
         {/* Search Bar */}
         <div className="max-w-7xl mx-auto px-4 pb-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
             <input
               id="menu-search"
               name="menu-search"
@@ -499,20 +508,20 @@ const TablePage = () => {
               onChange={handleSearch}
               placeholder="Search for dishes..."
               autoComplete="off"
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
+              className="w-full rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm py-3 pl-11 pr-10 text-sm text-white placeholder:text-zinc-500 focus:border-orange-500/50 focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all"
             />
             {searchQuery && (
               <button
                 onClick={clearSearch}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 hover:bg-gray-700 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1.5 bg-white/5 hover:bg-white/10 transition-colors"
               >
-                <X className="h-4 w-4 text-gray-400" />
+                <X className="h-4 w-4 text-zinc-400" />
               </button>
             )}
           </div>
           {isSearching && (
-            <p className="mt-2 text-sm text-gray-400">
-              Found {filteredMenuItems.length} {filteredMenuItems.length === 1 ? 'item' : 'items'}
+            <p className="mt-2 text-sm text-zinc-400">
+              Found <span className="text-orange-400 font-semibold">{filteredMenuItems.length}</span> {filteredMenuItems.length === 1 ? 'item' : 'items'}
             </p>
           )}
         </div>
@@ -537,8 +546,8 @@ const TablePage = () => {
             {isSearching ? (
               // Search results view
               <div className="mb-6">
-                <h2 className="mb-4 text-2xl font-bold text-white">
-                  Search Results {searchQuery && `for "${searchQuery}"`}
+                <h2 className="mb-4 text-2xl font-bold text-white tracking-tight">
+                  Search Results {searchQuery && <span className="text-orange-400">"{searchQuery}"</span>}
                 </h2>
                 {filteredMenuItems.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -549,18 +558,28 @@ const TablePage = () => {
                           key={item.id}
                           item={item}
                           onAddToCart={handleAddToCart}
+                          onUpdateQuantity={handleUpdateQuantity}
                           cartQuantity={cartItem?.quantity || 0}
                         />
                       );
                     })}
                   </div>
                 ) : (
-                  <div className="py-16 text-center">
-                    <Search className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-                    <p className="text-lg text-gray-400">No items found</p>
-                    <p className="text-sm text-gray-400 mt-2">
-                      Try searching with different keywords
+                  <div className="py-16 text-center bg-slate-800/30 backdrop-blur-sm rounded-2xl border-2 border-dashed border-white/10">
+                    <Search className="mx-auto h-16 w-16 text-zinc-600 mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      No items found
+                    </h3>
+                    <p className="text-zinc-400 mb-6 max-w-md mx-auto">
+                      We couldn't find any dishes matching "<span className="text-orange-400">{searchQuery}</span>". Try searching with different keywords.
                     </p>
+                    <button
+                      onClick={clearSearch}
+                      className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl font-medium transition-all shadow-lg shadow-orange-500/20"
+                    >
+                      <X className="h-4 w-4" />
+                      Clear Search
+                    </button>
                   </div>
                 )}
               </div>
@@ -580,6 +599,7 @@ const TablePage = () => {
                           key={item.id}
                           item={item}
                           onAddToCart={handleAddToCart}
+                          onUpdateQuantity={handleUpdateQuantity}
                           cartQuantity={cartItem?.quantity || 0}
                         />
                       );
@@ -590,13 +610,13 @@ const TablePage = () => {
             )}
             {/* Empty menu fallback */}
             {!isSearching && categories.length === 0 && (
-              <div className="py-20 text-center customer-card">
-                <Search className="mx-auto h-16 w-16 text-gray-500 mb-4" />
+              <div className="py-20 text-center bg-slate-800/30 backdrop-blur-sm rounded-2xl border border-white/10">
+                <Search className="mx-auto h-16 w-16 text-zinc-600 mb-4" />
                 <h2 className="text-2xl font-bold text-white mb-2">Menu Coming Soon</h2>
-                <p className="text-sm text-gray-400 max-w-md mx-auto">No dishes are available right now. Please ask the staff or try again later.</p>
+                <p className="text-sm text-zinc-400 max-w-md mx-auto">No dishes are available right now. Please ask the staff or try again later.</p>
                 <button
                   onClick={loadData}
-                  className="mt-6 px-5 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-lg active:scale-95"
+                  className="mt-6 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-semibold shadow-lg shadow-orange-500/20 active:scale-95 transition-all"
                 >
                   Refresh
                 </button>
@@ -606,7 +626,7 @@ const TablePage = () => {
 
           {/* Cart sidebar (desktop) - Fixed 320px width */}
           <div className="hidden lg:block w-80 flex-shrink-0">
-            <div className="sticky top-32 customer-card">
+            <div className="sticky top-32 bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
               <CartSummary
                 cartItems={cartItems}
                 onUpdateQuantity={handleUpdateQuantity}
@@ -615,7 +635,7 @@ const TablePage = () => {
                 isProcessing={submittingOrder}
               />
               {submittingOrder && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-gray-900/90">
+                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-slate-900/90 backdrop-blur-sm">
                   <LoadingSpinner text="Creating order..." />
                 </div>
               )}
@@ -633,18 +653,18 @@ const TablePage = () => {
           }}
         >
           {/* Dim backdrop */}
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
           <div
-            className="relative bg-gray-900 rounded-t-3xl shadow-2xl border-t border-gray-800 max-h-[85vh] flex flex-col w-full"
+            className="relative bg-gradient-to-b from-slate-800 to-slate-900 rounded-t-3xl shadow-2xl border-t border-white/10 max-h-[85vh] flex flex-col w-full"
           >
-            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-800">
-              <h2 className="text-white font-semibold">Review Order</h2>
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-white/10">
+              <h2 className="text-white font-bold text-lg">Review Order</h2>
               <button
                 type="button"
                 onClick={() => !submittingOrder && setShowCart(false)}
-                className="rounded-full p-2 hover:bg-gray-800 transition-colors"
+                className="rounded-full p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
               >
-                <X className="h-5 w-5 text-gray-300" />
+                <X className="h-5 w-5 text-zinc-300" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto">
@@ -662,27 +682,33 @@ const TablePage = () => {
 
       {/* Floating Bottom Bar (Mobile) - Cart info and actions */}
       {cartItems.length > 0 && !showCart && (
-        <div className="fixed bottom-4 left-4 right-4 z-40 flex items-center gap-3 lg:hidden">
+        <div className="fixed bottom-4 left-4 right-4 z-40 flex items-center gap-3 lg:hidden animate-slideUp">
           {/* Review Order Button (replaces Pay Now + Cart) */}
           <button
             type="button"
             aria-label="Review order"
             onClick={() => setShowCart(true)}
-            className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-3.5 font-semibold text-white shadow-2xl transition-all active:scale-[0.98]"
+            className="flex-1 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-600 px-5 py-4 font-semibold text-white shadow-2xl shadow-orange-500/30 transition-all active:scale-[0.98] hover:shadow-orange-500/50 hover:brightness-110 border border-orange-400/30 backdrop-blur-sm"
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                <span className="text-sm font-medium">
-                  {cartItems.reduce((sum, item) => sum + item.quantity, 0)} items
-                </span>
-                <span className="text-sm text-white/70">|</span>
-                <span className="text-lg font-bold tabular-nums">
-                  ₹{cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}
-                </span>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <ShoppingCart className="h-5 w-5" />
+                  <span className="absolute -top-2 -right-2 bg-white text-orange-600 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg ring-2 ring-orange-500/20">
+                    {cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+                  </span>
+                </div>
+                <div className="text-left">
+                  <span className="text-sm font-medium block">
+                    {cartItems.reduce((sum, item) => sum + item.quantity, 0)} items
+                  </span>
+                  <span className="text-lg font-bold tabular-nums">
+                    ₹{cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}
+                  </span>
+                </div>
               </div>
-              <span className="text-sm font-semibold whitespace-nowrap">
-                Review →
+              <span className="text-sm font-bold whitespace-nowrap flex items-center gap-1 bg-white/10 px-3 py-1.5 rounded-lg">
+                Review <ArrowLeft className="h-4 w-4 rotate-180" />
               </span>
             </div>
           </button>
@@ -715,7 +741,7 @@ const TablePage = () => {
                 console.error('Failed to send waiter alert:', err);
               }
             }}
-            className="flex-shrink-0 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 p-3.5 text-white shadow-2xl transition-all hover:brightness-110 active:scale-95 touch-manipulation"
+            className="flex-shrink-0 rounded-2xl bg-gradient-to-br from-orange-500 to-red-500 p-4 text-white shadow-2xl shadow-orange-500/30 transition-all hover:brightness-110 active:scale-95 touch-manipulation ring-2 ring-orange-400/20"
           >
             <Bell className="h-5 w-5" />
           </button>

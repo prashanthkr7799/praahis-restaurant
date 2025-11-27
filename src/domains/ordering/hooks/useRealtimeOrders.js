@@ -30,6 +30,16 @@ const useRealtimeOrders = (options = {}) => {
       setLoading(true);
       let query = supabase.from('orders').select('*');
 
+      // Apply restaurant_id filter (REQUIRED for RLS policies)
+      if (filter.restaurant_id) {
+        query = query.eq('restaurant_id', filter.restaurant_id);
+      } else {
+        // If no restaurant_id, don't make the query - it will fail with 400 due to RLS
+        console.warn('useRealtimeOrders: restaurant_id filter is required');
+        setLoading(false);
+        return;
+      }
+
       // Apply filters
       if (filter.status) {
         query = query.eq('order_status', filter.status);
@@ -59,7 +69,7 @@ const useRealtimeOrders = (options = {}) => {
     } finally {
       setLoading(false);
     }
-  }, [filter.status, filter.tableId, filter.paymentStatus, orderBy.column, orderBy.ascending, showNotifications]);
+  }, [filter.restaurant_id, filter.status, filter.tableId, filter.paymentStatus, orderBy.column, orderBy.ascending, showNotifications]);
 
   // Subscribe to real-time updates
   useEffect(() => {

@@ -50,11 +50,17 @@ const Modal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div 
+      className="fixed inset-0 z-50 overflow-y-auto"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal Content */}
@@ -65,7 +71,10 @@ const Modal = ({
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-5 border-b border-border/50 bg-muted/20">
-            <h3 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+            <h3 
+              id="modal-title"
+              className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent"
+            >
               {title}
             </h3>
             {showCloseButton && (

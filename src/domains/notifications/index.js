@@ -8,10 +8,9 @@
 // Components
 export { default as NotificationBell } from './components/NotificationBell';
 
-// Hooks  
-// TODO: Create these hooks
-// export { default as useNotifications } from './hooks/useNotifications';
-// export { default as useNotificationRealtime } from './hooks/useNotificationRealtime';
+// Hooks
+export { default as useNotifications } from './hooks/useNotifications';
+export { default as useNotificationRealtime } from './hooks/useNotificationRealtime';
 
 // Utils
 export * from './utils/notificationHelpers';

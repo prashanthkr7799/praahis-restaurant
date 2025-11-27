@@ -4,7 +4,16 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
-  { ignores: ['dist'] },
+  { ignores: ['dist', 'build', '.vite', 'node_modules', 'coverage', '**/*.min.js', 'supabase/functions/**/*.ts'] },
+  // Node.js config files
+  {
+    files: ['vite.config.js', 'vitest.config.js', 'eslint.config.js', 'postcss.config.js', 'tailwind.config.js'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.node,
+      sourceType: 'module',
+    },
+  },
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {
@@ -26,7 +35,7 @@ export default [
       'no-unused-vars': ['error', { 
         varsIgnorePattern: '^[A-Z_]',
         ignoreRestSiblings: true,
-        argsIgnorePattern: '^_'
+        argsIgnorePattern: '^_|^[A-Z]'
       }],
       'react-refresh/only-export-components': [
         'warn',

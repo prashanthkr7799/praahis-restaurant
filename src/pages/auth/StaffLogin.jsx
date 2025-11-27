@@ -14,6 +14,7 @@ import { signIn } from '@shared/utils/auth/auth';
 import { ROLES } from '@shared/utils/permissions/permissions';
 import { saveSession } from '@shared/utils/auth/session';
 import { setRestaurantContext } from '@/lib/restaurantContextStore';
+import { logger } from '@shared/utils/helpers/logger';
 
 // Staff Login - Manager/Chef/Waiter only (uses manager client)
 const StaffLogin = () => {
@@ -44,7 +45,7 @@ const StaffLogin = () => {
       try { localStorage.setItem('praahis_restaurant_ctx', JSON.stringify(ctx)); } catch { /* ignore */ }
       setRestaurantContext(ctx);
     } catch (e) {
-      console.warn('Could not hydrate RestaurantContext:', e);
+      logger.warn('Could not hydrate RestaurantContext:', e);
     }
   };
 
@@ -97,11 +98,100 @@ const StaffLogin = () => {
       
       // Warn if no restaurant assigned (important for staff functionality)
       if (!restaurantId) {
-        console.warn('[StaffLogin] User has no restaurant_id assigned:', userId);
+        logger.warn('[StaffLogin] User has no restaurant_id assigned:', userId);
         toast.error('Your account is not assigned to a restaurant. Please contact your administrator.');
         await supabaseManager.auth.signOut();
         setLoading(false);
         return;
+      }
+
+      // Step 5.5: Check if the restaurant is active and subscription is valid
+      // CRITICAL - Block login if restaurant is deactivated OR subscription is expired/suspended
+      // EXCEPTION: Managers can still login to access the payment page
+      const { data: restaurant, error: restaurantError } = await supabaseManager
+        .from('restaurants')
+        .select(`
+          id, 
+          name, 
+          is_active,
+          subscriptions (
+            id,
+            status,
+            current_period_end
+          )
+        `)
+        .eq('id', restaurantId)
+        .single();
+
+      if (restaurantError || !restaurant) {
+        console.error('[StaffLogin] Failed to fetch restaurant:', restaurantError);
+        toast.error('Unable to verify restaurant status. Please contact support.');
+        await supabaseManager.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      const role = String(profile.role || '').toLowerCase();
+      const isManager = role === ROLES.MANAGER || role === ROLES.ADMIN || role === 'manager' || role === 'admin';
+      
+      // Check subscription status
+      const subscription = Array.isArray(restaurant.subscriptions) 
+        ? restaurant.subscriptions[0] 
+        : restaurant.subscriptions;
+      
+      let subscriptionExpiredOrSuspended = false;
+      let subscriptionMessage = '';
+
+      if (subscription) {
+        const subStatus = subscription.status?.toLowerCase();
+        
+        // Check if subscription is suspended or cancelled
+        if (subStatus === 'suspended' || subStatus === 'cancelled' || subStatus === 'expired') {
+          subscriptionExpiredOrSuspended = true;
+          subscriptionMessage = `Your restaurant subscription has been ${subStatus}.`;
+        }
+
+        // Check if subscription is expired (date-based)
+        // BUT ONLY if status is NOT explicitly 'active' or 'trial'
+        // This allows SuperAdmin to extend subscription and set status to active
+        if (subscription.current_period_end && subStatus !== 'active' && subStatus !== 'trial') {
+          const expiryDate = new Date(subscription.current_period_end);
+          if (!isNaN(expiryDate.getTime()) && expiryDate < new Date()) {
+            subscriptionExpiredOrSuspended = true;
+            subscriptionMessage = `Your restaurant subscription expired on ${expiryDate.toLocaleDateString()}.`;
+          }
+        }
+      }
+
+      // Check if restaurant is deactivated
+      if (!restaurant.is_active || subscriptionExpiredOrSuspended) {
+        // MANAGERS can login but will be redirected to subscription page
+        if (isManager) {
+          // Store the subscription status in session for ProtectedRoute to check
+          localStorage.setItem('praahis_subscription_status', JSON.stringify({
+            expired: subscriptionExpiredOrSuspended,
+            restaurantActive: restaurant.is_active,
+            message: subscriptionMessage
+          }));
+          
+          // Continue with login but show warning
+          toast.error(
+            subscriptionMessage + ' You will be redirected to the payment page.',
+            { duration: 5000 }
+          );
+        } else {
+          // Non-managers (Chef, Waiter) are blocked completely
+          toast.error(
+            subscriptionMessage + ' Please contact the manager to complete payment.',
+            { duration: 6000 }
+          );
+          await supabaseManager.auth.signOut();
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Clear any stale subscription status
+        localStorage.removeItem('praahis_subscription_status');
       }
 
       // Step 6: Persist session { userId, role, restaurantId }
@@ -118,25 +208,22 @@ const StaffLogin = () => {
       toast.success('Login successful!');
 
       // Step 10: Role-based redirect to appropriate dashboard
-      const role = String(profile.role || '').toLowerCase();
-      console.log('🚀 [StaffLogin] Redirecting to dashboard for role:', role);
-      
-      if (role === ROLES.MANAGER || role === ROLES.ADMIN) {
-        console.log('🚀 [StaffLogin] Navigating to /manager/dashboard');
+      // If subscription is expired/suspended and user is manager, redirect to subscription page
+      const subscriptionStatus = localStorage.getItem('praahis_subscription_status');
+      if (subscriptionStatus && isManager) {
+        navigate('/manager/subscription', { replace: true });
+      } else if (isManager) {
         navigate('/manager/dashboard', { replace: true });
       } else if (role === ROLES.CHEF) {
-        console.log('🚀 [StaffLogin] Navigating to /chef');
         navigate('/chef', { replace: true });
       } else if (role === ROLES.WAITER) {
-        console.log('🚀 [StaffLogin] Navigating to /waiter');
         navigate('/waiter', { replace: true });
       } else {
         // Fallback for unrecognized roles
-        console.log('🚀 [StaffLogin] Navigating to / (fallback)');
         navigate('/', { replace: true });
       }
     } catch (err) {
-      console.error('[StaffLogin] error', err);
+      console.error('[StaffLogin] Login error:', err);
       toast.error(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);

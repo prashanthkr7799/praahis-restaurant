@@ -1,568 +1,517 @@
-/**
- * Manager Dashboard - Complete Redesign
- * Modern dashboard with organized sections, quick actions, and enhanced UX
- */
-
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  TrendingUp,
-  TrendingDown,
-  ShoppingCart,
-  Users,
-  DollarSign,
-  RefreshCw,
-  UtensilsCrossed,
-  CreditCard,
-  QrCode,
-  BarChart3,
-  Settings,
-  FileText,
+import React, { useEffect, useState, useRef } from 'react';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { 
+  LayoutGrid, 
+  ShoppingCart, 
+  ChefHat, 
+  Users, 
+  BarChart2,
   Plus,
-  LayoutGrid,
-  Bell,
-  ChevronRight,
-  Clock,
-  ArrowRight,
-  CheckCircle
+  Store,
+  Volume2,
+  VolumeX,
+  LogOut,
+  Settings,
+  User,
+  Printer,
+  ChevronDown
 } from 'lucide-react';
-import { supabase, createPayment, updatePaymentStatus, updateOrderStatusCascade } from '@shared/utils/api/supabaseClient';
-import { formatCurrency } from '@shared/utils/helpers/formatters';
-import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
-import toast from 'react-hot-toast';
+import { RealtimeOrderProvider, useRealtimeOrders } from '@/shared/context/RealtimeOrderContext';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
-import BillingWarningCard from '@domains/billing/components/BillingWarningCard';
+import { getCurrentUser, signOut } from '@shared/utils/auth/auth';
+import notificationService from '@/domains/notifications/utils/notificationService';
+import OverviewTab from './components/OverviewTab';
+import OrdersTab from './components/OrdersTab';
+import TablesTab from './components/TablesTab';
+import KitchenTab from './components/KitchenTab';
+import StaffTab from './components/StaffTab';
+import CreateTakeawayOrderModal from '@domains/ordering/components/modals/CreateTakeawayOrderModal';
+import toast from 'react-hot-toast';
+import { supabase } from '@shared/utils/api/supabaseClient';
+import Modal from '@shared/components/compounds/Modal';
+import QRCode from 'qrcode';
 
-const ManagerDashboard = () => {
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    todayRevenue: 0,
-    todayOrders: 0,
-    activeOrders: 0,
-    totalStaff: 0,
-    yesterdayRevenue: 0,
-    yesterdayOrders: 0,
-    yesterdayActiveOrders: 0,
-    lastWeekStaff: 0,
-  });
-  const [recentOrders, setRecentOrders] = useState([]);
+const ManagerDashboardContent = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { restaurantId } = useRestaurant();
+  const activeTab = searchParams.get('tab') || 'overview';
+  const { restaurantId, restaurantName, branding } = useRestaurant();
+  const { refreshOrders, stats } = useRealtimeOrders();
+  const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
+  const [showPaymentQR, setShowPaymentQR] = useState(false);
+  const [paymentQRData, setPaymentQRData] = useState(null);
+  const [pendingPaymentOrder, setPendingPaymentOrder] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef(null);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const stored = localStorage.getItem('manager_sound_enabled');
+    return stored !== 'false';
+  });
 
+  // Fetch current user
   useEffect(() => {
-    loadDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurantId]);
+    const fetchUser = async () => {
+      const { profile } = await getCurrentUser();
+      if (profile) {
+        setCurrentUser(profile);
+      }
+    };
+    fetchUser();
+  }, []);
 
-  const loadDashboardData = async () => {
-    if (!restaurantId) {
-      setLoading(false);
+  const handleTabChange = (tab) => {
+    setSearchParams({ tab });
+  };
+
+  // Register audio unlock on mount
+  useEffect(() => {
+    notificationService.registerUserGestureUnlock();
+  }, []);
+
+  // Sound toggle
+  const handleSoundToggle = () => {
+    const newState = !soundEnabled;
+    setSoundEnabled(newState);
+    localStorage.setItem('manager_sound_enabled', String(newState));
+    if (newState) {
+      notificationService.playSound('success');
+    }
+  };
+
+  // Logout handler
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
+  // Scroll to top on tab change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeTab]);
+
+  // Close user menu on outside click
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setShowUserMenu(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showUserMenu]);
+
+  // Print receipt helper
+  const handlePrintReceipt = (order) => {
+    const printWindow = window.open('', '_blank', 'width=300,height=600');
+    if (!printWindow) {
+      toast.error('Please allow popups to print receipts');
       return;
     }
+    
+    const receiptHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt #${order.order_number}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Courier New', monospace; font-size: 12px; width: 280px; padding: 10px; }
+          .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+          .restaurant-name { font-size: 16px; font-weight: bold; }
+          .order-info { margin-bottom: 10px; }
+          .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; }
+          .item { display: flex; justify-content: space-between; margin: 5px 0; }
+          .totals { padding-top: 10px; }
+          .total-row { display: flex; justify-content: space-between; margin: 3px 0; }
+          .grand-total { font-weight: bold; font-size: 14px; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
+          .footer { text-align: center; margin-top: 15px; font-size: 10px; }
+          @media print { body { width: 72mm; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="restaurant-name">${restaurantName || 'Restaurant'}</div>
+          <div>Order #${order.order_number}</div>
+          <div>${new Date(order.created_at).toLocaleString()}</div>
+        </div>
+        <div class="order-info">
+          <div>Type: ${order.order_type === 'takeaway' ? 'Takeaway' : 'Dine-in'}</div>
+          ${order.table_number ? `<div>Table: ${order.table_number}</div>` : ''}
+          ${order.customer_name ? `<div>Customer: ${order.customer_name}</div>` : ''}
+        </div>
+        <div class="items">
+          ${(order.items || []).map(item => `
+            <div class="item">
+              <span>${item.quantity || 1}x ${item.name}</span>
+              <span>₹${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="totals">
+          <div class="total-row"><span>Subtotal</span><span>₹${(order.subtotal || 0).toFixed(2)}</span></div>
+          ${order.discount ? `<div class="total-row"><span>Discount</span><span>-₹${order.discount.toFixed(2)}</span></div>` : ''}
+          <div class="total-row"><span>Tax</span><span>₹${(order.tax || 0).toFixed(2)}</span></div>
+          <div class="total-row grand-total"><span>TOTAL</span><span>₹${(order.total || 0).toFixed(2)}</span></div>
+        </div>
+        <div class="footer">
+          <div>Thank you for your order!</div>
+          <div>Powered by Praahis</div>
+        </div>
+        <script>window.onload = () => { window.print(); window.close(); }</script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(receiptHTML);
+    printWindow.document.close();
+  };
 
-    setLoading(true);
-    try {
-      // Get today's date range
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: BarChart2 },
+    { id: 'orders', label: 'Orders', icon: ShoppingCart },
+    { id: 'tables', label: 'Tables', icon: LayoutGrid },
+    { id: 'kitchen', label: 'Kitchen', icon: ChefHat },
+    { id: 'staff', label: 'Staff', icon: Users },
+  ];
 
-      // Get yesterday's date range
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      // Fetch today's orders
-      const { data: todayOrders, error: ordersError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('restaurant_id', restaurantId)
-        .gte('created_at', today.toISOString())
-        .lt('created_at', tomorrow.toISOString());
-
-      if (ordersError) throw ordersError;
-
-      // Fetch yesterday's orders
-      const { data: yesterdayOrders, error: yesterdayOrdersError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('restaurant_id', restaurantId)
-        .gte('created_at', yesterday.toISOString())
-        .lt('created_at', today.toISOString());
-
-      if (yesterdayOrdersError) throw yesterdayOrdersError;
-
-      // Calculate revenues
-      const todayRevenue = todayOrders
-        ?.filter((o) => o.payment_status === 'paid')
-        .reduce((sum, o) => sum + (o.total || 0), 0) || 0;
-
-      const yesterdayRevenue = yesterdayOrders
-        ?.filter((o) => o.payment_status === 'paid')
-        .reduce((sum, o) => sum + (o.total || 0), 0) || 0;
-
-      // Active orders (today and yesterday)
-      const { data: activeOrdersToday, error: activeTodayError } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('restaurant_id', restaurantId)
-        .in('order_status', ['received', 'preparing', 'ready'])
-        .gte('created_at', today.toISOString());
-
-      if (activeTodayError) throw activeTodayError;
-
-      const { data: activeOrdersYesterday, error: activeYesterdayError } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('restaurant_id', restaurantId)
-        .in('order_status', ['received', 'preparing', 'ready'])
-        .gte('created_at', yesterday.toISOString())
-        .lt('created_at', today.toISOString());
-
-      if (activeYesterdayError) throw activeYesterdayError;
-
-      // Total staff
-      const { data: staff, error: staffError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('restaurant_id', restaurantId)
-        .eq('is_active', true);
-
-      if (staffError) throw staffError;
-
-      // Recent orders
-      const { data: recent, error: recentError } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          order_number,
-          order_status,
-          payment_status,
-          payment_method,
-          total,
-          created_at,
-          table_id,
-          feedback_submitted,
-          tables (table_number)
-        `)
-        .eq('restaurant_id', restaurantId)
-        .order('created_at', { ascending: false })
-        .limit(6);
-
-      if (recentError) throw recentError;
-
-      setStats({
-        todayRevenue,
-        todayOrders: todayOrders?.length || 0,
-        activeOrders: activeOrdersToday?.length || 0,
-        totalStaff: staff?.length || 0,
-        yesterdayRevenue,
-        yesterdayOrders: yesterdayOrders?.length || 0,
-        yesterdayActiveOrders: activeOrdersYesterday?.length || 0,
-        lastWeekStaff: staff?.length || 0,
-      });
-
-      setRecentOrders(recent || []);
-    } catch (error) {
-      console.error('Error loading dashboard:', error);
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview':
+        return <OverviewTab onTabChange={handleTabChange} onPrintReceipt={handlePrintReceipt} />;
+      case 'orders':
+        return <OrdersTab onPrintReceipt={handlePrintReceipt} />;
+      case 'tables':
+        return <TablesTab restaurantId={restaurantId} />;
+      case 'kitchen':
+        return <KitchenTab />;
+      case 'staff':
+        return <StaffTab />;
+      default:
+        return <OverviewTab onTabChange={handleTabChange} onPrintReceipt={handlePrintReceipt} />;
     }
   };
 
-  const calculateTrend = (current, previous) => {
-    if (previous === 0) return { trend: 0, isPositive: true };
-    const change = ((current - previous) / previous) * 100;
-    return {
-      trend: Math.abs(change).toFixed(1),
-      isPositive: change >= 0,
-    };
+  // Get user initials
+  const getUserInitials = () => {
+    if (!currentUser?.full_name) return 'M';
+    const names = currentUser.full_name.split(' ');
+    return names.length > 1 
+      ? `${names[0][0]}${names[1][0]}`.toUpperCase()
+      : names[0][0].toUpperCase();
   };
-
-  const handleMarkCashPaid = async (e, order) => {
-    e.stopPropagation();
-    try {
-      // Create a payment record for cash
-      await createPayment({
-        order_id: order.id,
-        restaurant_id: restaurantId,
-        amount: order.total,
-        currency: 'INR',
-        status: 'captured',
-        payment_method: 'cash',
-        payment_details: {
-          completed_at: new Date().toISOString(),
-        },
-      });
-
-      // Update order payment status to paid
-      await updatePaymentStatus(order.id, 'paid');
-
-      // If order is still in 'pending' status, move it to 'received' and cascade to items
-      if (order.order_status === 'pending') {
-        await updateOrderStatusCascade(order.id, 'received');
-      }
-
-      toast.success(`Order #${order.order_number} marked as cash paid`);
-      // Real-time will update customer devices - no need to reload dashboard
-    } catch (err) {
-      console.error('Error marking cash payment:', err);
-      toast.error('Failed to confirm cash payment');
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  const revenueTrend = calculateTrend(stats.todayRevenue, stats.yesterdayRevenue);
-  const ordersTrend = calculateTrend(stats.todayOrders, stats.yesterdayOrders);
-  const activeTrend = calculateTrend(stats.activeOrders, stats.yesterdayActiveOrders);
-
-  // Component for quick action buttons
-  // eslint-disable-next-line no-unused-vars
-  const QuickAction = ({ icon: IconComponent, label, onClick, badge, color = "text-primary" }) => {
-    return (
-      <button
-        onClick={onClick}
-        className="flex flex-col items-center gap-2 min-w-[72px] p-2 rounded-2xl hover:bg-white/5 transition-all active:scale-95 group border border-transparent hover:border-white/5"
-      >
-        <div className={`p-3 rounded-xl bg-white/5 border border-white/5 group-hover:border-white/20 transition-all relative shadow-lg ${color.replace('text-', 'shadow-')}/20`}>
-          <IconComponent className={`h-5 w-5 md:h-6 md:w-6 ${color} drop-shadow-md`} />
-          {badge > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 h-4 w-4 md:h-5 md:w-5 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold ring-2 ring-black shadow-lg shadow-rose-500/50">
-              {badge}
-            </span>
-          )}
-        </div>
-        <span className="text-[10px] md:text-xs font-medium text-zinc-400 group-hover:text-white transition-colors text-center whitespace-nowrap">
-          {label}
-        </span>
-      </button>
-    );
-  };
-
-  // Component for stat cards
-  // eslint-disable-next-line no-unused-vars
-  const StatCard = ({ title, value, subtext, icon: IconComponent, trend, color = "text-white" }) => (
-    <div className="glass-panel p-4 md:p-6 rounded-2xl group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden border border-white/10">
-      <div className={`absolute -right-6 -top-6 opacity-10 group-hover:opacity-20 transition-opacity duration-500`}>
-        <IconComponent className={`h-24 w-24 md:h-32 md:w-32 ${color}`} />
-      </div>
-
-      <div className="flex items-center justify-between mb-3 md:mb-4 relative z-10">
-        <p className="text-[10px] md:text-xs font-bold text-zinc-400 uppercase tracking-widest">{title}</p>
-        <div className={`p-1.5 md:p-2 rounded-lg bg-white/5 border border-white/5 ${color}`}>
-          <IconComponent className="h-3.5 w-3.5 md:h-4 md:w-4" />
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row md:items-end justify-between relative z-10 gap-2 md:gap-0">
-        <div>
-          <h3 className="text-2xl md:text-3xl font-bold text-white font-mono-nums tracking-tight drop-shadow-lg">{value}</h3>
-          {subtext && <p className="text-[10px] md:text-xs text-zinc-400 mt-1 font-medium">{subtext}</p>}
-        </div>
-        {trend && (
-          <div className={`self-start md:self-auto flex items-center gap-1 text-[10px] md:text-xs font-bold px-1.5 py-0.5 md:px-2 md:py-1 rounded-lg backdrop-blur-md border border-white/5 ${trend.isPositive ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
-            {trend.isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            <span className="font-mono-nums">{trend.trend}%</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  // Component for navigation cards
-  // eslint-disable-next-line no-unused-vars
-  const NavCard = ({ title, description, icon: IconComponent, onClick, color = "text-primary" }) => (
-    <button
-      onClick={onClick}
-      className="glass-panel p-4 md:p-5 text-left group hover:border-primary/30 transition-all flex flex-col h-full rounded-2xl hover:shadow-[0_0_30px_rgba(0,0,0,0.3)] border border-white/10"
-    >
-      <div className="flex items-start justify-between mb-3 md:mb-4">
-        <div className={`p-2.5 md:p-3 rounded-xl bg-white/5 border border-white/5 group-hover:bg-white/10 transition-colors ${color}`}>
-          <IconComponent className="h-4 w-4 md:h-5 md:w-5" />
-        </div>
-        <ArrowRight className="h-3.5 w-3.5 md:h-4 md:w-4 text-zinc-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
-      </div>
-      <h3 className="text-sm md:text-base font-bold text-white mb-1 group-hover:text-primary transition-colors">{title}</h3>
-      <p className="text-[10px] md:text-xs text-zinc-400 line-clamp-2 font-medium">{description}</p>
-    </button>
-  );
 
   return (
-    <div className="space-y-6 md:space-y-8 animate-fade-in pb-8 md:pb-0 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 pb-2">
-        <div>
-          <h1 className="text-2xl md:text-4xl font-bold text-white tracking-tight text-glow">
-            Dashboard
-          </h1>
-          <p className="text-xs md:text-sm text-zinc-400 mt-1 md:mt-2 font-medium flex items-center gap-2">
-            <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 md:gap-4 self-end md:self-auto">
-          <button
-            onClick={loadDashboardData}
-            className="glass-button p-2 md:p-3 rounded-xl hover:rotate-180 transition-all duration-500"
-            title="Refresh Data"
-          >
-            <RefreshCw className="h-4 w-4 md:h-5 md:w-5" />
-          </button>
-          <button
-            onClick={() => navigate('/manager/orders')}
-            className="hidden md:flex items-center gap-2 px-6 py-3 glass-button-primary rounded-xl transition-all font-bold text-sm tracking-wide uppercase"
-          >
-            <Plus className="h-4 w-4" />
-            New Order
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Quick Actions - Horizontal Scroll */}
-      <div className="md:hidden -mx-4 px-4 overflow-x-auto scrollbar-hide pb-2">
-        <div className="flex gap-2 min-w-max">
-          <QuickAction icon={Plus} label="New Order" onClick={() => navigate('/manager/orders')} color="text-primary" />
-          <QuickAction icon={LayoutGrid} label="Tables" onClick={() => navigate('/manager/tables')} color="text-accent" />
-          <QuickAction icon={FileText} label="Reports" onClick={() => navigate('/manager/reports')} color="text-emerald-400" />
-          <QuickAction icon={CreditCard} label="Billing" onClick={() => navigate('/manager/billing')} color="text-rose-400" />
-          <QuickAction icon={Bell} label="Alerts" onClick={() => { }} badge={stats.activeOrders} color="text-amber-400" />
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
-        <StatCard
-          title="REVENUE"
-          value={formatCurrency(stats.todayRevenue)}
-          subtext="vs yesterday"
-          icon={DollarSign}
-          trend={revenueTrend}
-          color="text-emerald-400"
-        />
-        <StatCard
-          title="ORDERS"
-          value={stats.todayOrders}
-          subtext="vs yesterday"
-          icon={ShoppingCart}
-          trend={ordersTrend}
-          color="text-primary"
-        />
-        <StatCard
-          title="ACTIVE"
-          value={stats.activeOrders}
-          subtext="in progress"
-          icon={Clock}
-          trend={activeTrend}
-          color="text-amber-400"
-        />
-        <StatCard
-          title="STAFF"
-          value={stats.totalStaff}
-          subtext="active now"
-          icon={Users}
-          color="text-accent"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        {/* Main Content Column (2/3) */}
-        <div className="lg:col-span-2 space-y-6 md:space-y-8">
-          {/* Operations Grid */}
-          <section>
-            <div className="flex items-center justify-between mb-4 md:mb-6">
-              <h2 className="text-xs md:text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                <UtensilsCrossed className="h-3.5 w-3.5 md:h-4 md:w-4" /> Operations
-              </h2>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
-              <NavCard
-                title="Menu"
-                description="Items & categories"
-                icon={UtensilsCrossed}
-                onClick={() => navigate('/manager/menu')}
-                color="text-rose-400"
-              />
-              <NavCard
-                title="Tables"
-                description="Status & QR codes"
-                icon={LayoutGrid}
-                onClick={() => navigate('/manager/tables')}
-                color="text-accent"
-              />
-              <NavCard
-                title="Orders"
-                description="Active & history"
-                icon={ShoppingCart}
-                onClick={() => navigate('/manager/orders')}
-                color="text-primary"
-              />
-              <NavCard
-                title="Payments"
-                description="Transactions"
-                icon={CreditCard}
-                onClick={() => navigate('/manager/payments')}
-                color="text-emerald-400"
-              />
-              <NavCard
-                title="QR Codes"
-                description="Generate codes"
-                icon={QrCode}
-                onClick={() => navigate('/manager/qr-codes')}
-                color="text-amber-400"
-              />
-              <NavCard
-                title="Staff"
-                description="Team members"
-                icon={Users}
-                onClick={() => navigate('/manager/staff')}
-                color="text-primary"
-              />
-            </div>
-          </section>
-
-          {/* Recent Orders List */}
-          <section>
-            <div className="flex items-center justify-between mb-4 md:mb-6">
-              <h2 className="text-xs md:text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                <Clock className="h-3.5 w-3.5 md:h-4 md:w-4" /> Recent Orders
-              </h2>
-              <button
-                onClick={() => navigate('/manager/orders')}
-                className="text-[10px] md:text-xs text-primary hover:text-primary/80 font-bold uppercase tracking-wider transition-colors"
-              >
-                View All
-              </button>
-            </div>
-
-            <div className="glass-panel rounded-2xl overflow-hidden border border-white/10">
-              {recentOrders.length === 0 ? (
-                <div className="p-8 md:p-12 text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-white/5 rounded-2xl mb-4 border border-white/5 shadow-inner">
-                    <ShoppingCart className="h-6 w-6 md:h-8 md:w-8 text-zinc-600" />
-                  </div>
-                  <p className="text-xs md:text-sm text-zinc-400 font-medium">No orders yet today</p>
-                </div>
+    <div className="min-h-screen bg-slate-950 text-white pb-20 md:pb-0">
+      {/* Clean Header */}
+      <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-xl border-b border-white/5">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-6">
+          <div className="flex items-center justify-between h-16">
+            {/* Left: Brand */}
+            <div className="flex items-center gap-3">
+              {branding?.logo_url ? (
+                <img src={branding.logo_url} alt={restaurantName} className="h-9 w-9 rounded-xl object-cover" />
               ) : (
-                <div className="divide-y divide-white/5">
-                  {recentOrders.map((order) => (
-                    <div
-                      key={order.id}
-                      onClick={() => navigate('/manager/orders')}
-                      className="p-4 md:p-5 hover:bg-white/5 transition-all cursor-pointer flex items-center justify-between group"
-                    >
-                      <div className="flex items-center gap-3 md:gap-5">
-                        <div className={`p-2 md:p-3 rounded-xl border shadow-lg ${order.order_status === 'preparing' ? 'bg-amber-500/10 border-amber-500/20 text-amber-500 shadow-amber-500/10' :
-                          order.order_status === 'ready' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-emerald-500/10' :
-                            order.order_status === 'served' ? 'bg-blue-500/10 border-blue-500/20 text-blue-500 shadow-blue-500/10' :
-                              order.order_status === 'completed' ? 'bg-zinc-500/10 border-zinc-500/20 text-zinc-500 shadow-zinc-500/10' :
-                                'bg-white/5 border-white/10 text-zinc-400'
-                          }`}>
-                          <ShoppingBagIcon status={order.order_status} />
-                        </div>
-                        <div>
-                          <h4 className="text-sm md:text-base font-bold text-white font-mono-nums tracking-tight">#{order.order_number}</h4>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-[10px] md:text-xs text-zinc-400 mt-0.5 md:mt-1 font-medium">
-                              Table {order.tables?.table_number || 'N/A'}
-                            </p>
-                            {order.feedback_submitted && (
-                              <span className="text-[9px] md:text-[10px] px-1.5 md:px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold uppercase tracking-wide">
-                                Feedback ✓
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 md:gap-6">
-                        <div className="text-right">
-                          <span className="text-sm md:text-base font-bold text-white font-mono-nums tracking-tight block">
-                            {formatCurrency(order.total)}
-                          </span>
-                          {order.feedback_submitted && (
-                            <span className="text-[9px] md:text-[10px] text-emerald-400 font-semibold uppercase tracking-wide mt-0.5 block">
-                              Completed ✓
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Cash Payment Confirmation - Only for cash orders that are unpaid */}
-                        {order.payment_method === 'cash' && order.payment_status === 'pending' && (
-                          <button
-                            onClick={(e) => handleMarkCashPaid(e, order)}
-                            className="glass-button px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 transition-all md:opacity-0 md:group-hover:opacity-100"
-                          >
-                            Cash Paid
-                          </button>
-                        )}
-
-                        <div className="p-1.5 md:p-2 rounded-full bg-white/5 group-hover:bg-primary/20 group-hover:text-primary transition-colors">
-                          <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                  <Store className="w-5 h-5 text-white" />
                 </div>
               )}
+              <div className="hidden sm:block">
+                <h1 className="text-base font-semibold text-white">{restaurantName || 'Restaurant'}</h1>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                  <span className="text-[10px] text-emerald-400 font-medium">Live</span>
+                  {stats && (
+                    <span className="text-[10px] text-zinc-500 ml-2">{stats.todayOrders || 0} orders</span>
+                  )}
+                </div>
+              </div>
             </div>
-          </section>
-        </div>
 
-        {/* Sidebar Column (1/3) */}
-        <div className="space-y-6 md:space-y-8">
-          {/* Billing Status Card */}
-          <BillingWarningCard restaurantId={restaurantId} />
+            {/* Center: Tabs (Desktop) */}
+            <nav className="hidden md:flex items-center bg-white/5 rounded-lg p-1">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2
+                      ${isActive 
+                        ? 'bg-white/10 text-white' 
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                      }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
 
-          {/* Admin Section */}
-          <section>
-            <div className="flex items-center justify-between mb-4 md:mb-6">
-              <h2 className="text-xs md:text-sm font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                <Settings className="h-3.5 w-3.5 md:h-4 md:w-4" /> Admin
-              </h2>
+            {/* Right: Actions */}
+            <div className="flex items-center gap-2">
+              {/* Sound Toggle */}
+              <button
+                onClick={handleSoundToggle}
+                className={`p-2 rounded-lg transition-all ${
+                  soundEnabled ? 'text-emerald-400 bg-emerald-500/10' : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                }`}
+                title={soundEnabled ? 'Mute' : 'Unmute'}
+              >
+                {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              </button>
+
+              {/* New Order Button */}
+              <button
+                onClick={() => setShowCreateOrderModal(true)}
+                className="hidden md:flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Order</span>
+              </button>
+
+              {/* User Menu */}
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-2 p-1.5 pl-2 rounded-lg hover:bg-white/5 transition-all"
+                >
+                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                    {getUserInitials()}
+                  </div>
+                  <div className="hidden lg:block text-left">
+                    <div className="text-sm font-medium text-white truncate max-w-[120px]">
+                      {currentUser?.full_name || 'Manager'}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 capitalize">{currentUser?.role || 'manager'}</div>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-zinc-500" />
+                </button>
+
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-white/10 bg-slate-900 shadow-xl py-1 z-50">
+                    <div className="px-4 py-3 border-b border-white/10">
+                      <div className="text-sm font-medium text-white">{currentUser?.full_name || 'Manager'}</div>
+                      <div className="text-xs text-zinc-500">{currentUser?.email}</div>
+                    </div>
+                    <Link 
+                      to="/manager/settings" 
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:bg-white/5 transition-colors"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span>Settings</span>
+                    </Link>
+                    <Link 
+                      to="/manager/subscription" 
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:bg-white/5 transition-colors"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <User className="w-4 h-4" />
+                      <span>Subscription</span>
+                    </Link>
+                    <div className="h-px bg-white/10 my-1" />
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 md:gap-4">
-              <NavCard
-                title="Analytics"
-                description="Performance insights"
-                icon={BarChart3}
-                onClick={() => navigate('/manager/analytics')}
-                color="text-primary"
-              />
-              <NavCard
-                title="Reports"
-                description="Download summaries"
-                icon={FileText}
-                onClick={() => navigate('/manager/reports')}
-                color="text-emerald-400"
-              />
-              <NavCard
-                title="Settings"
-                description="Configuration"
-                icon={Settings}
-                onClick={() => navigate('/manager/settings')}
-                color="text-zinc-400"
-              />
+          </div>
+
+          {/* Mobile Tabs */}
+          <div className="md:hidden pb-3 -mx-4 px-4 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-1 min-w-max">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all
+                      ${isActive 
+                        ? 'bg-violet-600 text-white' 
+                        : 'text-zinc-400 bg-white/5'
+                      }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
-          </section>
+          </div>
         </div>
-      </div>
+      </header>
+
+      {/* Content */}
+      <main className="max-w-[1600px] mx-auto px-4 md:px-6 py-6">
+        {renderTabContent()}
+      </main>
+
+      {/* Modals */}
+      {showCreateOrderModal && (
+          <CreateTakeawayOrderModal
+            isOpen={showCreateOrderModal}
+            onClose={() => setShowCreateOrderModal(false)}
+            onCreate={async (rawData) => {
+              try {
+                if (!restaurantId) {
+                  toast.error('Missing restaurant context');
+                  return;
+                }
+
+                // Map UI methods to DB-allowed values (check constraint): 'cash' or 'razorpay'
+                const paymentMethod = rawData.payment_method === 'counter' ? 'cash' : 'razorpay';
+                const { generateOrderNumber, generateOrderToken, calculateTax, calculateTotal } = await import('@/domains/ordering/utils/orderHelpers.js');
+                const order_number = generateOrderNumber();
+                const order_token = generateOrderToken();
+                const customer = rawData.customer || {};
+                const subtotal = rawData.subtotal ?? rawData.items.reduce((s, i) => s + (i.price * i.qty), 0);
+                const discountAmount = rawData.discount?.amount || 0;
+                const tax = rawData.tax ?? calculateTax(subtotal - discountAmount);
+                const total = rawData.total ?? calculateTotal(subtotal - discountAmount, tax, 0);
+                const isOnline = paymentMethod === 'razorpay';
+                // Always start as pending_payment until payment is confirmed
+                const order_status = 'pending_payment';
+                const payment_status = 'pending';
+                const items = rawData.items.map(it => ({
+                  menu_item_id: it.item_id || it.itemId || it.menu_item_id || null,
+                  name: it.name,
+                  price: it.price,
+                  quantity: it.qty || it.quantity || 1,
+                  is_veg: it.is_veg || it.isVeg || false,
+                  item_status: isOnline ? 'queued' : 'received'
+                }));
+
+                const insertPayload = {
+                  restaurant_id: restaurantId,
+                  order_type: rawData.order_type,
+                  order_number,
+                  order_token,
+                  items,
+                  subtotal,
+                  discount: discountAmount,
+                  tax,
+                  total,
+                  payment_method: paymentMethod,
+                  payment_status,
+                  order_status,
+                  special_instructions: rawData.special_instructions || null,
+                  customer_name: customer.name || null,
+                  customer_phone: customer.phone || null,
+                  customer_email: customer.email || null,
+                  // customer_address column may not exist; omit to avoid schema errors
+                  created_at: new Date().toISOString(),
+                };
+
+                const { data, error } = await supabase
+                  .from('orders')
+                  .insert([insertPayload])
+                  .select('id,restaurant_id,order_type,order_number,order_token,items,subtotal,discount,tax,total,payment_method,payment_status,order_status,special_instructions,customer_name,customer_phone,customer_email,created_at');
+                if (error) throw error;
+                const created = Array.isArray(data) ? data[0] : data;
+
+                if (isOnline) {
+                  const payUrl = `${window.location.origin}/payment/${created.id}`;
+                  try {
+                    const qr = await QRCode.toDataURL(payUrl, { width: 320, margin: 2 });
+                    setPaymentQRData({ qr, payUrl });
+                  } catch (qrErr) {
+                    console.error('QR generation failed', qrErr);
+                    setPaymentQRData({ qr: null, payUrl });
+                  }
+                  setPendingPaymentOrder(created);
+                  setShowPaymentQR(true);
+                  toast('Scan to pay using the QR code', { icon: '💳' });
+                } else {
+                  // For cash, keep it pending until manager confirms payment
+                  refreshOrders();
+                  // Navigate to Orders tab and preselect pending filter so manager sees it
+                  setSearchParams(prev => {
+                    const next = new URLSearchParams(prev);
+                    next.set('tab', 'orders');
+                    next.set('ordersFilter', 'pending');
+                    return next;
+                  });
+                  setShowCreateOrderModal(false);
+                  toast.success(`Order ${created.order_number} created • awaiting cash confirmation`);
+                }
+              } catch (err) {
+                console.error('Error creating takeaway order:', err);
+                toast.error(err.message || 'Failed to create order');
+              }
+            }}
+          />
+        )}
+
+        {showPaymentQR && (
+          <Modal
+            isOpen={showPaymentQR}
+            onClose={() => { setShowPaymentQR(false); setPendingPaymentOrder(null); setPaymentQRData(null); refreshOrders(); }}
+            title="Scan & Pay"
+            size="sm"
+          >
+            <div className="flex flex-col items-center gap-4 py-4 text-white">
+              <p className="text-sm text-zinc-400 text-center">Customer can scan this QR to complete payment. Order will appear after payment succeeds.</p>
+              {paymentQRData?.qr ? (
+                <img src={paymentQRData.qr} alt="Payment QR" className="w-64 h-64 bg-white p-2 rounded-lg" />
+              ) : (
+                <div className="w-64 h-64 flex items-center justify-center border border-dashed border-white/20 rounded-lg text-xs text-zinc-500">QR unavailable</div>
+              )}
+              {paymentQRData?.payUrl && (
+                <div className="w-full flex flex-col gap-2">
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(paymentQRData.payUrl); toast.success('Payment link copied'); }}
+                    className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary-hover transition-colors"
+                  >Copy Link</button>
+                  <a
+                    href={paymentQRData.payUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-lg bg-white/10 text-white text-sm font-bold text-center hover:bg-white/20 transition-colors"
+                  >Open Payment Page</a>
+                </div>
+              )}
+              {pendingPaymentOrder && (
+                <div className="text-xs text-zinc-500 mt-2">Order #{pendingPaymentOrder.order_number} • Status: Pending Payment</div>
+              )}
+            </div>
+          </Modal>
+        )}
+
+        {/* Mobile FAB for Create Order */}
+        <button
+          onClick={() => setShowCreateOrderModal(true)}
+          className="md:hidden fixed bottom-24 right-4 h-14 w-14 bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-full shadow-xl shadow-violet-500/40 flex items-center justify-center z-50 hover:scale-105 active:scale-95 transition-all ring-2 ring-violet-400/20"
+        >
+          <Plus className="w-7 h-7" />
+        </button>
     </div>
   );
 };
 
-const ShoppingBagIcon = ({ status }) => {
-  if (status === 'preparing') return <Clock className="h-5 w-5" />;
-  if (status === 'ready') return <Bell className="h-5 w-5" />;
-  if (status === 'served') return <CheckCircle className="h-5 w-5" />;
-  if (status === 'completed') return <CheckCircle className="h-5 w-5" />;
-  return <ShoppingCart className="h-5 w-5" />;
+const ManagerDashboard = () => {
+  return (
+    <RealtimeOrderProvider>
+      <ManagerDashboardContent />
+    </RealtimeOrderProvider>
+  );
 };
 
 export default ManagerDashboard;

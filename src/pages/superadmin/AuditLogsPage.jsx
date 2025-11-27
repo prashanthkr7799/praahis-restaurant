@@ -1,16 +1,63 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabaseOwner } from '@shared/utils/api/supabaseOwnerClient';
-import { Search, Filter, Eye, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { 
+  Search, Filter, Eye, ChevronLeft, ChevronRight, X, RefreshCw, Wifi, WifiOff,
+  Activity, Clock, User, Database, AlertTriangle, Shield, Zap, Terminal,
+  Calendar, LayoutList, LayoutGrid, Download, TrendingUp, AlertCircle, Info
+} from 'lucide-react';
+import { useAuditRealtime } from '../../shared/hooks/useSuperadminRealtime';
+
+// Reusable GlassCard Component
+const GlassCard = ({ children, className = '', hover = true }) => (
+  <div className={`
+    bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-white/10
+    ${hover ? 'hover:border-white/20 hover:bg-slate-800/60 transition-all duration-300' : ''}
+    ${className}
+  `}>
+    {children}
+  </div>
+);
+
+// Animated Stat Card for Quick Stats
+const StatCard = (props) => {
+  const { icon: Icon, label, value, color, trend } = props;
+  return (
+    <GlassCard className="p-4 group">
+      <div className="flex items-center gap-4">
+        <div className={`p-3 rounded-xl bg-gradient-to-br ${color} shadow-lg group-hover:scale-110 transition-transform`}>
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+        <div className="flex-1">
+          <p className="text-xs text-slate-400 uppercase tracking-wider">{label}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-2xl font-bold text-white">{value}</p>
+            {trend && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                trend > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+              }`}>
+                {trend > 0 ? '+' : ''}{trend}%
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </GlassCard>
+  );
+};
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'timeline'
+  const [showFilters, setShowFilters] = useState(false);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const logsPerPage = 20;
   
   // Filters
@@ -25,14 +72,14 @@ const AuditLogs = () => {
   });
 
   const actionTypes = [
-    { value: 'all', label: 'All Actions' },
-    { value: 'created', label: 'Created' },
-    { value: 'updated', label: 'Updated' },
-    { value: 'deleted', label: 'Deleted' },
-    { value: 'login', label: 'Login' },
-    { value: 'logout', label: 'Logout' },
-    { value: 'payment', label: 'Payment' },
-    { value: 'backup', label: 'Backup' }
+    { value: 'all', label: 'All Actions', icon: Activity },
+    { value: 'created', label: 'Created', icon: Zap },
+    { value: 'updated', label: 'Updated', icon: RefreshCw },
+    { value: 'deleted', label: 'Deleted', icon: X },
+    { value: 'login', label: 'Login', icon: User },
+    { value: 'logout', label: 'Logout', icon: Shield },
+    { value: 'payment', label: 'Payment', icon: TrendingUp },
+    { value: 'backup', label: 'Backup', icon: Database }
   ];
 
   const entityTypes = [
@@ -48,10 +95,10 @@ const AuditLogs = () => {
 
   const severityLevels = [
     { value: 'all', label: 'All Levels' },
-    { value: 'info', label: 'Info', color: 'blue' },
-    { value: 'warning', label: 'Warning', color: 'yellow' },
-    { value: 'error', label: 'Error', color: 'red' },
-    { value: 'critical', label: 'Critical', color: 'purple' }
+    { value: 'info', label: 'Info', color: 'cyan', icon: Info },
+    { value: 'warning', label: 'Warning', color: 'amber', icon: AlertTriangle },
+    { value: 'error', label: 'Error', color: 'red', icon: AlertCircle },
+    { value: 'critical', label: 'Critical', color: 'purple', icon: Shield }
   ];
 
   const dateRanges = [
@@ -134,13 +181,23 @@ const AuditLogs = () => {
 
       setLogs(data || []);
       setTotalPages(Math.ceil((count || 0) / logsPerPage));
+      setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching audit logs:', error);
       alert('❌ Error loading audit logs: ' + error.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [currentPage, filters, logsPerPage, getDateFilter]);
+
+  // Realtime subscription for audit trail updates
+  const { isConnected } = useAuditRealtime(fetchLogs);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchLogs();
+  };
 
   useEffect(() => {
     fetchLogs();
@@ -164,31 +221,66 @@ const AuditLogs = () => {
     setCurrentPage(1);
   };
 
-  const getSeverityBadge = (severity) => {
+  // Get severity styling
+  const getSeverityConfig = (severity) => {
     const config = {
-      info: { bg: 'bg-blue-100', text: 'text-blue-800', icon: 'ℹ️' },
-      warning: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: '⚠️' },
-      error: { bg: 'bg-red-100', text: 'text-red-800', icon: '❌' },
-      critical: { bg: 'bg-purple-100', text: 'text-purple-800', icon: '🚨' }
+      info: { 
+        bg: 'bg-cyan-500/20', 
+        border: 'border-cyan-500/30',
+        text: 'text-cyan-400', 
+        glow: 'shadow-cyan-500/20',
+        icon: Info,
+        gradient: 'from-cyan-500 to-blue-500'
+      },
+      warning: { 
+        bg: 'bg-amber-500/20', 
+        border: 'border-amber-500/30',
+        text: 'text-amber-400', 
+        glow: 'shadow-amber-500/20',
+        icon: AlertTriangle,
+        gradient: 'from-amber-500 to-orange-500'
+      },
+      error: { 
+        bg: 'bg-red-500/20', 
+        border: 'border-red-500/30',
+        text: 'text-red-400', 
+        glow: 'shadow-red-500/20',
+        icon: AlertCircle,
+        gradient: 'from-red-500 to-rose-500'
+      },
+      critical: { 
+        bg: 'bg-purple-500/20', 
+        border: 'border-purple-500/30',
+        text: 'text-purple-400', 
+        glow: 'shadow-purple-500/20',
+        icon: Shield,
+        gradient: 'from-purple-500 to-pink-500'
+      }
     };
+    return config[severity] || config.info;
+  };
 
-    const style = config[severity] || config.info;
+  const getSeverityBadge = (severity) => {
+    const config = getSeverityConfig(severity);
+    const IconComponent = config.icon;
     
     return (
-      <span className={`px-2 py-1 text-xs rounded-full ${style.bg} ${style.text}`}>
-        {style.icon} {severity}
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg 
+        ${config.bg} ${config.border} ${config.text} border shadow-lg ${config.glow}`}>
+        <IconComponent className="w-3 h-3" />
+        {severity}
       </span>
     );
   };
 
-  const getActionIcon = (action) => {
-    if (action.includes('create')) return '➕';
-    if (action.includes('update')) return '✏️';
-    if (action.includes('delete')) return '🗑️';
-    if (action.includes('login')) return '🔐';
-    if (action.includes('payment')) return '💰';
-    if (action.includes('backup')) return '💾';
-    return '📝';
+  const getActionConfig = (action) => {
+    if (action.includes('create')) return { icon: Zap, color: 'text-emerald-400', bg: 'bg-emerald-500/20' };
+    if (action.includes('update')) return { icon: RefreshCw, color: 'text-blue-400', bg: 'bg-blue-500/20' };
+    if (action.includes('delete')) return { icon: X, color: 'text-red-400', bg: 'bg-red-500/20' };
+    if (action.includes('login')) return { icon: User, color: 'text-cyan-400', bg: 'bg-cyan-500/20' };
+    if (action.includes('payment')) return { icon: TrendingUp, color: 'text-amber-400', bg: 'bg-amber-500/20' };
+    if (action.includes('backup')) return { icon: Database, color: 'text-purple-400', bg: 'bg-purple-500/20' };
+    return { icon: Terminal, color: 'text-slate-400', bg: 'bg-slate-500/20' };
   };
 
   const formatDate = (date) => {
@@ -202,397 +294,643 @@ const AuditLogs = () => {
     });
   };
 
+  const formatTimeAgo = (date) => {
+    const now = new Date();
+    const past = new Date(date);
+    const diffMs = now - past;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
+
   const activeFiltersCount = Object.values(filters).filter((v, i) => 
     i < 6 && v !== 'all' && v !== ''
   ).length;
 
+  // Calculate stats
+  const stats = {
+    total: totalCount,
+    info: logs.filter(l => l.severity === 'info').length,
+    warning: logs.filter(l => l.severity === 'warning').length,
+    error: logs.filter(l => l.severity === 'error').length + logs.filter(l => l.severity === 'critical').length
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Audit Trail</h2>
-          <p className="text-sm text-gray-400 mt-1">
-            View all system activity and user actions
-          </p>
-        </div>
-        <button
-          onClick={() => fetchLogs()}
-          className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-        >
-          🔄 Refresh
-        </button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 lg:p-8">
+      {/* Animated background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
       </div>
 
-      {/* Filters */}
-      <div className="bg-gray-900 rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <Filter className="w-5 h-5 text-gray-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
-            {activeFiltersCount > 0 && (
-              <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
-                {activeFiltersCount} active
-              </span>
-            )}
-          </div>
-          {activeFiltersCount > 0 && (
-            <button
-              onClick={resetFilters}
-              className="text-sm text-gray-400 hover:text-gray-900"
-            >
-              Reset All
-            </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Search */}
-          <div className="lg:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <Search className="w-4 h-4 inline mr-1" />
-              Search
-            </label>
-            <input
-              type="text"
-              value={filters.searchTerm}
-              onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
-              placeholder="Search entity, description, or actor..."
-              className="w-full px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            />
-          </div>
-
-          {/* Action Type */}
+      <div className="relative z-10 space-y-6 max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Action</label>
-            <select
-              value={filters.action}
-              onChange={(e) => setFilters({ ...filters, action: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500"
-            >
-              {actionTypes.map(type => (
-                <option key={type.value} value={type.value}>{type.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Entity Type */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Entity Type</label>
-            <select
-              value={filters.entityType}
-              onChange={(e) => setFilters({ ...filters, entityType: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500"
-            >
-              {entityTypes.map(type => (
-                <option key={type.value} value={type.value}>{type.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Severity */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Severity</label>
-            <select
-              value={filters.severity}
-              onChange={(e) => setFilters({ ...filters, severity: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500"
-            >
-              {severityLevels.map(level => (
-                <option key={level.value} value={level.value}>{level.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Date Range */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Date Range</label>
-            <select
-              value={filters.dateRange}
-              onChange={(e) => setFilters({ ...filters, dateRange: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500"
-            >
-              {dateRanges.map(range => (
-                <option key={range.value} value={range.value}>{range.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Custom Date Range */}
-          {filters.dateRange === 'custom' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Start Date</label>
-                <input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500"
-                />
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-500 shadow-lg shadow-emerald-500/20">
+                <Activity className="w-7 h-7 text-white" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">End Date</label>
-                <input
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500"
-                />
+                <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+                  Audit Trail
+                </h1>
+                <p className="text-slate-400 text-sm mt-1">
+                  Real-time system activity monitoring
+                </p>
               </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Logs Table */}
-      <div className="bg-gray-900 rounded-lg shadow overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="text-gray-500">Loading audit logs...</div>
+            </div>
           </div>
-        ) : logs.length === 0 ? (
-          <div className="flex flex-col justify-center items-center h-64">
-            <p className="text-gray-400 text-lg mb-2">No audit logs found</p>
-            <p className="text-gray-400 text-sm">Try adjusting your filters</p>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Timestamp</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Action</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Entity</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Actor</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Description</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Severity</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-gray-900 divide-y divide-gray-200">
-                  {logs.map(log => (
-                    <tr key={log.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">
-                        {formatDate(log.created_at)}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <span className="inline-flex items-center space-x-1">
-                          <span>{getActionIcon(log.action)}</span>
-                          <span className="font-medium text-gray-900">{log.action}</span>
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-gray-900">{log.entity_name || 'N/A'}</span>
-                          <span className="text-xs text-gray-500">{log.entity_type}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {log.actor_email || 'System'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-400 max-w-xs truncate">
-                        {log.description}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        {getSeverityBadge(log.severity)}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <button
-                          onClick={() => viewLogDetails(log)}
-                          className="text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                        >
-                          <Eye className="w-4 h-4" />
-                          <span>View</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Connection Status */}
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border backdrop-blur-sm ${
+              isConnected 
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                : 'bg-red-500/10 border-red-500/30 text-red-400'
+            }`}>
+              {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+              <span className="text-sm font-medium">{isConnected ? 'Live Sync' : 'Offline'}</span>
+              {isConnected && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+              )}
             </div>
 
-            {/* Pagination */}
-            <div className="bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-600 text-sm font-medium rounded-md text-gray-300 bg-gray-900 hover:bg-gray-800 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-600 text-sm font-medium rounded-md text-gray-300 bg-gray-900 hover:bg-gray-800 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700">
-                    Page <span className="font-medium">{currentPage}</span> of{' '}
-                    <span className="font-medium">{totalPages}</span>
-                  </p>
+            {/* View Toggle */}
+            <div className="flex items-center bg-slate-800/50 backdrop-blur-sm border border-white/10 rounded-xl p-1">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-2 rounded-lg transition-all ${
+                  viewMode === 'table' 
+                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' 
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <LayoutList className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('timeline')}
+                className={`p-2 rounded-lg transition-all ${
+                  viewMode === 'timeline' 
+                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' 
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Actions */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-2.5 rounded-xl border transition-all ${
+                showFilters || activeFiltersCount > 0
+                  ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                  : 'bg-slate-800/50 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+              }`}
+            >
+              <Filter className="w-5 h-5" />
+              {activeFiltersCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all disabled:opacity-50"
+            >
+              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button className="p-2.5 rounded-xl bg-slate-800/50 border border-white/10 text-slate-400 hover:text-white hover:border-white/20 transition-all">
+              <Download className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard 
+            icon={Activity} 
+            label="Total Events" 
+            value={stats.total.toLocaleString()} 
+            color="from-emerald-500 to-cyan-500"
+          />
+          <StatCard 
+            icon={Info} 
+            label="Info Events" 
+            value={stats.info} 
+            color="from-cyan-500 to-blue-500"
+          />
+          <StatCard 
+            icon={AlertTriangle} 
+            label="Warnings" 
+            value={stats.warning} 
+            color="from-amber-500 to-orange-500"
+          />
+          <StatCard 
+            icon={AlertCircle} 
+            label="Errors" 
+            value={stats.error} 
+            color="from-red-500 to-rose-500"
+          />
+        </div>
+
+        {/* Filters Panel */}
+        {showFilters && (
+          <GlassCard className="p-6" hover={false}>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/20">
+                  <Filter className="w-5 h-5 text-emerald-400" />
                 </div>
-                <div className="flex space-x-2">
+                <h3 className="text-lg font-semibold text-white">Filters</h3>
+                {activeFiltersCount > 0 && (
+                  <span className="px-2.5 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/30">
+                    {activeFiltersCount} active
+                  </span>
+                )}
+              </div>
+              {activeFiltersCount > 0 && (
+                <button
+                  onClick={resetFilters}
+                  className="text-sm text-slate-400 hover:text-white transition-colors flex items-center gap-1"
+                >
+                  <X className="w-4 h-4" />
+                  Reset All
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Search */}
+              <div className="lg:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-2">
+                  <Search className="w-4 h-4" />
+                  Search
+                </label>
+                <input
+                  type="text"
+                  value={filters.searchTerm}
+                  onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
+                  placeholder="Search entity, description, or actor..."
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                />
+              </div>
+
+              {/* Action Type */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Action</label>
+                <select
+                  value={filters.action}
+                  onChange={(e) => setFilters({ ...filters, action: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                >
+                  {actionTypes.map(type => (
+                    <option key={type.value} value={type.value} className="bg-slate-800">{type.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Entity Type */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Entity Type</label>
+                <select
+                  value={filters.entityType}
+                  onChange={(e) => setFilters({ ...filters, entityType: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                >
+                  {entityTypes.map(type => (
+                    <option key={type.value} value={type.value} className="bg-slate-800">{type.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Severity */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Severity</label>
+                <select
+                  value={filters.severity}
+                  onChange={(e) => setFilters({ ...filters, severity: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                >
+                  {severityLevels.map(level => (
+                    <option key={level.value} value={level.value} className="bg-slate-800">{level.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date Range */}
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-2">
+                  <Calendar className="w-4 h-4" />
+                  Date Range
+                </label>
+                <select
+                  value={filters.dateRange}
+                  onChange={(e) => setFilters({ ...filters, dateRange: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                >
+                  {dateRanges.map(range => (
+                    <option key={range.value} value={range.value} className="bg-slate-800">{range.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Custom Date Range */}
+              {filters.dateRange === 'custom' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Start Date</label>
+                    <input
+                      type="date"
+                      value={filters.startDate}
+                      onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">End Date</label>
+                    <input
+                      type="date"
+                      value={filters.endDate}
+                      onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </GlassCard>
+        )}
+
+        {/* Logs Display */}
+        <GlassCard className="overflow-hidden" hover={false}>
+          {loading ? (
+            <div className="flex flex-col justify-center items-center h-64">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-emerald-500/20 rounded-full" />
+                <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-emerald-500 rounded-full animate-spin" />
+              </div>
+              <p className="text-slate-400 mt-4">Loading audit logs...</p>
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="flex flex-col justify-center items-center h-64">
+              <div className="p-4 rounded-2xl bg-slate-700/50 mb-4">
+                <Activity className="w-10 h-10 text-slate-500" />
+              </div>
+              <p className="text-slate-300 text-lg mb-2">No audit logs found</p>
+              <p className="text-slate-500 text-sm">Try adjusting your filters</p>
+            </div>
+          ) : viewMode === 'table' ? (
+            /* Table View */
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Timestamp</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider hidden sm:table-cell">Action</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Entity</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider hidden md:table-cell">Actor</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider hidden lg:table-cell">Description</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Severity</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {logs.map(log => {
+                      const actionConfig = getActionConfig(log.action);
+                      const ActionIcon = actionConfig.icon;
+                      
+                      return (
+                        <tr 
+                          key={log.id} 
+                          className="group hover:bg-white/5 transition-colors cursor-pointer"
+                          onClick={() => viewLogDetails(log)}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-slate-500" />
+                              <div>
+                                <p className="text-sm text-white">{formatDate(log.created_at)}</p>
+                                <p className="text-xs text-slate-500">{formatTimeAgo(log.created_at)}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 hidden sm:table-cell">
+                            <div className="flex items-center gap-2">
+                              <div className={`p-1.5 rounded-lg ${actionConfig.bg}`}>
+                                <ActionIcon className={`w-4 h-4 ${actionConfig.color}`} />
+                              </div>
+                              <span className="font-medium text-white">{log.action}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div>
+                              <p className="font-medium text-white">{log.entity_name || 'N/A'}</p>
+                              <p className="text-xs text-slate-500">{log.entity_type}</p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 hidden md:table-cell">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center">
+                                <User className="w-4 h-4 text-slate-400" />
+                              </div>
+                              <span className="text-slate-300 text-sm truncate max-w-[150px]">
+                                {log.actor_email || 'System'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-400 max-w-xs truncate hidden lg:table-cell">
+                            {log.description}
+                          </td>
+                          <td className="px-6 py-4">
+                            {getSeverityBadge(log.severity)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                viewLogDetails(log);
+                              }}
+                              className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors group-hover:shadow-lg group-hover:shadow-emerald-500/10"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="border-t border-white/10 px-6 py-4 flex items-center justify-between">
+                <p className="text-sm text-slate-400">
+                  Page <span className="font-medium text-white">{currentPage}</span> of{' '}
+                  <span className="font-medium text-white">{totalPages}</span>
+                  <span className="hidden sm:inline"> • {totalCount.toLocaleString()} total events</span>
+                </p>
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCurrentPage(1)}
                     disabled={currentPage === 1}
-                    className="relative inline-flex items-center px-3 py-2 border border-gray-600 text-sm font-medium rounded-md text-gray-300 bg-gray-900 hover:bg-gray-800 disabled:opacity-50"
+                    className="px-3 py-2 text-sm rounded-lg bg-slate-800/50 border border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
                     First
                   </button>
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="relative inline-flex items-center px-3 py-2 border border-gray-600 text-sm font-medium rounded-md text-gray-300 bg-gray-900 hover:bg-gray-800 disabled:opacity-50"
+                    className="p-2 rounded-lg bg-slate-800/50 border border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <ChevronLeft className="w-5 h-5" />
                   </button>
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
-                    className="relative inline-flex items-center px-3 py-2 border border-gray-600 text-sm font-medium rounded-md text-gray-300 bg-gray-900 hover:bg-gray-800 disabled:opacity-50"
+                    className="p-2 rounded-lg bg-slate-800/50 border border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-5 h-5" />
                   </button>
                   <button
                     onClick={() => setCurrentPage(totalPages)}
                     disabled={currentPage === totalPages}
-                    className="relative inline-flex items-center px-3 py-2 border border-gray-600 text-sm font-medium rounded-md text-gray-300 bg-gray-900 hover:bg-gray-800 disabled:opacity-50"
+                    className="px-3 py-2 text-sm rounded-lg bg-slate-800/50 border border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
                     Last
                   </button>
                 </div>
               </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Detail Modal */}
-      {showDetailModal && selectedLog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gray-900 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-900">Audit Log Details</h3>
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {/* Basic Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">ID</label>
-                  <p className="text-sm text-gray-100 font-mono">{selectedLog.id}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Timestamp</label>
-                  <p className="text-sm text-gray-900">{formatDate(selectedLog.created_at)}</p>
+            </>
+          ) : (
+            /* Timeline View */
+            <div className="p-6">
+              <div className="relative">
+                {/* Timeline Line */}
+                <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-emerald-500 via-cyan-500 to-purple-500" />
+                
+                <div className="space-y-6">
+                  {logs.map((log) => {
+                    const actionConfig = getActionConfig(log.action);
+                    const ActionIcon = actionConfig.icon;
+                    const severityConfig = getSeverityConfig(log.severity);
+                    
+                    return (
+                      <div key={log.id} className="relative pl-16 group">
+                        {/* Timeline Dot */}
+                        <div className={`absolute left-4 w-5 h-5 rounded-full border-2 ${severityConfig.border} ${severityConfig.bg} transform -translate-x-1/2 group-hover:scale-125 transition-transform`}>
+                          <div className={`absolute inset-1 rounded-full ${severityConfig.bg}`} />
+                        </div>
+                        
+                        {/* Content Card */}
+                        <GlassCard className="p-4 cursor-pointer" onClick={() => viewLogDetails(log)}>
+                          <div className="flex items-start justify-between gap-4 flex-wrap">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-xl ${actionConfig.bg}`}>
+                                <ActionIcon className={`w-5 h-5 ${actionConfig.color}`} />
+                              </div>
+                              <div>
+                                <p className="font-semibold text-white">{log.action}</p>
+                                <p className="text-sm text-slate-400">{log.entity_name || log.entity_type}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                              {getSeverityBadge(log.severity)}
+                              <span className="text-xs text-slate-500">{formatTimeAgo(log.created_at)}</span>
+                            </div>
+                          </div>
+                          
+                          {log.description && (
+                            <p className="mt-3 text-sm text-slate-400 line-clamp-2">{log.description}</p>
+                          )}
+                          
+                          <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {log.actor_email || 'System'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatDate(log.created_at)}
+                            </span>
+                          </div>
+                        </GlassCard>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
+              
+              {/* Timeline Pagination */}
+              <div className="mt-6 flex justify-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 text-sm rounded-xl bg-slate-800/50 border border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  ← Previous
+                </button>
+                <span className="px-4 py-2 text-sm text-slate-400">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 text-sm rounded-xl bg-slate-800/50 border border-white/10 text-slate-300 hover:bg-slate-700/50 hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
+        </GlassCard>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Action</label>
-                  <p className="text-sm text-gray-900">
-                    {getActionIcon(selectedLog.action)} {selectedLog.action}
-                  </p>
+        {/* Detail Modal */}
+        {showDetailModal && selectedLog && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800/90 backdrop-blur-xl rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-white/10">
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-slate-800 to-slate-900 border-b border-white/10 px-6 py-4 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-emerald-500/20">
+                    <Eye className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white">Event Details</h3>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Severity</label>
-                  <div className="mt-1">
-                    {getSeverityBadge(selectedLog.severity)}
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                {/* Event Header */}
+                <div className="flex items-start justify-between gap-4 p-4 rounded-xl bg-slate-700/30 border border-white/5">
+                  <div className="flex items-center gap-3">
+                    {(() => {
+                      const actionConfig = getActionConfig(selectedLog.action);
+                      const ActionIcon = actionConfig.icon;
+                      return (
+                        <div className={`p-3 rounded-xl ${actionConfig.bg}`}>
+                          <ActionIcon className={`w-6 h-6 ${actionConfig.color}`} />
+                        </div>
+                      );
+                    })()}
+                    <div>
+                      <p className="text-xl font-semibold text-white">{selectedLog.action}</p>
+                      <p className="text-sm text-slate-400">{selectedLog.entity_type}</p>
+                    </div>
+                  </div>
+                  {getSeverityBadge(selectedLog.severity)}
+                </div>
+
+                {/* Info Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-slate-700/30 border border-white/5">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Event ID</label>
+                    <p className="text-sm text-slate-200 font-mono mt-1 truncate">{selectedLog.id}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-700/30 border border-white/5">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Timestamp</label>
+                    <p className="text-sm text-slate-200 mt-1">{formatDate(selectedLog.created_at)}</p>
                   </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Entity Type</label>
-                  <p className="text-sm text-gray-900">{selectedLog.entity_type}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Entity Name</label>
-                  <p className="text-sm text-gray-900">{selectedLog.entity_name || 'N/A'}</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-500">Entity ID</label>
-                <p className="text-sm text-gray-100 font-mono">{selectedLog.entity_id || 'N/A'}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Actor Email</label>
-                  <p className="text-sm text-gray-900">{selectedLog.actor_email || 'System'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Actor ID</label>
-                  <p className="text-sm text-gray-100 font-mono">{selectedLog.actor_id || 'N/A'}</p>
-                </div>
-              </div>
-
-              {selectedLog.ip_address && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">IP Address</label>
-                  <p className="text-sm text-gray-100 font-mono">{selectedLog.ip_address}</p>
-                </div>
-              )}
-
-              <div>
-                <label className="text-sm font-medium text-gray-500">Description</label>
-                <p className="text-sm text-gray-900">{selectedLog.description}</p>
-              </div>
-
-              {/* Changed Fields */}
-              {selectedLog.changed_fields && selectedLog.changed_fields.length > 0 && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Changed Fields</label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {selectedLog.changed_fields.map((field, index) => (
-                      <span
-                        key={index}
-                        className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded"
-                      >
-                        {field}
-                      </span>
-                    ))}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-slate-700/30 border border-white/5">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Entity Name</label>
+                    <p className="text-sm text-white mt-1">{selectedLog.entity_name || 'N/A'}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-700/30 border border-white/5">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Entity ID</label>
+                    <p className="text-sm text-slate-200 font-mono mt-1 truncate">{selectedLog.entity_id || 'N/A'}</p>
                   </div>
                 </div>
-              )}
 
-              {/* Metadata */}
-              {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Metadata</label>
-                  <pre className="mt-2 p-3 bg-gray-800 rounded-lg text-xs overflow-x-auto">
-                    {JSON.stringify(selectedLog.metadata, null, 2)}
-                  </pre>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-slate-700/30 border border-white/5">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Actor</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center">
+                        <User className="w-3 h-3 text-white" />
+                      </div>
+                      <p className="text-sm text-white">{selectedLog.actor_email || 'System'}</p>
+                    </div>
+                  </div>
+                  {selectedLog.ip_address && (
+                    <div className="p-4 rounded-xl bg-slate-700/30 border border-white/5">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">IP Address</label>
+                      <p className="text-sm text-slate-200 font-mono mt-1">{selectedLog.ip_address}</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="sticky bottom-0 bg-gray-800 px-6 py-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="w-full px-4 py-2 text-sm text-white bg-gray-600 rounded-lg hover:bg-gray-700"
-              >
-                Close
-              </button>
+                {selectedLog.description && (
+                  <div className="p-4 rounded-xl bg-slate-700/30 border border-white/5">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Description</label>
+                    <p className="text-sm text-slate-200 mt-2">{selectedLog.description}</p>
+                  </div>
+                )}
+
+                {/* Changed Fields */}
+                {selectedLog.changed_fields && selectedLog.changed_fields.length > 0 && (
+                  <div className="p-4 rounded-xl bg-slate-700/30 border border-white/5">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Changed Fields</label>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedLog.changed_fields.map((field, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1.5 text-xs font-medium bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/30"
+                        >
+                          {field}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
+                  <div className="p-4 rounded-xl bg-slate-700/30 border border-white/5">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Metadata</label>
+                    <pre className="mt-3 p-4 bg-slate-900/50 rounded-xl text-xs overflow-x-auto text-cyan-400 font-mono border border-white/5">
+                      {JSON.stringify(selectedLog.metadata, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="sticky bottom-0 bg-slate-900/80 backdrop-blur-sm px-6 py-4 border-t border-white/10">
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="w-full px-4 py-3 text-sm font-medium text-white bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-xl hover:shadow-lg hover:shadow-emerald-500/30 transition-all"
+                >
+                  Close Details
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

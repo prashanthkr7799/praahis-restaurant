@@ -6,6 +6,7 @@ import {
   Eye,
   Edit,
   Pause,
+  Play,
   Trash2,
   Download,
   Filter,
@@ -13,13 +14,48 @@ import {
   AlertTriangle,
   StopCircle,
   Building2,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  MapPin,
+  Clock,
+  CreditCard,
+  ArrowUpRight,
+  Sparkles,
+  ChevronRight,
+  LayoutGrid,
+  List,
+  Calendar,
+  Activity,
+  Users,
+  CalendarPlus,
 } from 'lucide-react';
 import { supabaseOwner } from '@/shared/utils/api/supabaseOwnerClient';
-import Button from '@/shared/components/superadmin/Button';
-import Badge from '@/shared/components/superadmin/Badge';
 import { ConfirmDialog } from '@/shared/components/superadmin/Modal';
 import { useToast } from '@/shared/components/superadmin/useToast';
 import RestaurantFormModal from '@/shared/components/superadmin/RestaurantFormModal';
+import ExtendSubscriptionModal from '@/shared/components/superadmin/ExtendSubscriptionModal';
+import { useRestaurantsRealtime } from '@/shared/hooks/useSuperadminRealtime';
+
+// Constants
+const RATE_PER_TABLE_PER_DAY = 75;
+
+// Glass Card Component
+const GlassCard = ({ children, className = '', onClick, hover = true }) => (
+  <div
+    onClick={onClick}
+    className={`
+      relative overflow-hidden
+      bg-slate-800/50 backdrop-blur-xl
+      border border-white/10 rounded-2xl
+      ${hover ? 'hover:border-white/20 hover:bg-slate-800/60 transition-all duration-300' : ''}
+      ${onClick ? 'cursor-pointer' : ''}
+      ${className}
+    `}
+  >
+    {children}
+  </div>
+);
 
 const RestaurantsPage = () => {
   const navigate = useNavigate();
@@ -28,13 +64,27 @@ const RestaurantsPage = () => {
   
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('filter') || 'all');
   const [sortBy, setSortBy] = useState('name');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
   
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, restaurant: null });
   const [deactivateDialog, setDeactivateDialog] = useState({ isOpen: false, restaurant: null });
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [selectedRestaurantForExtend, setSelectedRestaurantForExtend] = useState(null);
+
+  // Stats
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    trial: 0,
+    expired: 0,
+    totalTables: 0,
+    monthlyRevenue: 0
+  });
 
   const fetchRestaurants = React.useCallback(async () => {
     try {
@@ -81,6 +131,22 @@ const RestaurantsPage = () => {
         };
       });
 
+      // Calculate stats before filtering
+      const activeCount = processedData.filter(r => r.subscriptionStatus === 'active').length;
+      const trialCount = processedData.filter(r => r.subscriptionStatus === 'trial').length;
+      const expiredCount = processedData.filter(r => ['expired', 'inactive', 'cancelled'].includes(r.subscriptionStatus)).length;
+      const totalTables = processedData.reduce((sum, r) => sum + (r.max_tables || 0), 0);
+      const monthlyRevenue = totalTables * RATE_PER_TABLE_PER_DAY * 30;
+
+      setStats({
+        total: processedData.length,
+        active: activeCount,
+        trial: trialCount,
+        expired: expiredCount,
+        totalTables,
+        monthlyRevenue
+      });
+
       // Apply status filter
       if (statusFilter !== 'all') {
         processedData = processedData.filter(r => r.subscriptionStatus === statusFilter);
@@ -92,8 +158,17 @@ const RestaurantsPage = () => {
       toast.error(`Failed to fetch restaurants: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [statusFilter, sortBy, toast]);
+
+  // Realtime subscription for restaurants updates
+  const { isConnected } = useRestaurantsRealtime(fetchRestaurants);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchRestaurants();
+  };
 
   useEffect(() => {
     fetchRestaurants();
@@ -119,14 +194,27 @@ const RestaurantsPage = () => {
 
   const handleDeactivate = async () => {
     try {
-      const { error } = await supabaseOwner
+      const restaurantId = deactivateDialog.restaurant.id;
+      
+      // Update subscription status to suspended
+      const { error: subError } = await supabaseOwner
         .from('subscriptions')
         .update({ status: 'suspended' })
-        .eq('restaurant_id', deactivateDialog.restaurant.id);
+        .eq('restaurant_id', restaurantId);
 
-      if (error) throw error;
+      if (subError) {
+        console.error('Error updating subscription:', subError);
+      }
 
-      toast.success(`Restaurant "${deactivateDialog.restaurant.name}" deactivated`);
+      // CRITICAL: Also set restaurant.is_active = false to block staff login
+      const { error: restError } = await supabaseOwner
+        .from('restaurants')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', restaurantId);
+
+      if (restError) throw restError;
+
+      toast.success(`Restaurant "${deactivateDialog.restaurant.name}" deactivated - Staff login blocked`);
       setDeactivateDialog({ isOpen: false, restaurant: null });
       fetchRestaurants();
     } catch (error) {
@@ -135,11 +223,45 @@ const RestaurantsPage = () => {
     }
   };
 
+  // Reactivate restaurant (play button)
+  const handleReactivate = async (restaurant) => {
+    try {
+      // Update subscription status to active
+      const { error: subError } = await supabaseOwner
+        .from('subscriptions')
+        .update({ status: 'active' })
+        .eq('restaurant_id', restaurant.id);
+
+      if (subError) {
+        console.error('Error updating subscription:', subError);
+      }
+
+      // Set restaurant.is_active = true to allow staff login
+      const { error: restError } = await supabaseOwner
+        .from('restaurants')
+        .update({ is_active: true, updated_at: new Date().toISOString() })
+        .eq('id', restaurant.id);
+
+      if (restError) throw restError;
+
+      toast.success(`Restaurant "${restaurant.name}" reactivated - Staff login enabled`);
+      fetchRestaurants();
+    } catch (error) {
+      console.error('Error reactivating restaurant:', error);
+      toast.error('Failed to reactivate restaurant');
+    }
+  };
+
   const getStatusBadge = (restaurant) => {
     const subscription = restaurant.subscription;
     
     if (!subscription) {
-      return <Badge variant="inactive">No Subscription</Badge>;
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-gray-500/20 text-gray-400 rounded-md border border-gray-500/20">
+          <StopCircle className="w-3 h-3" />
+          No Sub
+        </span>
+      );
     }
 
     const status = subscription.status?.toLowerCase() || 'unknown';
@@ -154,73 +276,44 @@ const RestaurantsPage = () => {
       }
     }
 
-    // Handle different status values from the database
-    if (status === 'cancelled') {
+    const badges = {
+      cancelled: { color: 'bg-rose-500/20 text-rose-400 border-rose-500/20', icon: StopCircle, text: 'Cancelled' },
+      expired: { color: 'bg-amber-500/20 text-amber-400 border-amber-500/20', icon: AlertTriangle, text: 'Expired' },
+      trial: { color: 'bg-blue-500/20 text-blue-400 border-blue-500/20', icon: Clock, text: 'Trial' },
+      active: { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20', icon: CheckCircle, text: 'Active' },
+      inactive: { color: 'bg-gray-500/20 text-gray-400 border-gray-500/20', icon: StopCircle, text: 'Inactive' },
+      suspended: { color: 'bg-amber-500/20 text-amber-400 border-amber-500/20', icon: AlertTriangle, text: 'Suspended' },
+      grace: { color: 'bg-amber-500/20 text-amber-400 border-amber-500/20', icon: Clock, text: 'Grace' },
+    };
+
+    // Handle expired based on date
+    if (expiryDate && daysLeft < 0 && status !== 'cancelled') {
+      const badge = badges.expired;
+      const BadgeIcon = badge.icon;
       return (
-        <Badge variant="danger" icon={StopCircle}>
-          Cancelled
-        </Badge>
+        <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border ${badge.color}`}>
+          <BadgeIcon className="w-3 h-3" />
+          {Math.abs(daysLeft)}d ago
+        </span>
       );
     }
 
-    if (status === 'expired' || (expiryDate && daysLeft < 0)) {
-      const daysOverdue = Math.abs(daysLeft);
-      return (
-        <Badge variant="warning" icon={AlertTriangle}>
-          Expired {daysOverdue > 0 ? `(${daysOverdue}d ago)` : ''}
-        </Badge>
-      );
-    }
+    const badge = badges[status] || { color: 'bg-gray-500/20 text-gray-400 border-gray-500/20', icon: Activity, text: status };
+    const BadgeIcon = badge.icon;
 
-    if (status === 'trial') {
-      return (
-        <Badge variant="info" icon={CheckCircle}>
-          Trial
-        </Badge>
-      );
-    }
-
-    if (status === 'active') {
-      return (
-        <Badge variant="success" icon={CheckCircle}>
-          Active
-        </Badge>
-      );
-    }
-
-    if (status === 'inactive') {
-      return (
-        <Badge variant="inactive">
-          Inactive
-        </Badge>
-      );
-    }
-
-    if (status === 'suspended') {
-      return (
-        <Badge variant="warning" icon={AlertTriangle}>
-          Suspended
-        </Badge>
-      );
-    }
-
-    if (status === 'grace') {
-      return (
-        <Badge variant="warning" icon={AlertTriangle}>
-          Grace Period
-        </Badge>
-      );
-    }
-
-    // Fallback for unknown statuses
-    return <Badge variant="default">{status || 'Unknown'}</Badge>;
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border ${badge.color}`}>
+        <BadgeIcon className="w-3 h-3" />
+        {badge.text}
+      </span>
+    );
   };
 
   const getExpiryText = (restaurant) => {
     const subscription = restaurant.subscription;
     
     if (!subscription) {
-      return { text: 'No subscription', color: 'text-gray-500 dark:text-gray-400' };
+      return { text: 'No sub', color: 'text-gray-500' };
     }
 
     // Support both old (current_period_end) and new (end_date) schema
@@ -228,7 +321,7 @@ const RestaurantsPage = () => {
     
     // Check if expiry date exists and is valid
     if (!expiryDate) {
-      return { text: 'No expiry set', color: 'text-gray-500 dark:text-gray-400' };
+      return { text: 'N/A', color: 'text-gray-500' };
     }
 
     // Use the expiry date from the actual schema
@@ -236,8 +329,7 @@ const RestaurantsPage = () => {
     
     // Check if date is valid
     if (isNaN(expiresAt.getTime())) {
-      console.error('Invalid date for restaurant:', restaurant.name, expiryDate);
-      return { text: 'Invalid date', color: 'text-gray-500 dark:text-gray-400' };
+      return { text: 'Invalid', color: 'text-gray-500' };
     }
 
     const now = new Date();
@@ -246,8 +338,8 @@ const RestaurantsPage = () => {
     // Subscription expired
     if (daysLeft < 0) {
       return { 
-        text: `${Math.abs(daysLeft)}d overdue`, 
-        color: 'text-red-600 dark:text-red-400 font-semibold' 
+        text: `${Math.abs(daysLeft)}d ago`, 
+        color: 'text-rose-400 font-semibold' 
       };
     }
 
@@ -255,7 +347,7 @@ const RestaurantsPage = () => {
     if (daysLeft <= 3) {
       return { 
         text: `${daysLeft}d left`, 
-        color: 'text-red-600 dark:text-red-400 font-semibold' 
+        color: 'text-rose-400 font-semibold' 
       };
     }
 
@@ -263,7 +355,7 @@ const RestaurantsPage = () => {
     if (daysLeft <= 7) {
       return { 
         text: `${daysLeft}d left`, 
-        color: 'text-amber-600 dark:text-amber-400 font-semibold' 
+        color: 'text-amber-400 font-semibold' 
       };
     }
 
@@ -271,14 +363,14 @@ const RestaurantsPage = () => {
     if (daysLeft <= 15) {
       return { 
         text: `${daysLeft}d left`, 
-        color: 'text-amber-600 dark:text-amber-400' 
+        color: 'text-amber-400' 
       };
     }
 
     // Safe - more than 15 days
     return { 
       text: `${daysLeft}d left`, 
-      color: 'text-green-600 dark:text-green-400' 
+      color: 'text-emerald-400' 
     };
   };
 
@@ -287,250 +379,446 @@ const RestaurantsPage = () => {
     restaurant.location?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const formatCurrency = (amount) => {
+    if (amount >= 100000) {
+      return `₹${(amount / 100000).toFixed(2)}L`;
+    }
+    return `₹${amount.toLocaleString('en-IN')}`;
+  };
+
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Restaurants ({filteredRestaurants.length})
-          </h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Manage all restaurants in the platform
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-white">Restaurants</h1>
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${
+              isConnected 
+                ? 'bg-emerald-500/10 border border-emerald-500/20' 
+                : 'bg-red-500/10 border border-red-500/20'
+            }`}>
+              {isConnected ? (
+                <>
+                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                  <span className="text-xs font-medium text-emerald-400">Live</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-3 h-3 text-red-400" />
+                  <span className="text-xs font-medium text-red-400">Offline</span>
+                </>
+              )}
+            </div>
+          </div>
+          <p className="text-gray-400">
+            Manage {stats.total} restaurants • {stats.totalTables} tables • {formatCurrency(stats.monthlyRevenue)}/month
           </p>
         </div>
-        <Button
-          variant="primary"
-          icon={Plus}
-          onClick={() => setShowAddModal(true)}
-        >
-          Add Restaurant
-        </Button>
+        
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'table' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white'}`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-300 hover:text-white transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="text-sm font-medium hidden sm:inline">Refresh</span>
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl text-white font-medium shadow-lg shadow-emerald-500/25 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="text-sm hidden sm:inline">Add Restaurant</span>
+          </button>
+        </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Restaurants', value: stats.total, icon: Building2, color: 'emerald' },
+          { label: 'Active', value: stats.active, icon: CheckCircle, color: 'cyan', badge: `${Math.round((stats.active / Math.max(stats.total, 1)) * 100)}%` },
+          { label: 'Trial Period', value: stats.trial, icon: Clock, color: 'blue' },
+          { label: 'Needs Attention', value: stats.expired, icon: AlertTriangle, color: 'amber' },
+        ].map((stat) => {
+          const StatIcon = stat.icon;
+          return (
+            <GlassCard key={stat.label} className="p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className={`p-2.5 rounded-xl bg-gradient-to-br ${
+                  stat.color === 'emerald' ? 'from-emerald-500/20 to-cyan-500/20' :
+                  stat.color === 'cyan' ? 'from-cyan-500/20 to-blue-500/20' :
+                  stat.color === 'blue' ? 'from-blue-500/20 to-indigo-500/20' :
+                  'from-amber-500/20 to-orange-500/20'
+                }`}>
+                  <StatIcon className={`w-5 h-5 ${
+                    stat.color === 'emerald' ? 'text-emerald-400' :
+                    stat.color === 'cyan' ? 'text-cyan-400' :
+                    stat.color === 'blue' ? 'text-blue-400' :
+                    'text-amber-400'
+                  }`} />
+                </div>
+                {stat.badge && (
+                  <span className="px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-400 rounded-full">
+                    {stat.badge}
+                  </span>
+                )}
+              </div>
+              <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
+              <div className="text-sm text-gray-400">{stat.label}</div>
+            </GlassCard>
+          );
+        })}
+      </div>
+
+      {/* Filters */}
+      <GlassCard className="p-4" hover={false}>
         <div className="flex flex-col md:flex-row gap-4">
           {/* Search */}
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
             <input
               type="text"
               placeholder="Search restaurants..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
-                       bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100
-                       focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
             />
           </div>
 
           {/* Status Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-gray-400" />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="pl-10 pr-8 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 appearance-none cursor-pointer transition-all"
+              >
+                <option value="all" className="bg-slate-800">All Status</option>
+                <option value="active" className="bg-slate-800">Active</option>
+                <option value="trial" className="bg-slate-800">Trial</option>
+                <option value="expired" className="bg-slate-800">Expired</option>
+                <option value="inactive" className="bg-slate-800">Inactive</option>
+                <option value="cancelled" className="bg-slate-800">Cancelled</option>
+              </select>
+            </div>
+
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
-                       bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100
-                       focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 appearance-none cursor-pointer transition-all"
             >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="trial">Trial</option>
-              <option value="expired">Expired</option>
-              <option value="inactive">Inactive</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="name" className="bg-slate-800">Sort by Name</option>
+              <option value="created_at" className="bg-slate-800">Sort by Date</option>
+              <option value="location" className="bg-slate-800">Sort by Location</option>
             </select>
+
+            <button
+              className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-all"
+            >
+              <Download className="w-4 h-4" />
+            </button>
           </div>
-
-          {/* Sort */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
-                     bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100
-                     focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="name">Sort by Name</option>
-            <option value="created_at">Sort by Date</option>
-            <option value="location">Sort by Location</option>
-          </select>
-
-          {/* Export */}
-          <Button variant="outline" icon={Download} size="md">
-            Export
-          </Button>
         </div>
-      </div>
+      </GlassCard>
 
-      {/* Restaurants Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Restaurant
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Location
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Expires In
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {loading ? (
-                // Loading skeleton
-                [...Array(5)].map((_, i) => (
-                  <tr key={i}>
-                    <td className="px-6 py-4">
-                      <div className="animate-pulse flex items-center gap-3">
-                        <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded" />
-                        <div className="space-y-2">
-                          <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
-                          <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-6 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end gap-2">
-                        {[...Array(4)].map((_, j) => (
-                          <div key={j} className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : filteredRestaurants.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      <Building2 className="h-12 w-12 text-gray-400 mb-3" />
-                      <p className="text-gray-600 dark:text-gray-400">
-                        No restaurants found
-                      </p>
-                      <Button
-                        variant="primary"
-                        icon={Plus}
-                        size="sm"
-                        className="mt-4"
-                        onClick={() => navigate('/superadmin/restaurants/add')}
-                      >
-                        Add First Restaurant
-                      </Button>
+      {/* Restaurants Grid/Table */}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <GlassCard key={i} className="p-5" hover={false}>
+              <div className="animate-pulse space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-14 w-14 bg-white/10 rounded-xl" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-5 bg-white/10 rounded w-3/4" />
+                    <div className="h-4 bg-white/5 rounded w-1/2" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="h-16 bg-white/5 rounded-lg" />
+                  <div className="h-16 bg-white/5 rounded-lg" />
+                </div>
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      ) : filteredRestaurants.length === 0 ? (
+        <GlassCard className="p-12 text-center" hover={false}>
+          <div className="flex flex-col items-center">
+            <div className="p-4 rounded-2xl bg-white/5 mb-4">
+              <Building2 className="w-10 h-10 text-gray-600" />
+            </div>
+            <p className="text-white font-medium mb-1">No restaurants found</p>
+            <p className="text-sm text-gray-500 mb-4">
+              {searchQuery ? 'Try adjusting your search' : 'Add your first restaurant to get started'}
+            </p>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-lg text-white font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Add Restaurant
+            </button>
+          </div>
+        </GlassCard>
+      ) : viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredRestaurants.map((restaurant) => {
+            const expiry = getExpiryText(restaurant);
+            return (
+              <GlassCard
+                key={restaurant.id}
+                className="p-5 group"
+                onClick={() => navigate(`/superadmin/restaurants/${restaurant.id}`)}
+              >
+                {/* Header */}
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center overflow-hidden border border-white/10">
+                    {restaurant.logo_url ? (
+                      <img src={restaurant.logo_url} alt={restaurant.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-xl font-bold text-emerald-400">{restaurant.name.charAt(0)}</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-white truncate">{restaurant.name}</h3>
+                      {getStatusBadge(restaurant)}
                     </div>
-                  </td>
+                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
+                      <MapPin className="w-3 h-3" />
+                      <span className="truncate">{restaurant.location || 'No location'}</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                </div>
+
+                {/* Stats Row */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="p-3 rounded-lg bg-white/5 border border-white/5 text-center">
+                    <div className="text-lg font-bold text-white">{restaurant.max_tables || 0}</div>
+                    <div className="text-xs text-gray-500">Tables</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-white/5 border border-white/5 text-center">
+                    <div className={`text-sm font-bold ${expiry.color}`}>{expiry.text}</div>
+                    <div className="text-xs text-gray-500">Expires</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-white/5 border border-white/5 text-center">
+                    <div className="text-lg font-bold text-emerald-400">
+                      ₹{((restaurant.max_tables || 0) * RATE_PER_TABLE_PER_DAY * 30 / 1000).toFixed(1)}k
+                    </div>
+                    <div className="text-xs text-gray-500">/month</div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                  <div className="flex items-center gap-2">
+                    {restaurant.subscription?.plan_name && (
+                      <span className="px-2 py-1 text-xs bg-purple-500/20 text-purple-400 rounded-md">
+                        {restaurant.subscription.plan_name}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => navigate(`/superadmin/restaurants/${restaurant.id}`)}
+                      className="p-2 text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
+                      title="View"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => navigate(`/superadmin/restaurants/${restaurant.id}/edit`)}
+                      className="p-2 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    {/* Play/Pause button based on restaurant active status */}
+                    {restaurant.is_active === false || restaurant.subscriptionStatus === 'suspended' || restaurant.subscriptionStatus === 'expired' ? (
+                      <button
+                        onClick={() => handleReactivate(restaurant)}
+                        className="p-2 text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                        title="Reactivate"
+                      >
+                        <Play className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setDeactivateDialog({ isOpen: true, restaurant })}
+                        className="p-2 text-gray-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
+                        title="Suspend"
+                      >
+                        <Pause className="w-4 h-4" />
+                      </button>
+                    )}
+                    {/* Extend Subscription button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRestaurantForExtend(restaurant);
+                        setShowExtendModal(true);
+                      }}
+                      className="p-2 text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
+                      title="Extend Subscription"
+                    >
+                      <CalendarPlus className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteDialog({ isOpen: true, restaurant })}
+                      className="p-2 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </GlassCard>
+            );
+          })}
+        </div>
+      ) : (
+        /* Table View */
+        <GlassCard className="overflow-hidden" hover={false}>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-white/5 border-b border-white/10">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Restaurant</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Location</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Tables</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Expires</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
                 </tr>
-              ) : (
-                filteredRestaurants.map((restaurant) => {
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredRestaurants.map((restaurant) => {
                   const expiry = getExpiryText(restaurant);
                   return (
-                    <tr
-                      key={restaurant.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors"
-                    >
+                    <tr key={restaurant.id} className="hover:bg-white/5 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
+                          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10">
                             {restaurant.logo_url ? (
-                              <img
-                                src={restaurant.logo_url}
-                                alt={restaurant.name}
-                                className="h-full w-full object-cover"
-                              />
+                              <img src={restaurant.logo_url} alt="" className="h-full w-full object-cover rounded-lg" />
                             ) : (
-                              <span className="text-lg font-bold text-gray-500 dark:text-gray-400">
-                                {restaurant.name.charAt(0)}
-                              </span>
+                              <span className="font-bold text-emerald-400">{restaurant.name.charAt(0)}</span>
                             )}
                           </div>
                           <div>
-                            <p className="font-semibold text-gray-900 dark:text-gray-100">
-                              {restaurant.name}
-                            </p>
-                            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                              <span>{restaurant.max_tables || 0} tables</span>
-                              {restaurant.subscription?.plan_name && (
-                                <>
-                                  <span>•</span>
-                                  <span className="text-blue-600 dark:text-blue-400">
-                                    {restaurant.subscription.plan_name}
-                                  </span>
-                                </>
-                              )}
-                            </div>
+                            <p className="font-medium text-white">{restaurant.name}</p>
+                            {restaurant.subscription?.plan_name && (
+                              <p className="text-xs text-purple-400">{restaurant.subscription.plan_name}</p>
+                            )}
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-gray-900 dark:text-gray-100">
+                        <div className="flex items-center gap-1 text-sm text-gray-400">
+                          <MapPin className="w-3 h-3" />
                           {restaurant.location || 'N/A'}
-                        </p>
+                        </div>
                       </td>
                       <td className="px-6 py-4">{getStatusBadge(restaurant)}</td>
                       <td className="px-6 py-4">
-                        <span className={`text-sm font-medium ${expiry.color}`}>
+                        <span className="text-white font-medium">{restaurant.max_tables || 0}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`text-sm font-medium ${expiry.color.replace('dark:', '')}`}>
                           {expiry.text}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => navigate(`/superadmin/restaurants/${restaurant.id}`)}
-                            className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                            title="View"
+                            className="p-2 text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
                           >
-                            <Eye className="h-4 w-4" />
+                            <Eye className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => navigate(`/superadmin/restaurants/${restaurant.id}/edit`)}
-                            className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                            title="Edit"
+                            className="p-2 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                           >
-                            <Edit className="h-4 w-4" />
+                            <Edit className="w-4 h-4" />
                           </button>
+                          {/* Play/Pause button based on restaurant active status */}
+                          {restaurant.is_active === false || restaurant.subscriptionStatus === 'suspended' || restaurant.subscriptionStatus === 'expired' ? (
+                            <button
+                              onClick={() => handleReactivate(restaurant)}
+                              className="p-2 text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                              title="Reactivate"
+                            >
+                              <Play className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setDeactivateDialog({ isOpen: true, restaurant })}
+                              className="p-2 text-gray-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
+                              title="Suspend"
+                            >
+                              <Pause className="w-4 h-4" />
+                            </button>
+                          )}
+                          {/* Extend Subscription button */}
                           <button
-                            onClick={() => setDeactivateDialog({ isOpen: true, restaurant })}
-                            className="p-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition-colors"
-                            title="Deactivate"
+                            onClick={() => {
+                              setSelectedRestaurantForExtend(restaurant);
+                              setShowExtendModal(true);
+                            }}
+                            className="p-2 text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
+                            title="Extend Subscription"
                           >
-                            <Pause className="h-4 w-4" />
+                            <CalendarPlus className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setDeleteDialog({ isOpen: true, restaurant })}
-                            className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                            title="Delete"
+                            className="p-2 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Table Footer */}
+          <div className="px-6 py-4 border-t border-white/10 bg-white/5">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-400">
+                Showing <span className="text-white font-medium">{filteredRestaurants.length}</span> restaurants
+              </div>
+              <div className="text-sm text-gray-400">
+                Total Tables: <span className="text-emerald-400 font-bold">{stats.totalTables}</span>
+              </div>
+            </div>
+          </div>
+        </GlassCard>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
@@ -567,6 +855,21 @@ const RestaurantsPage = () => {
         onSuccess={() => {
           fetchRestaurants();
           setShowAddModal(false);
+        }}
+      />
+
+      {/* Extend Subscription Modal */}
+      <ExtendSubscriptionModal
+        isOpen={showExtendModal}
+        onClose={() => {
+          setShowExtendModal(false);
+          setSelectedRestaurantForExtend(null);
+        }}
+        restaurant={selectedRestaurantForExtend}
+        onSuccess={() => {
+          fetchRestaurants();
+          setShowExtendModal(false);
+          setSelectedRestaurantForExtend(null);
         }}
       />
     </div>

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Bell, CheckCircle } from 'lucide-react';
-// eslint-disable-next-line no-unused-vars
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { supabase } from '@shared/utils/api/supabaseClient';
 
@@ -49,7 +48,7 @@ const CallWaiterButton = ({ tableNumber, restaurantId }) => {
   };
 
   return (
-    <motion.button
+    <Motion.button
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       onClick={handleCallWaiter}
@@ -63,16 +62,16 @@ const CallWaiterButton = ({ tableNumber, restaurantId }) => {
     >
       <AnimatePresence mode="wait">
         {called ? (
-          <motion.div
+          <Motion.div
             key="check"
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             exit={{ scale: 0, rotate: 180 }}
           >
             <CheckCircle className="w-5 h-5 text-white" />
-          </motion.div>
+          </Motion.div>
         ) : (
-          <motion.div
+          <Motion.div
             key="bell"
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
@@ -81,10 +80,10 @@ const CallWaiterButton = ({ tableNumber, restaurantId }) => {
             transition={{ duration: 0.5 }}
           >
             <Bell className="w-5 h-5 text-white" />
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
-    </motion.button>
+    </Motion.button>
   );
 };
 

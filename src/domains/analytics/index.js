@@ -21,7 +21,7 @@
 
 // Utils
 // export * from './utils/dataExport';
-// export * from './utils/exportHelpers';
+export * from './utils/exportHelpers';
 
 // Events
 export { ANALYTICS_EVENTS } from './events';

@@ -1,25 +1,31 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Building2, 
-  User, 
+  User as UserIcon, 
   Lock, 
   Bell,
   Save,
   Upload,
   Camera,
   Check,
-  Shield
+  Shield,
+  LayoutGrid,
+  Users
 } from 'lucide-react';
 import { supabase } from '@shared/utils/api/supabaseClient';
 import { getCurrentUser } from '@shared/utils/auth/auth';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 import toast from 'react-hot-toast';
+import PaymentSettingsPage from '@/pages/manager/PaymentSettingsPage.jsx';
 
 const TABS = {
   RESTAURANT: 'restaurant',
   PROFILE: 'profile',
   SECURITY: 'security',
   NOTIFICATIONS: 'notifications',
+  PAYMENT: 'payment',
+  MANAGEMENT: 'management',
 };
 
 const SettingsPage = () => {
@@ -37,6 +43,18 @@ const SettingsPage = () => {
     logo_url: '',
   });
 
+  // Resource Management
+  // resourceLoading reserved for future skeleton states (not used currently)
+  // const [resourceLoading, setResourceLoading] = useState(true);
+  const [resourceSaving, setResourceSaving] = useState(false);
+  const [maxTables, setMaxTables] = useState(0);
+  const [maxUsers, setMaxUsers] = useState(0);
+  const [origMaxTables, setOrigMaxTables] = useState(0);
+  const [origMaxUsers, setOrigMaxUsers] = useState(0);
+  const [counts, setCounts] = useState({ tables: 0, users: 0 });
+  const [editingTables, setEditingTables] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(false);
+
   // Profile Data
   const [profileData, setProfileData] = useState({
     full_name: '',
@@ -45,11 +63,12 @@ const SettingsPage = () => {
   });
 
   // Security Data
-  const [securityData, setSecurityData] = useState({
-    current_password: '',
-    new_password: '',
-    confirm_password: '',
-  });
+  // For future password change wiring; currently simulated only
+  // const [securityData, setSecurityData] = useState({
+  //   current_password: '',
+  //   new_password: '',
+  //   confirm_password: '',
+  // });
 
   // Notification Settings
   const [notificationSettings, setNotificationSettings] = useState({
@@ -76,7 +95,7 @@ const SettingsPage = () => {
       if (userData.profile.restaurant_id) {
         const { data: restaurant, error: restaurantError } = await supabase
           .from('restaurants')
-          .select('*')
+          .select('*, max_tables, max_users')
           .eq('id', userData.profile.restaurant_id)
           .single();
 
@@ -89,6 +108,20 @@ const SettingsPage = () => {
           email: restaurant.email || '',
           logo_url: restaurant.logo_url || '',
         });
+
+        // Initialize resource management state
+        setMaxTables(Number(restaurant.max_tables || 0));
+        setOrigMaxTables(Number(restaurant.max_tables || 0));
+        setMaxUsers(Number(restaurant.max_users || 0));
+        setOrigMaxUsers(Number(restaurant.max_users || 0));
+
+        // Fetch current usage counts
+        const [tablesCount, usersCount] = await Promise.all([
+          supabase.from('tables').select('id', { count: 'exact', head: true }).eq('restaurant_id', userData.profile.restaurant_id),
+          supabase.from('users').select('id', { count: 'exact', head: true }).eq('restaurant_id', userData.profile.restaurant_id).in('role', ['chef','waiter','staff'])
+        ]);
+        setCounts({ tables: tablesCount.count || 0, users: usersCount.count || 0 });
+  // setResourceLoading(false);
       }
 
       // Set profile data
@@ -138,6 +171,61 @@ const SettingsPage = () => {
     }
   };
 
+  const saveTablesCap = async () => {
+    try {
+      setResourceSaving(true);
+      if (maxTables < counts.tables) {
+        toast.error(`Cannot set tables below current usage (${counts.tables})`);
+        setResourceSaving(false);
+        return;
+      }
+      // If increasing beyond original cap, route user to Subscription page for upgrade/payment
+      if (maxTables > origMaxTables) {
+        toast('To increase tables, complete upgrade in Subscription');
+        // navigate to subscription
+        window.location.href = '/manager/subscription';
+        return;
+      }
+      const { error } = await supabase
+        .from('restaurants')
+        .update({ max_tables: maxTables, updated_at: new Date().toISOString() })
+        .eq('id', currentUser.restaurant_id);
+      if (error) throw error;
+      toast.success('Table cap updated');
+      setOrigMaxTables(maxTables);
+      setEditingTables(false);
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to update table cap');
+    } finally {
+      setResourceSaving(false);
+    }
+  };
+
+  const saveStaffCap = async () => {
+    try {
+      setResourceSaving(true);
+      if (maxUsers < counts.users) {
+        toast.error(`Cannot set staff cap below current usage (${counts.users})`);
+        setResourceSaving(false);
+        return;
+      }
+      const { error } = await supabase
+        .from('restaurants')
+        .update({ max_users: maxUsers, updated_at: new Date().toISOString() })
+        .eq('id', currentUser.restaurant_id);
+      if (error) throw error;
+      toast.success('Staff cap updated');
+      setOrigMaxUsers(maxUsers);
+      setEditingStaff(false);
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to update staff cap');
+    } finally {
+      setResourceSaving(false);
+    }
+  };
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -158,7 +246,9 @@ const SettingsPage = () => {
       <div className="glass-panel p-1 flex overflow-x-auto">
         {[
           { id: TABS.RESTAURANT, label: 'Restaurant', icon: Building2 },
-          { id: TABS.PROFILE, label: 'Profile', icon: User },
+          { id: TABS.PROFILE, label: 'Profile', icon: UserIcon },
+          { id: TABS.PAYMENT, label: 'Payment', icon: Shield },
+          { id: TABS.MANAGEMENT, label: 'Management', icon: LayoutGrid },
           { id: TABS.SECURITY, label: 'Security', icon: Lock },
           { id: TABS.NOTIFICATIONS, label: 'Notifications', icon: Bell },
         ].map((tab) => (
@@ -176,6 +266,89 @@ const SettingsPage = () => {
           </button>
         ))}
       </div>
+        {activeTab === TABS.PAYMENT && (
+          <div className="animate-fade-in">
+            {/* Embed Payment Settings directly */}
+            <PaymentSettingsPage />
+          </div>
+        )}
+
+        {activeTab === TABS.MANAGEMENT && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Quick Links to Manager views */}
+            <div className="flex items-center gap-3">
+              <Link
+                to="/manager?tab=tables"
+                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+              >
+                Go to Tables
+              </Link>
+              <Link
+                to="/manager?tab=staff"
+                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+              >
+                Go to Staff
+              </Link>
+            </div>
+            {/* Tables Cap */}
+            <div className={`p-6 rounded-xl border ${editingTables ? 'border-orange-200 bg-orange-50' : 'border-white/10 bg-white/5'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <LayoutGrid className="w-5 h-5 text-orange-500" />
+                  <h3 className="text-white font-bold">Tables Cap</h3>
+                </div>
+                {!editingTables ? (
+                  <button onClick={() => setEditingTables(true)} className="px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 text-sm font-medium">Edit</button>
+                ) : (
+                  <button onClick={() => { setEditingTables(false); setMaxTables(origMaxTables); }} className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium">Cancel</button>
+                )}
+              </div>
+              <div className="text-sm text-zinc-400 mb-3">Current usage: {counts.tables}</div>
+              {editingTables ? (
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setMaxTables(v => Math.max(counts.tables, (v||0)-1))} className="px-3 py-1.5 rounded-lg bg-white border border-gray-200">-</button>
+                  <div className="text-2xl font-bold text-orange-600 w-16 text-center">{maxTables}</div>
+                  <button onClick={() => setMaxTables(v => Math.min(100, (v||0)+1))} className="px-3 py-1.5 rounded-lg bg-white border border-gray-200">+</button>
+                  <div className="ml-auto">
+                    <button disabled={resourceSaving} onClick={saveTablesCap} className="px-4 py-2 rounded-lg bg-orange-600 text-white font-semibold disabled:opacity-50">{resourceSaving ? 'Saving...' : 'Save'}</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xl font-bold text-white">{maxTables}</div>
+              )}
+              <div className="mt-2 text-xs text-zinc-500">Upgrades require payment—use Subscription to increase tables.</div>
+            </div>
+
+            {/* Staff Cap */}
+            <div className={`p-6 rounded-xl border ${editingStaff ? 'border-emerald-200 bg-emerald-50' : 'border-white/10 bg-white/5'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-emerald-500" />
+                  <h3 className="text-white font-bold">Staff Cap</h3>
+                </div>
+                {!editingStaff ? (
+                  <button onClick={() => setEditingStaff(true)} className="px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-sm font-medium">Edit</button>
+                ) : (
+                  <button onClick={() => { setEditingStaff(false); setMaxUsers(origMaxUsers); }} className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium">Cancel</button>
+                )}
+              </div>
+              <div className="text-sm text-zinc-400 mb-3">Current usage: {counts.users}</div>
+              {editingStaff ? (
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setMaxUsers(v => Math.max(counts.users, (v||0)-1))} className="px-3 py-1.5 rounded-lg bg-white border border-gray-200">-</button>
+                  <div className="text-2xl font-bold text-emerald-600 w-16 text-center">{maxUsers}</div>
+                  <button onClick={() => setMaxUsers(v => Math.min(500, (v||0)+1))} className="px-3 py-1.5 rounded-lg bg-white border border-gray-200">+</button>
+                  <div className="ml-auto">
+                    <button disabled={resourceSaving} onClick={saveStaffCap} className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold disabled:opacity-50">{resourceSaving ? 'Saving...' : 'Save'}</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xl font-bold text-white">{maxUsers}</div>
+              )}
+              <div className="mt-2 text-xs text-zinc-500">No extra cost. This cap is for your internal control.</div>
+            </div>
+          </div>
+        )}
 
       {/* Content Area */}
       <div className="glass-panel p-6 md:p-8">

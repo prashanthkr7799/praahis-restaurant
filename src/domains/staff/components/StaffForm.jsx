@@ -117,6 +117,28 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
         toast.error('Missing restaurant context');
         return;
       }
+      
+      // For new staff: Check max_users limit before creating
+      if (!staff) {
+        // Fetch restaurant's limits using RPC (this bypasses RLS issues)
+        const { data: limits, error: limitsError } = await supabase
+          .rpc('get_restaurant_limits');
+
+        if (limitsError) {
+          console.error('Failed to fetch restaurant limits:', limitsError);
+        }
+
+        // Check if staff limit is reached
+        if (limits && limits.length > 0) {
+          const { max_users, current_users } = limits[0];
+          if (current_users >= max_users) {
+            toast.error(`Staff limit reached! Your plan allows maximum ${max_users} staff members (currently ${current_users}). Please upgrade your subscription or contact SuperAdmin.`);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+      
       if (staff) {
         // Edit existing staff member via SECURITY DEFINER RPC (bypasses users RLS safely)
         const { error: updateError } = await supabase.rpc('admin_update_staff', {

@@ -9,16 +9,16 @@ import ProtectedRoute from '@/shared/guards/ProtectedRoute'
 import ProtectedOwnerRoute from '@/shared/guards/ProtectedOwnerRoute'
 import { ROLES } from '@/shared/utils/permissions/permissions'
 
-// Marketing Components (NEW PATHS)
-import HeroSection from '@/shared/components/marketing/HeroSection'
-import Navbar from '@/shared/components/marketing/Navbar'
-import Dishes from '@/shared/components/marketing/Dishes'
-import About from '@/shared/components/marketing/About'
-import Mission from '@/shared/components/marketing/Mission'
-import Expertise from '@/shared/components/marketing/Expertise'
-import Review from '@/shared/components/marketing/Review'
-import ContactSection from '@/shared/components/marketing/ContactSection'
-import Footer from '@/shared/components/marketing/Footer'
+// SaaS Landing Page Components (NEW)
+import SaaSNavbar from '@/shared/components/landing/SaaSNavbar'
+import SaaSHero from '@/shared/components/landing/SaaSHero'
+import FeaturesGrid from '@/shared/components/landing/FeaturesGrid'
+import HowItWorks from '@/shared/components/landing/HowItWorks'
+import Benefits from '@/shared/components/landing/Benefits'
+import Testimonials from '@/shared/components/landing/Testimonials'
+import Pricing from '@/shared/components/landing/Pricing'
+import ContactCTA from '@/shared/components/landing/ContactCTA'
+import SaaSFooter from '@/shared/components/landing/SaaSFooter'
 
 // Customer Pages (NEW PATHS)
 const TablePage = lazy(() => import('@/pages/customer/TablePage'))
@@ -43,20 +43,14 @@ const ResetPassword = lazy(() => import('@/pages/auth/ResetPassword'))
 
 // Manager Pages (NEW PATHS)
 const Dashboard = lazy(() => import('@/pages/manager/ManagerDashboard'))
-// Deprecated alternate dashboard removed from routing
-const MenuManagement = lazy(() => import('@/pages/manager/MenuManagementPage'))
-const TablesManagement = lazy(() => import('@/pages/manager/TablesPage'))
-const StaffManagement = lazy(() => import('@/pages/manager/StaffManagementPage'))
-const OrdersManagement = lazy(() => import('@/pages/manager/OrdersManagementPage'))
+// Menu, Tables, Staff, Orders, QR Codes - All integrated in Dashboard tabs (no separate pages needed)
 const PaymentsTracking = lazy(() => import('@/pages/manager/PaymentsTrackingPage'))
-// Offers feature disabled (table not in schema)
 const Analytics = lazy(() => import('@/pages/manager/AnalyticsPage'))
 const ReportsPage = lazy(() => import('@/pages/manager/ReportsPage'))
 const Settings = lazy(() => import('@/pages/manager/SettingsPage'))
 const PaymentSettings = lazy(() => import('@/pages/manager/PaymentSettingsPage'))
 const ActivityLogs = lazy(() => import('@/pages/manager/ActivityLogsPage'))
-const QRCodesManagement = lazy(() => import('@/pages/manager/QRCodesManagementPage'))
-const BillingPage = lazy(() => import('@/pages/manager/BillingPage'))
+const SubscriptionPage = lazy(() => import('@/pages/manager/SubscriptionPage'))
 
 // Waiter Pages (NEW PATHS)
 const WaiterDashboard = lazy(() => import('@/pages/waiter/WaiterDashboard'))
@@ -75,19 +69,23 @@ const SuperAdminAuditLogs = lazy(() => import('@/pages/superadmin/AuditLogsPage'
 const SuperAdminBackupManagement = lazy(() => import('@/pages/superadmin/BackupManagement'))
 // MaintenanceMode page disabled (RPCs not available)
 const BillingManagementPage = lazy(() => import('@/pages/superadmin/billing/BillingManagementPage'))
+const NotificationsPage = lazy(() => import('@/pages/superadmin/notifications/NotificationsPage'))
+
+// Demo Page (NEW)
+const SafeDemoPage = lazy(() => import('@/pages/SafeDemoPage'))
 
 const HomePage = () => {
   return (
-    <main className='overflow-y-hidden text-neutral-200 antialiased'>
-       <HeroSection />
-       <Navbar />
-       <Dishes />
-       <About />
-       <Mission />
-       <Expertise />
-       <Review />
-       <ContactSection />
-       <Footer />
+    <main className='min-h-screen bg-[#0a0e1a] text-neutral-200 antialiased'>
+       <SaaSNavbar />
+       <SaaSHero />
+       <FeaturesGrid />
+       <HowItWorks />
+       <Benefits />
+       <Testimonials />
+       <Pricing />
+       <ContactCTA />
+       <SaaSFooter />
     </main>
   )
 }
@@ -124,9 +122,11 @@ const App = () => {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<HomePage />} />
+            <Route path="/safe-demo" element={<SafeDemoPage />} />
             <Route path="/table/:id" element={<TablePage />} />
-            {/* Legacy QR route pattern support */}
+            {/* Legacy QR route pattern support - multiple formats */}
             <Route path="/customer/menu/:restaurantId/:tableId" element={<LegacyCustomerMenuRedirect />} />
+            <Route path="/menu/:restaurantId" element={<LegacyCustomerMenuRedirect />} />
             <Route path="/payment/:orderId" element={<PaymentPage />} />
             <Route path="/order-status/:orderId" element={<OrderStatusPage />} />
             
@@ -229,6 +229,7 @@ const App = () => {
               <Route path="managers" element={<ManagersList />} />
               <Route path="analytics" element={<SuperAdminAnalytics />} />
               <Route path="billing" element={<BillingManagementPage />} />
+              <Route path="notifications" element={<NotificationsPage />} />
               <Route path="audit-logs" element={<SuperAdminAuditLogs />} />
               <Route path="backups" element={<SuperAdminBackupManagement />} />
               {/* maintenance/settings routes removed - backend not present */}
@@ -242,20 +243,16 @@ const App = () => {
             }>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
-              {/* deprecated alternate dashboard removed */}
-              <Route path="menu" element={<MenuManagement />} />
-              <Route path="tables" element={<TablesManagement />} />
-              <Route path="staff" element={<StaffManagement />} />
-              <Route path="orders" element={<OrdersManagement />} />
+              {/* Menu, Tables, Staff, Orders, QR Codes - All integrated in Dashboard tabs */}
               <Route path="payments" element={<PaymentsTracking />} />
-              {/* offers route removed - feature disabled */}
               <Route path="analytics" element={<Analytics />} />
               <Route path="reports" element={<ReportsPage />} />
-              <Route path="billing" element={<BillingPage />} />
+              {/* Combine Billing into Subscription: redirect billing to subscription */}
+              <Route path="billing" element={<Navigate to="/manager/subscription" replace />} />
+              <Route path="subscription" element={<SubscriptionPage />} />
               <Route path="logs" element={<ActivityLogs />} />
               <Route path="settings" element={<Settings />} />
               <Route path="settings/payment" element={<PaymentSettings />} />
-              <Route path="qr-codes" element={<QRCodesManagement />} />
               <Route path="qr-generator" element={<QRGenerator />} />
 
               {/* Fallback route */}

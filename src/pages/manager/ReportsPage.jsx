@@ -10,13 +10,20 @@ import {
   Activity,
   DollarSign,
   Clock,
-  ChevronRight
+  ChevronRight,
+  FileSpreadsheet
 } from 'lucide-react';
 import { supabase } from '@shared/utils/api/supabaseClient';
 import { formatCurrency, formatDate } from '@shared/utils/helpers/formatters';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 import toast from 'react-hot-toast';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
+import { 
+  exportOrders, 
+  exportMenuItems,
+  exportStaff,
+  exportPayments
+} from '@domains/analytics';
 
 const ReportsPage = () => {
   const [loading, setLoading] = useState(false);
@@ -107,9 +114,26 @@ const ReportsPage = () => {
     loadData();
   }, [loadData]);
 
-  const exportReport = (type) => {
-    toast.success(`Exporting ${type} report...`);
-    // Implementation for CSV export would go here
+  const exportReport = (type, format = 'excel') => {
+    try {
+      if (type === 'orders') {
+        exportOrders(reportData.orders, format);
+        toast.success(`Orders ${format.toUpperCase()} exported!`);
+      } else if (type === 'menu') {
+        exportMenuItems(reportData.menuItems, format);
+        toast.success(`Menu Items ${format.toUpperCase()} exported!`);
+      } else if (type === 'staff') {
+        exportStaff(reportData.staff, format);
+        toast.success(`Staff ${format.toUpperCase()} exported!`);
+      } else if (type === 'payments') {
+        const paymentsData = reportData.orders.filter(o => o.payment_status === 'paid');
+        exportPayments(paymentsData, format);
+        toast.success(`Payments ${format.toUpperCase()} exported!`);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export report');
+    }
   };
 
   if (loading && !reportData.orders.length) return <LoadingSpinner />;
@@ -293,13 +317,22 @@ const ReportsPage = () => {
           <div className="glass-panel overflow-hidden">
             <div className="p-4 border-b border-white/10 flex justify-between items-center">
               <h3 className="text-lg font-bold text-white">Order History</h3>
-              <button 
-                onClick={() => exportReport('orders')}
-                className="glass-button text-sm py-1.5"
-              >
-                <Download size={16} />
-                Export CSV
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => exportReport('orders', 'excel')}
+                  className="glass-button text-sm py-1.5"
+                >
+                  <FileSpreadsheet size={16} />
+                  Excel
+                </button>
+                <button 
+                  onClick={() => exportReport('orders', 'pdf')}
+                  className="glass-button text-sm py-1.5"
+                >
+                  <FileText size={16} />
+                  PDF
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -348,13 +381,22 @@ const ReportsPage = () => {
           <div className="glass-panel overflow-hidden">
             <div className="p-4 border-b border-white/10 flex justify-between items-center">
               <h3 className="text-lg font-bold text-white">Menu Performance</h3>
-              <button 
-                onClick={() => exportReport('menu')}
-                className="glass-button text-sm py-1.5"
-              >
-                <Download size={16} />
-                Export CSV
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => exportReport('menu', 'excel')}
+                  className="glass-button text-sm py-1.5"
+                >
+                  <FileSpreadsheet size={16} />
+                  Excel
+                </button>
+                <button 
+                  onClick={() => exportReport('menu', 'pdf')}
+                  className="glass-button text-sm py-1.5"
+                >
+                  <FileText size={16} />
+                  PDF
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -384,14 +426,68 @@ const ReportsPage = () => {
         )}
 
         {activeTab === 'staff' && (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="p-6 rounded-full bg-white/5 mb-4">
-              <Users size={48} className="text-zinc-500" />
+          <div className="glass-panel overflow-hidden">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-white">Staff Report</h3>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => exportReport('staff', 'excel')}
+                  className="glass-button text-sm py-1.5"
+                  disabled={!reportData.staff.length}
+                >
+                  <FileSpreadsheet size={16} />
+                  Excel
+                </button>
+                <button 
+                  onClick={() => exportReport('staff', 'pdf')}
+                  className="glass-button text-sm py-1.5"
+                  disabled={!reportData.staff.length}
+                >
+                  <FileText size={16} />
+                  PDF
+                </button>
+              </div>
             </div>
-            <h3 className="text-xl font-bold text-white">Staff Reports Coming Soon</h3>
-            <p className="text-zinc-400 mt-2 max-w-md">
-              Detailed staff performance metrics and shift analysis will be available in the next update.
-            </p>
+            {reportData.staff.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-white/5 text-xs uppercase text-zinc-500">
+                    <tr>
+                      <th className="p-4">Name</th>
+                      <th className="p-4">Role</th>
+                      <th className="p-4">Email</th>
+                      <th className="p-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {reportData.staff.map((member) => (
+                      <tr key={member.id} className="hover:bg-white/5 transition-colors">
+                        <td className="p-4 text-white font-medium">{member.full_name}</td>
+                        <td className="p-4 text-zinc-400 capitalize">{member.role}</td>
+                        <td className="p-4 text-zinc-400">{member.email}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            member.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-500/10 text-zinc-400'
+                          }`}>
+                            {member.status || 'active'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="p-6 rounded-full bg-white/5 mb-4">
+                  <Users size={48} className="text-zinc-500" />
+                </div>
+                <h3 className="text-xl font-bold text-white">No Staff Data</h3>
+                <p className="text-zinc-400 mt-2 max-w-md">
+                  Staff members will appear here once added.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

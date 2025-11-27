@@ -8,6 +8,8 @@
  * to automatically migrate user data.
  */
 
+import logger from '@shared/utils/helpers/logger';
+
 export function migrateLegacyLocalStorage() {
   try {
     const migrations = [
@@ -27,7 +29,7 @@ export function migrateLegacyLocalStorage() {
         localStorage.setItem(newKey, value);
         localStorage.removeItem(old);
         migratedCount++;
-        console.log(`✅ Migrated: ${old} → ${newKey}`);
+        logger.log(`✅ Migrated: ${old} → ${newKey}`);
       }
     });
 
@@ -45,13 +47,13 @@ export function migrateLegacyLocalStorage() {
           localStorage.setItem(newKey, value);
           localStorage.removeItem(key);
           migratedCount++;
-          console.log(`✅ Migrated: ${key} → ${newKey}`);
+          logger.log(`✅ Migrated: ${key} → ${newKey}`);
         }
       });
     });
 
     if (migratedCount > 0) {
-      console.log(`🎉 Successfully migrated ${migratedCount} localStorage keys`);
+      logger.log(`🎉 Successfully migrated ${migratedCount} localStorage keys`);
     }
 
   } catch (error) {

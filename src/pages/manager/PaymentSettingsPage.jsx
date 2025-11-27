@@ -4,6 +4,7 @@ import { supabase } from '@/shared/utils/api/supabaseClient';
 import useRestaurant from '@/shared/hooks/useRestaurant';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
+import { logger } from '@shared/utils/helpers/logger';
 
 export default function PaymentSettingsPage() {
   const navigate = useNavigate();
@@ -11,6 +12,8 @@ export default function PaymentSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testLogs, setTestLogs] = useState([]);
+  const [connectionStatus, setConnectionStatus] = useState(null); // null | 'ok' | 'warn' | 'error'
   
   const [formData, setFormData] = useState({
     razorpay_key_id: '',
@@ -43,17 +46,24 @@ export default function PaymentSettingsPage() {
         .from('restaurants')
         .select('razorpay_key_id, razorpay_key_secret, razorpay_webhook_secret, payment_gateway_enabled, payment_settings')
         .eq('id', restaurantId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
       if (data) {
+        const defaults = {
+          currency: 'INR',
+          accepted_methods: ['card', 'netbanking', 'wallet', 'upi'],
+          auto_capture: true,
+          retry_enabled: false,
+        };
+        const mergedSettings = { ...defaults, ...(data.payment_settings || {}) };
         setFormData({
           razorpay_key_id: data.razorpay_key_id || '',
           razorpay_key_secret: data.razorpay_key_secret || '',
           razorpay_webhook_secret: data.razorpay_webhook_secret || '',
           payment_gateway_enabled: data.payment_gateway_enabled || false,
-          payment_settings: data.payment_settings || formData.payment_settings,
+          payment_settings: mergedSettings,
         });
       }
     } catch (err) {
@@ -77,9 +87,9 @@ export default function PaymentSettingsPage() {
       ...prev,
       payment_settings: {
         ...prev.payment_settings,
-        accepted_methods: prev.payment_settings.accepted_methods.includes(method)
-          ? prev.payment_settings.accepted_methods.filter(m => m !== method)
-          : [...prev.payment_settings.accepted_methods, method]
+        accepted_methods: (prev.payment_settings?.accepted_methods || []).includes(method)
+          ? (prev.payment_settings?.accepted_methods || []).filter(m => m !== method)
+          : ([...(prev.payment_settings?.accepted_methods || []), method])
       }
     }));
   };
@@ -107,25 +117,56 @@ export default function PaymentSettingsPage() {
     if (!validateCredentials()) return;
 
     setTesting(true);
+    setTestLogs([]);
+    const pushLog = (msg) => setTestLogs(prev => [...prev, { id: prev.length + 1, msg }]);
     try {
-      // Test by attempting to load Razorpay SDK with the provided key
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      
-      await new Promise((resolve, reject) => {
-        script.onload = resolve;
-        script.onerror = reject;
-        document.body.appendChild(script);
-      });
+      pushLog('Starting connectivity diagnostics...');
+      pushLog(`Browser online state: ${navigator.onLine}`);
+      if (!navigator.onLine) {
+        setConnectionStatus('error');
+        throw new Error('Browser reports offline. Check network connection.');
+      }
 
-      // Basic validation passed
-      toast.success('✓ Razorpay credentials format is valid');
-      
-      // Note: Full validation requires server-side API call
-      toast.info('💡 Save settings to fully validate credentials with Razorpay');
+      // Probe fetch to script URL (may be opaque due to CORS but failure still throws)
+      pushLog('Probing Razorpay script URL with fetch...');
+      try {
+        const resp = await fetch('https://checkout.razorpay.com/v1/checkout.js', { method: 'GET', cache: 'no-cache', mode: 'no-cors' });
+        pushLog(`Fetch probe completed (mode:no-cors, status: ${resp.status || 'opaque'})`);
+      } catch (fErr) {
+        pushLog(`Fetch probe failed: ${fErr.message}`);
+      }
+
+      // Avoid duplicate script tags
+      if (document.querySelector('script[data-razorpay-checkout]')) {
+        pushLog('Existing Razorpay script tag detected, reusing.');
+      } else {
+        pushLog('Injecting Razorpay checkout.js script...');
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.setAttribute('data-razorpay-checkout', 'true');
+        await new Promise((resolve, reject) => {
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Script onerror fired'));
+          document.body.appendChild(script);
+        });
+        pushLog('Script loaded successfully.');
+      }
+
+      if (!window.Razorpay) {
+        pushLog('window.Razorpay not found after load attempt.');
+        setConnectionStatus('error');
+        throw new Error('Razorpay SDK failed to initialize. Possible ad blocker or CSP issue.');
+      }
+
+      pushLog('Razorpay global detected. Basic connectivity OK.');
+      setConnectionStatus('ok');
+  toast.success('✓ Connectivity OK. Credentials format valid.');
+  toast('💡 Save to persist and perform real payment attempts.');
     } catch (err) {
       console.error('Test connection error:', err);
-      toast.error('Failed to connect to Razorpay. Please check your internet connection.');
+      setConnectionStatus(prev => prev || 'error');
+      toast.error(err.message || 'Failed to connect to Razorpay.');
+      pushLog(`ERROR: ${err.message}`);
     } finally {
       setTesting(false);
     }
@@ -138,21 +179,31 @@ export default function PaymentSettingsPage() {
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      const defaults = {
+        currency: 'INR',
+        accepted_methods: ['card', 'netbanking', 'wallet', 'upi'],
+        auto_capture: true,
+        retry_enabled: false,
+      };
+      const { data: updatedRows, error } = await supabase
         .from('restaurants')
         .update({
           razorpay_key_id: formData.razorpay_key_id.trim(),
           razorpay_key_secret: formData.razorpay_key_secret.trim(),
           razorpay_webhook_secret: formData.razorpay_webhook_secret.trim() || null,
           payment_gateway_enabled: true, // Auto-enable when credentials are saved
-          payment_settings: formData.payment_settings,
+          payment_settings: { ...defaults, ...(formData.payment_settings || {}) },
           updated_at: new Date().toISOString()
         })
         .eq('id', restaurantId)
-        .select()
-        .single();
+        .select(); // Return array; no coercion to single to avoid Supabase "Cannot coerce" error
 
       if (error) throw error;
+      if (!updatedRows || updatedRows.length === 0) {
+        logger.warn('Update returned no rows for restaurant id', restaurantId);
+      } else if (updatedRows.length > 1) {
+        logger.warn('Update affected multiple rows (unexpected):', updatedRows.length);
+      }
 
       toast.success('✅ Payment settings saved successfully!');
       
@@ -165,7 +216,7 @@ export default function PaymentSettingsPage() {
       });
 
     } catch (err) {
-      console.error('Error saving payment settings:', err);
+      logger.error('Error saving payment settings:', err);
       toast.error(err.message || 'Failed to save payment settings');
     } finally {
       setSaving(false);
@@ -200,6 +251,10 @@ export default function PaymentSettingsPage() {
     }
   };
 
+  const mode = !formData.razorpay_key_id
+    ? 'inactive'
+    : (formData.razorpay_key_id.startsWith('rzp_live_') ? 'live' : 'test');
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -211,13 +266,24 @@ export default function PaymentSettingsPage() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-100 dark:text-white mb-2">
-          Payment Gateway Settings
-        </h1>
-        <p className="text-gray-400 dark:text-gray-400">
-          Configure your Razorpay account to accept online payments from customers
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-100 dark:text-white mb-2">
+            Payment Settings
+          </h1>
+          <p className="text-gray-400 dark:text-gray-400">
+            Connect Razorpay to accept online payments. Use test keys while trying things out.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide border ${
+            mode === 'live' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-600/40' :
+            mode === 'test' ? 'bg-amber-500/15 text-amber-300 border-amber-600/40' :
+            'bg-zinc-700/30 text-zinc-300 border-zinc-600/50'
+          }`}>
+            {mode === 'live' ? 'Live Mode' : mode === 'test' ? 'Test Mode' : 'Not Configured'}
+          </span>
+        </div>
       </div>
 
       {/* Status Banner */}
@@ -408,6 +474,38 @@ export default function PaymentSettingsPage() {
                 </>
               )}
             </button>
+
+            {/* Diagnostics Panel */}
+            {testLogs.length > 0 && (
+              <div className="mt-4 rounded-lg border border-blue-700/40 bg-blue-950/40 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold tracking-wide text-blue-300">Diagnostics</span>
+                  {connectionStatus && (
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                      connectionStatus === 'ok' ? 'bg-emerald-500/10 text-emerald-300 border-emerald-600/40' :
+                      connectionStatus === 'warn' ? 'bg-amber-500/10 text-amber-300 border-amber-600/40' :
+                      'bg-red-500/10 text-red-300 border-red-600/40'
+                    }`}>{connectionStatus}</span>
+                  )}
+                </div>
+                <ul className="space-y-1 max-h-40 overflow-y-auto text-[11px] text-blue-200/90 font-mono leading-relaxed">
+                  {testLogs.map(log => (
+                    <li key={log.id}>• {log.msg}</li>
+                  ))}
+                </ul>
+                {connectionStatus === 'error' && (
+                  <div className="mt-2 text-[10px] text-red-300/80 space-y-1">
+                    <p>Hints:</p>
+                    <ul className="list-disc ml-4 space-y-0.5">
+                      <li>Disable ad blockers (they sometimes block checkout.js)</li>
+                      <li>Check DevTools → Network for checkout.js status</li>
+                      <li>Ensure no restrictive Content-Security-Policy blocks https://checkout.razorpay.com</li>
+                      <li>Verify local firewall/VPN isn’t filtering payment domains</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -436,14 +534,14 @@ export default function PaymentSettingsPage() {
                   <label
                     key={method.value}
                     className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all
-                      ${formData.payment_settings.accepted_methods.includes(method.value)
+                      ${(formData.payment_settings?.accepted_methods || []).includes(method.value)
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                         : 'border-gray-700 dark:border-gray-700 hover:border-gray-300'
                       }`}
                   >
                     <input
                       type="checkbox"
-                      checked={formData.payment_settings.accepted_methods.includes(method.value)}
+                      checked={(formData.payment_settings?.accepted_methods || []).includes(method.value)}
                       onChange={() => handlePaymentMethodToggle(method.value)}
                       className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                     />
@@ -462,10 +560,10 @@ export default function PaymentSettingsPage() {
                 Currency
               </label>
               <select
-                value={formData.payment_settings.currency}
+                value={formData.payment_settings?.currency || 'INR'}
                 onChange={(e) => setFormData(prev => ({
                   ...prev,
-                  payment_settings: { ...prev.payment_settings, currency: e.target.value }
+                  payment_settings: { ...(prev.payment_settings || {}), currency: e.target.value }
                 }))}
                 className="w-full px-4 py-2 border border-gray-600 dark:border-gray-600 rounded-lg 
                          bg-gray-900 dark:bg-gray-700 text-gray-100 dark:text-white

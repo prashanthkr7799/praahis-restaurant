@@ -11,6 +11,7 @@ import { hasPermission, getDashboardRoute } from '@shared/utils/permissions/perm
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
 import { supabase } from '@shared/utils/api/supabaseClient';
+import { logger } from '@shared/utils/helpers/logger';
 import toast from 'react-hot-toast';
 
 const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = [], requireRestaurant = true }) => {
@@ -58,6 +59,9 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
       return;
     }
 
+    // Check if this is the subscription page - managers can always access it
+    const isSubscriptionPage = location.pathname === '/manager/subscription';
+    const isManager = roleLower === 'manager' || roleLower === 'admin';
     // User must have a restaurant_id
     if (!profile?.restaurant_id) {
       setValidationError('no_restaurant_assigned');
@@ -113,9 +117,143 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
       return;
     }
 
+    // CRITICAL: Check if the restaurant is active and subscription is valid
+    try {
+      const { data: restaurant, error: restaurantError } = await supabase
+        .from('restaurants')
+        .select(`
+          id, 
+          name, 
+          is_active,
+          subscriptions (
+            id,
+            status,
+            current_period_end
+          )
+        `)
+        .eq('id', profile.restaurant_id)
+        .single();
+
+      if (restaurantError) {
+        console.error('ProtectedRoute: Failed to check restaurant status:', restaurantError);
+        // Don't block on error, but log it
+      } else if (restaurant) {
+        // Check subscription status first (managers can access subscription page even when deactivated)
+        const subscription = Array.isArray(restaurant.subscriptions) 
+          ? restaurant.subscriptions[0] 
+          : restaurant.subscriptions;
+        
+        if (subscription) {
+          const subStatus = subscription.status?.toLowerCase();
+          
+          // Block if subscription is suspended or cancelled or expired
+          // EXCEPTION: Managers can access subscription page to make payment
+          if (subStatus === 'suspended' || subStatus === 'cancelled' || subStatus === 'expired') {
+            if (isManager && isSubscriptionPage) {
+              // Allow manager to access subscription page for payment
+              setValidationError(null);
+              return;
+            }
+            
+            // For managers on other pages, redirect to subscription
+            if (isManager) {
+              setValidationError('subscription_suspended_manager');
+              await logSecurityEvent('manager_redirected_to_subscription', {
+                user_role: profile?.role,
+                restaurant_id: restaurant.id,
+                subscription_status: subStatus,
+                reason: 'Manager redirected to subscription page for payment'
+              });
+              return;
+            } else {
+              setValidationError('subscription_suspended');
+              await logSecurityEvent('access_denied_subscription_suspended', {
+                user_role: profile?.role,
+                restaurant_id: restaurant.id,
+                subscription_status: subStatus,
+                reason: 'Subscription has been suspended/cancelled'
+              });
+              return;
+            }
+          }
+
+          // Check if subscription is expired (date-based)
+          // BUT ONLY if status is NOT explicitly 'active' or 'trial'
+          // This allows SuperAdmin to extend subscription and set status to active
+          if (subscription.current_period_end && subStatus !== 'active' && subStatus !== 'trial') {
+            const expiryDate = new Date(subscription.current_period_end);
+            if (!isNaN(expiryDate.getTime()) && expiryDate < new Date()) {
+              if (isManager && isSubscriptionPage) {
+                // Allow manager to access subscription page for payment
+                setValidationError(null);
+                return;
+              }
+              
+              // For managers on other pages, redirect to subscription
+              if (isManager) {
+                setValidationError('subscription_expired_manager');
+                await logSecurityEvent('manager_redirected_to_subscription', {
+                  user_role: profile?.role,
+                  restaurant_id: restaurant.id,
+                  expiry_date: subscription.current_period_end,
+                  reason: 'Manager redirected to subscription page for payment'
+                });
+                return;
+              } else {
+                setValidationError('subscription_expired');
+                await logSecurityEvent('access_denied_subscription_expired', {
+                  user_role: profile?.role,
+                  restaurant_id: restaurant.id,
+                  expiry_date: subscription.current_period_end,
+                  reason: 'Subscription has expired'
+                });
+                return;
+              }
+            }
+          }
+        }
+        
+        // Check is_active flag (only if subscription check didn't return)
+        // But if subscription status is 'active' or 'trial', we should allow access
+        // This handles cases where SuperAdmin extended subscription but forgot to reactivate
+        // subscription variable is already defined above, reuse it
+        const activeSubStatus = subscription?.status?.toLowerCase();
+        
+        if (!restaurant.is_active && activeSubStatus !== 'active' && activeSubStatus !== 'trial') {
+          // Check if manager trying to access subscription page
+          if (isManager && isSubscriptionPage) {
+            setValidationError(null);
+            return;
+          }
+          
+          if (isManager) {
+            setValidationError('subscription_suspended_manager');
+            await logSecurityEvent('manager_redirected_to_subscription', {
+              user_role: profile?.role,
+              restaurant_id: restaurant.id,
+              restaurant_name: restaurant.name,
+              reason: 'Restaurant deactivated - manager redirected to subscription'
+            });
+            return;
+          }
+          
+          setValidationError('restaurant_deactivated');
+          await logSecurityEvent('access_denied_restaurant_deactivated', {
+            user_role: profile?.role,
+            restaurant_id: restaurant.id,
+            restaurant_name: restaurant.name,
+            reason: 'Restaurant has been deactivated'
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('ProtectedRoute: Error checking restaurant status:', error);
+    }
+
     // All validations passed
     setValidationError(null);
-  }, [profile, restaurantLoading, restaurantId, logSecurityEvent]);
+  }, [profile, restaurantLoading, restaurantId, logSecurityEvent, location.pathname]);
 
   // All hooks must be called at the top level, after function definitions
   useEffect(() => {
@@ -130,9 +268,7 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
 
   // Conditional rendering starts below all hooks
   if (loading || (requireRestaurant && restaurantLoading)) {
-    if (import.meta?.env?.DEV) {
-      console.log('🔄 ProtectedRoute: Loading...', { loading, restaurantLoading });
-    }
+    logger.debug('🔄 ProtectedRoute: Loading...', { loading, restaurantLoading });
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner />
@@ -142,11 +278,9 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
 
   // Not authenticated
   if (!user || !profile) {
-    if (import.meta?.env?.DEV) {
-      console.log('🔒 ProtectedRoute: Not authenticated - Redirecting to /login');
-      console.log('   User:', user ? 'exists' : 'NULL');
-      console.log('   Profile:', profile ? 'exists' : 'NULL');
-    }
+    logger.debug('🔒 ProtectedRoute: Not authenticated - Redirecting to /login');
+    logger.debug('   User:', user ? 'exists' : 'NULL');
+    logger.debug('   Profile:', profile ? 'exists' : 'NULL');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -172,8 +306,14 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
 
   // Restaurant validation errors
   if (validationError) {
+    // For managers with subscription issues, redirect directly to subscription page
+    if (validationError === 'subscription_suspended_manager' || validationError === 'subscription_expired_manager') {
+      return <Navigate to="/manager/subscription" replace />;
+    }
+    
     let errorTitle = 'Access Denied';
     let errorMessage = 'You do not have access to this restaurant.';
+    let showPaymentOption = false;
     
     switch (validationError) {
       case 'no_restaurant_assigned':
@@ -186,6 +326,20 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
         errorTitle = 'Unauthorized Access';
         errorMessage = 'You are attempting to access data from a different restaurant. This incident has been logged.';
         break;
+      case 'restaurant_deactivated':
+        errorTitle = 'Restaurant Deactivated';
+        errorMessage = 'Your restaurant has been deactivated by the administrator. Please contact support for assistance.';
+        break;
+      case 'subscription_suspended':
+        errorTitle = 'Subscription Suspended';
+        errorMessage = 'Your restaurant subscription has been suspended. The manager needs to complete payment to reactivate.';
+        showPaymentOption = profile?.role?.toLowerCase() === 'manager';
+        break;
+      case 'subscription_expired':
+        errorTitle = 'Subscription Expired';
+        errorMessage = 'Your restaurant subscription has expired. The manager needs to renew the subscription to continue.';
+        showPaymentOption = profile?.role?.toLowerCase() === 'manager';
+        break;
     }
 
     return (
@@ -193,21 +347,32 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
         <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md">
           <h2 className="text-2xl font-bold text-red-600 mb-4">{errorTitle}</h2>
           <p className="text-gray-600 mb-6">{errorMessage}</p>
-          <div className="flex gap-3 justify-center">
-            <a
-              href="/login"
-              className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Log In Again
-            </a>
-            {validationError !== 'restaurant_mismatch' && (
+          <div className="flex flex-col gap-3">
+            {/* Show payment button for managers when subscription is suspended/expired */}
+            {showPaymentOption && (
               <a
-                href="mailto:support@praahis.com"
-                className="inline-block px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                href="/manager/subscription"
+                className="inline-block px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                Contact Support
+                Complete Payment
               </a>
             )}
+            <div className="flex gap-3 justify-center">
+              <a
+                href="/login"
+                className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Log In Again
+              </a>
+              {validationError !== 'restaurant_mismatch' && (
+                <a
+                  href="mailto:support@praahis.com"
+                  className="inline-block px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Contact Support
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -222,13 +387,11 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
     }
     
     // Debug logging (dev only)
-    if (import.meta?.env?.DEV) {
-      console.log('🔒 Access Denied Debug:');
-      console.log('Required roles:', requiredRoles);
-      console.log('User profile:', profile);
-      console.log('User role:', profile.role);
-      console.log('Role match:', requiredRoles.includes(profile.role));
-    }
+    logger.debug('🔒 Access Denied Debug:');
+    logger.debug('Required roles:', requiredRoles);
+    logger.debug('User profile:', profile);
+    logger.debug('User role:', profile.role);
+    logger.debug('Role match:', requiredRoles.includes(profile.role));
     
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">

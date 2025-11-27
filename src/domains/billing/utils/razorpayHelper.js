@@ -143,14 +143,14 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
       throw new Error('Invalid payment amount. Amount must be at least ₹1.00');
     }
 
-    console.log('💳 Initializing Razorpay Payment:', {
-      key: paymentConfig.razorpay_key_id,
-      amount: amountPaise,
-      amountINR: orderData.total,
-      currency: paymentConfig.payment_settings?.currency || 'INR',
-      restaurant: paymentConfig.restaurant_name,
-      isFallback: paymentConfig.is_fallback,
-    });
+    // console.log('Initializing Razorpay:', {
+    //   key: paymentConfig.razorpay_key_id,
+    //   amount: amountPaise,
+    //   amountINR: orderData.total,
+    //   currency: paymentConfig.payment_settings?.currency || 'INR',
+    //   restaurant: paymentConfig.restaurant_name,
+    //   isFallback: paymentConfig.is_fallback,
+    // });
 
     // Create Razorpay order server-side for proper payment flow
     // NOTE: Skipping server-side order creation for now - using direct payment
@@ -160,7 +160,6 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
     // TEMPORARY: Comment out Edge Function call to test direct payment
     /*
     try {
-      console.log('📝 Creating Razorpay order server-side...');
       const { data: orderResponse, error: orderError } = await supabase.functions.invoke('create-razorpay-order', {
         body: {
           restaurantId: orderData.restaurantId,
@@ -175,14 +174,12 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
         console.error('Failed to create Razorpay order:', orderError);
       } else if (orderResponse?.razorpay_order_id) {
         razorpayOrderId = orderResponse.razorpay_order_id;
-        console.log('✅ Razorpay order created:', razorpayOrderId);
       }
     } catch (orderErr) {
       console.warn('Order creation failed:', orderErr);
     }
     */
     
-    console.log('Using direct payment (no server-side order) - works in test mode');
 
     // Razorpay options with restaurant-specific key
     const options = {
@@ -263,10 +260,8 @@ export const initializeRazorpayPayment = async (orderData, callbacks = {}) => {
       }
     });
 
-    console.log('🚀 Opening Razorpay checkout modal...');
     try {
       razorpayInstance.open();
-      console.log('✅ Razorpay modal opened successfully');
     } catch (openErr) {
       console.error('❌ Failed to open Razorpay modal:', openErr);
       alert(`Failed to open payment modal: ${openErr.message}`);

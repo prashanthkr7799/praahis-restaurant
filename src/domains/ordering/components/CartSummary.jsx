@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShoppingCart, Trash2, Plus, Minus, X } from 'lucide-react';
-// eslint-disable-next-line no-unused-vars
+// eslint-disable-next-line no-unused-vars -- motion is used as motion.div in JSX
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency, calculateSubtotal, calculateTax, calculateTotal } from '@domains/ordering/utils/orderHelpers';
 

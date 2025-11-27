@@ -4,6 +4,7 @@
  */
 
 import { updateSessionActivity } from '@shared/utils/api/supabaseClient';
+import logger from '@shared/utils/helpers/logger';
 
 class SessionActivityTracker {
   constructor() {
@@ -19,7 +20,7 @@ class SessionActivityTracker {
    */
   start(sessionId) {
     if (!sessionId) {
-      console.warn('⚠️ SessionActivityTracker: No session ID provided');
+      logger.warn('⚠️ SessionActivityTracker: No session ID provided');
       return;
     }
 
@@ -29,7 +30,7 @@ class SessionActivityTracker {
     this.sessionId = sessionId;
     this.isActive = true;
 
-    console.log('🔄 Started session activity tracker for:', sessionId);
+    logger.log('🔄 Started session activity tracker for:', sessionId);
 
     // Send immediate activity update
     this.sendActivityUpdate();
@@ -58,7 +59,7 @@ class SessionActivityTracker {
     this.isActive = false;
 
     if (this.sessionId) {
-      console.log('🛑 Stopped session activity tracker for:', this.sessionId);
+      logger.log('🛑 Stopped session activity tracker for:', this.sessionId);
       this.sessionId = null;
     }
   }
@@ -71,7 +72,7 @@ class SessionActivityTracker {
 
     try {
       await updateSessionActivity(this.sessionId);
-      console.log('💚 Session activity updated');
+      logger.log('💚 Session activity updated');
     } catch (err) {
       console.error('❌ Failed to update session activity:', err);
     }

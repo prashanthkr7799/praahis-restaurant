@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # ============================================================================
-# Supabase Migration Runner - Execute All 16 Canonical Migrations (integrated feedbacks)
+# Supabase Migration Runner - Execute All 19 Canonical Migrations
 # ============================================================================
 # Project: Praahis Restaurant Management
 # New Project ID: hpcwpkjbmcelptwwxicn
-# Date: November 18, 2025
+# Date: November 22, 2025 (Updated)
 # ============================================================================
 
 set -e  # Exit on any error
 
-echo "🚀 Starting Supabase Migration Process (16 migrations)..."
+echo "🚀 Starting Supabase Migration Process (19 migrations)..."
 echo "Project: hpcwpkjbmcelptwwxicn (Singapore)"
 echo "============================================"
 echo ""
@@ -46,6 +46,9 @@ MIGRATIONS=(
     "14_seed_initial_data.sql"
     "15_compatibility_views.sql"
     "16_auto_enable_payments.sql"
+    "17_split_payment_support.sql"
+    "18_cash_reconciliations.sql"
+    "19_fix_complaints_issue_types.sql"
 )
 
 MIGRATION_DIR="phase3_migrations"
@@ -63,17 +66,27 @@ for i in "${!MIGRATIONS[@]}"; do
         exit 1
     fi
     
-    # Execute migration
-    if psql "$DIRECT_URL" -f "$MIGRATION_DIR/$FILE" > /dev/null 2>&1; then
-        echo "   ✅ Success"
+    # Execute migration and capture output
+    OUTPUT=$(psql "$DIRECT_URL" -f "$MIGRATION_DIR/$FILE" 2>&1)
+    EXIT_CODE=$?
+    
+    # Check exit code - 0 means success
+    if [ $EXIT_CODE -eq 0 ]; then
+        # Check if there were NOTICE messages
+        if echo "$OUTPUT" | grep -q "NOTICE:"; then
+            echo "   ✅ Success (objects already exist - idempotent)"
+        else
+            echo "   ✅ Success"
+        fi
     else
+        # Non-zero exit code means actual error
         echo "   ❌ FAILED!"
+        echo ""
+        echo "Error output:"
+        echo "$OUTPUT"
         echo ""
         echo "Migration failed at file: $FILE"
         echo "Please check the error above and fix before continuing."
-        echo ""
-        echo "To resume, run migrations manually starting from:"
-        echo "https://supabase.com/dashboard/project/hpcwpkjbmcelptwwxicn/sql/new"
         exit 1
     fi
     
@@ -81,8 +94,14 @@ for i in "${!MIGRATIONS[@]}"; do
 done
 
 echo "============================================"
-echo "✅ All $TOTAL migrations completed successfully! (feedbacks integrated)"
+echo "✅ All $TOTAL migrations completed successfully!"
 echo "============================================"
+echo ""
+echo "Migrations applied:"
+echo "  01-16: Core schema and features"
+echo "  17: Split payment support"
+echo "  18: Cash reconciliations table"
+echo "  19: Complaints issue_types array fix"
 echo ""
 echo "Next steps:"
 echo "1. Create storage buckets (menu-images, restaurant-logos)"

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle, CheckCircle, Clock, CreditCard, ArrowRight } from 'lucide-react';
+import { CreditCard } from 'lucide-react';
 import { supabase } from '@shared/utils/api/supabaseClient';
-import { formatCurrency } from '@shared/utils/helpers/formatters';
 import { Link } from 'react-router-dom';
 
 const BillingWarningCard = ({ restaurantId }) => {
@@ -32,8 +31,8 @@ const BillingWarningCard = ({ restaurantId }) => {
       }
 
       setBilling(data && data.length > 0 ? data[0] : null);
-    } catch (error) {
-      console.error('Error fetching billing:', error);
+    } catch (err) {
+      console.error('Error fetching billing:', err);
     } finally {
       setLoading(false);
     }
@@ -49,7 +48,6 @@ const BillingWarningCard = ({ restaurantId }) => {
 
   // Mock data if no billing record found (for demo purposes)
   const planName = billing?.plan_name || 'Pro Plan';
-  const status = billing?.status || 'active';
   const daysLeft = billing ? Math.ceil((new Date(billing.grace_end_date) - new Date()) / (1000 * 60 * 60 * 24)) : 14;
 
   return (

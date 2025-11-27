@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@shared/utils/api/supabaseClient';
 import { CreditCard, Download, Clock, CheckCircle, AlertCircle, XCircle, Calendar, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
+import logger from '@shared/utils/helpers/logger';
 
 export default function BillingPage() {
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,7 @@ export default function BillingPage() {
         }
 
         if (!userData?.restaurant_id) {
-          console.log('User has no restaurant assigned');
+          logger.log('User has no restaurant assigned');
           setLoading(false);
           return;
         }
@@ -347,8 +348,14 @@ export default function BillingPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Billing & Subscription</h1>
-          <p className="text-gray-600 mt-1">Manage your subscription and view billing history</p>
+          <p className="text-gray-600 mt-1">Pay invoices here. To change plan, tables, or staff caps, use Subscription.</p>
         </div>
+        <a
+          href="/manager/subscription"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600 text-white font-semibold hover:bg-orange-700 transition-colors"
+        >
+          Manage Subscription
+        </a>
       </div>
 
       {/* Subscription Status Card */}

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { getActiveRestaurantId } from '@/lib/restaurantContextStore';
 import { handleAuthError } from '@/shared/utils/helpers/authErrorHandler';
+import { logger } from '@/shared/utils/helpers/logger';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -10,12 +11,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Suppress expected multi-client warning (we use dual clients for manager + owner sessions)
+// and chart initialization warnings
 if (typeof console !== 'undefined' && !globalThis.__supabase_warn_suppressed__) {
   const originalWarn = console.warn;
   console.warn = (...args) => {
     const message = args[0]?.toString() || '';
     if (message.includes('Multiple GoTrueClient instances')) {
       // This is expected - we use separate clients for staff and owner sessions
+      return;
+    }
+    if (message.includes('width(-1) and height(-1) of chart')) {
+      // This is a temporary Recharts warning during initial render - safe to ignore
       return;
     }
     originalWarn.apply(console, args);
@@ -385,6 +391,24 @@ export const updateSessionActivity = async (sessionId) => {
 // Force release a table session (manager override)
 export const forceReleaseTableSession = async (sessionId = null, tableId = null) => {
   try {
+    // Check for unpaid orders before releasing table
+    if (tableId) {
+      const { data: unpaidOrders, error: ordersError } = await supabase
+        .from('orders')
+        .select('id, order_number, total, payment_status')
+        .eq('table_id', tableId)
+        .in('payment_status', ['pending', 'failed'])
+        .eq('order_status', 'served');
+
+      if (ordersError) {
+        console.error('Error checking unpaid orders:', ordersError);
+      } else if (unpaidOrders && unpaidOrders.length > 0) {
+        const orderNumbers = unpaidOrders.map(o => `#${o.order_number}`).join(', ');
+        const totalAmount = unpaidOrders.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
+        throw new Error(`Cannot release table. There are ${unpaidOrders.length} unpaid order(s): ${orderNumbers}. Total due: ₹${totalAmount.toFixed(2)}. Please collect payment before clearing the table.`);
+      }
+    }
+
     const { data, error } = await supabase
       .rpc('force_release_table_session', { 
         p_session_id: sessionId,
@@ -419,7 +443,6 @@ export const getSharedCart = async (sessionId) => {
     if (error) throw error;
     
     const cart = data?.cart_items || [];
-    console.log('📦 getSharedCart result:', { sessionId, cartLength: cart.length, cart });
     return cart;
   } catch (err) {
     console.error('❌ Error getting shared cart:', err);
@@ -433,7 +456,7 @@ export const getSharedCart = async (sessionId) => {
  */
 export const updateSharedCart = async (sessionId, cartItems) => {
   try {
-    console.log('📤 Updating shared cart:', { 
+    logger.log('📦 Updating shared cart:', {
       sessionId, 
       itemCount: cartItems.length,
       items: cartItems.map(i => ({ id: i.id, name: i.name, qty: i.quantity }))
@@ -461,7 +484,7 @@ export const updateSharedCart = async (sessionId, cartItems) => {
       throw new Error('Session not found');
     }
     
-    console.log('✅ Cart updated successfully:', {
+    logger.log('✅ Cart updated successfully:', {
       rowsAffected: data.length,
       cartItemCount: data[0]?.cart_items?.length,
       sessionStatus: data[0]?.status
@@ -477,17 +500,16 @@ export const updateSharedCart = async (sessionId, cartItems) => {
             event: 'cart_update',
             payload: { sessionId, cartItems, timestamp: new Date().toISOString() }
           });
-          console.log('📡 Broadcast sent as backup');
           setTimeout(() => supabase.removeChannel(channel), 1000);
         }
       });
     } catch (broadcastErr) {
-      console.warn('⚠️ Broadcast failed (non-critical):', broadcastErr);
+      logger.warn('⚠️ Broadcast failed (non-critical):', broadcastErr);
     }
     
     return data?.[0]?.cart_items || [];
   } catch (err) {
-    console.error('❌ Error updating shared cart:', err);
+    logger.error('❌ Error updating shared cart:', err);
     throw err;
   }
 };
@@ -507,10 +529,9 @@ export const clearSharedCart = async (sessionId) => {
 
     if (error) throw error;
     
-    console.log('🗑️ Cart cleared for session:', sessionId);
     return true;
   } catch (err) {
-    console.error('❌ Error clearing shared cart:', err);
+    logger.error('❌ Error clearing shared cart:', err);
     return false;
   }
 };
@@ -520,7 +541,6 @@ export const clearSharedCart = async (sessionId) => {
  * Returns unsubscribe function
  */
 export const subscribeToSharedCart = (sessionId, callback) => {
-  console.log('🔌 Setting up real-time subscription for session:', sessionId);
   
   const channel = supabase
     .channel(`table-session-${sessionId}`)
@@ -533,7 +553,7 @@ export const subscribeToSharedCart = (sessionId, callback) => {
         filter: `id=eq.${sessionId}`
       },
       (payload) => {
-        console.log('🔔 Real-time UPDATE received (postgres_changes):', {
+        logger.log('🔄 Cart update received:', {
           sessionId,
           cartItems: payload.new.cart_items,
           timestamp: payload.new.updated_at
@@ -542,15 +562,13 @@ export const subscribeToSharedCart = (sessionId, callback) => {
       }
     )
     .on('broadcast', { event: 'cart_update' }, (payload) => {
-      console.log('📻 Broadcast received (backup method):', payload);
       if (payload.payload.sessionId === sessionId) {
         callback(payload.payload.cartItems || []);
       }
     })
     .subscribe((status) => {
-      console.log('📡 Subscription status:', status);
       if (status === 'SUBSCRIBED') {
-        console.log('✅ Successfully subscribed to cart updates (postgres_changes + broadcast)');
+        logger.log('✅ Subscribed to shared cart updates');
       } else if (status === 'CHANNEL_ERROR') {
         console.error('❌ Subscription channel error');
       } else if (status === 'TIMED_OUT') {
@@ -559,7 +577,6 @@ export const subscribeToSharedCart = (sessionId, callback) => {
     });
 
   return () => {
-    console.log('🔕 Unsubscribing from cart updates');
     channel.unsubscribe();
   };
 };
@@ -606,7 +623,7 @@ export const createOrder = async (orderData) => {
       sessionId = await getOrCreateActiveSessionId(orderData.table_id);
     }
   } catch (e) {
-    console.warn('Could not ensure active session id for table:', e?.message);
+    logger.warn('Could not ensure active session id for table:', e?.message);
   }
 
   const rid = resolveRestaurantId(orderData?.restaurant_id);
@@ -751,6 +768,342 @@ export const updateOrderStatusCascade = async (orderId, status) => {
   return result;
 };
 
+// Cancel order with reason and notes
+// Updates order status to cancelled and stores cancellation details
+/**
+ * Cancel an order with optional refund processing
+ * @param {string} orderId - Order ID
+ * @param {Object} cancellationData - {reason, notes, refund, refundAmount, refundMethod}
+ * @returns {Object} Updated order
+ */
+export const cancelOrder = async (orderId, cancellationData) => {
+  try {
+    const { reason, refund, refundAmount, refundMethod = 'original_method' } = cancellationData;
+    
+    // Validation
+    if (!orderId) throw new Error('Order ID is required');
+    if (!reason || reason.trim().length === 0) {
+      throw new Error('Cancellation reason is required');
+    }
+    if (refund && (!refundAmount || refundAmount <= 0)) {
+      throw new Error('Valid refund amount is required when processing refund');
+    }
+
+    // Fetch current order to validate status
+    const { data: currentOrder, error: fetchError } = await supabase
+      .from('orders')
+      .select('order_status, payment_status, total')
+      .eq('id', orderId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!currentOrder) throw new Error('Order not found');
+
+    // Block cancellation if order is already served
+    if (currentOrder.order_status === 'served') {
+      throw new Error('Cannot cancel order. This order has already been served to the customer. Please process a refund instead if needed.');
+    }
+
+    // Block cancellation if order is already cancelled
+    if (currentOrder.order_status === 'cancelled') {
+      throw new Error('This order has already been cancelled.');
+    }
+
+    const updateData = {
+      order_status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+      cancellation_reason: reason,
+      updated_at: new Date().toISOString()
+    };
+
+    // If refund is being processed, add refund fields
+    if (refund && refundAmount) {
+      updateData.payment_status = 'refunded';
+      updateData.refund_amount = refundAmount;
+      updateData.refund_reason = reason;
+      updateData.refunded_at = new Date().toISOString();
+    }
+
+    const { data, error } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Process refund in payment records if needed
+    if (refund && refundAmount) {
+      try {
+        await processRefund(orderId, {
+          refundAmount,
+          reason,
+          refundMethod,
+          alreadyRefunded: 0
+        });
+      } catch (refundError) {
+        console.error('Refund processing failed:', refundError);
+        // Order is still cancelled even if refund processing fails
+      }
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error canceling order:', error);
+    throw new Error(`Failed to cancel order: ${error.message}`);
+  }
+};
+
+/**
+ * Process refund for a paid order
+ * Updates both order and payment records with refund details
+ * @param {string} orderId - Order ID
+ * @param {Object} refundData - {refundAmount, reason, refundMethod, alreadyRefunded}
+ * @returns {Object} Success status and updated order
+ */
+export const processRefund = async (orderId, refundData) => {
+  try {
+    const { refundAmount, reason, refundMethod = 'original_method', alreadyRefunded = 0 } = refundData;
+    
+    // Validation
+    if (!orderId) throw new Error('Order ID is required');
+    if (!refundAmount || refundAmount <= 0) {
+      throw new Error('Valid refund amount is required');
+    }
+    if (!reason || reason.trim().length === 0) {
+      throw new Error('Refund reason is required');
+    }
+
+    // 1. Get the order to validate and update
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*, order_payments(*)')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError) throw orderError;
+    if (!order) throw new Error('Order not found');
+
+    // Prevent refund if order is not paid
+    if (order.payment_status !== 'paid' && order.payment_status !== 'partially_refunded') {
+      throw new Error(`Cannot process refund. Order payment status is "${order.payment_status}". Only paid orders can be refunded.`);
+    }
+
+    // 2. Calculate total refunded and new payment status
+    const totalRefunded = alreadyRefunded + refundAmount;
+    const orderTotal = parseFloat(order.total || 0);
+    
+    // Get actual paid amount (from payment records or order total)
+    let actualPaidAmount = orderTotal;
+    if (order.order_payments && order.order_payments.length > 0) {
+      actualPaidAmount = order.order_payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    }
+    
+    // Validate refund amount doesn't exceed what was actually paid
+    if (totalRefunded > actualPaidAmount) {
+      throw new Error(`Refund amount (₹${totalRefunded}) cannot exceed paid amount (₹${actualPaidAmount})`);
+    }
+
+    // Prevent refund greater than order total
+    if (totalRefunded > orderTotal) {
+      throw new Error(`Total refund (₹${totalRefunded}) cannot exceed order total (₹${orderTotal})`);
+    }
+
+    const newPaymentStatus = totalRefunded >= orderTotal ? 'refunded' : 'partially_refunded';
+
+    // 3. Update order with refund details
+    const { data: updatedOrder, error: orderUpdateError } = await supabase
+      .from('orders')
+      .update({
+        payment_status: newPaymentStatus,
+        refund_amount: totalRefunded,
+        refund_reason: reason,
+        refunded_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (orderUpdateError) throw orderUpdateError;
+
+    // 4. Update payment record if exists
+    if (order.order_payments && order.order_payments.length > 0) {
+      const payment = order.order_payments[0];
+      const newRefundAmount = (parseFloat(payment.refund_amount || 0)) + refundAmount;
+      
+      const { error: paymentUpdateError } = await supabase
+        .from('order_payments')
+        .update({
+          refund_amount: newRefundAmount,
+          refund_reason: reason,
+          refund_method: refundMethod,
+          refunded_at: new Date().toISOString(),
+          status: newPaymentStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', payment.id);
+
+      if (paymentUpdateError) {
+        console.error('Failed to update payment record:', paymentUpdateError);
+        // Continue - order refund is still recorded
+      }
+    }
+
+    return {
+      success: true,
+      order: updatedOrder,
+      totalRefunded,
+      status: newPaymentStatus
+    };
+  } catch (error) {
+    console.error('Error processing refund:', error);
+    throw new Error(`Failed to process refund: ${error.message}`);
+  }
+};
+
+/**
+ * Create a complaint/issue report for an order
+ * @param {Object} complaintData - {orderId, issueType, description, priority, actionTaken, reportedBy}
+ * @returns {Object} Created complaint record
+ */
+export const createComplaint = async (complaintData) => {
+  try {
+    const { orderId, issueType, description, priority, actionTaken, reportedBy } = complaintData;
+    
+    // Validation
+    if (!orderId) throw new Error('Order ID is required');
+    if (!issueType) throw new Error('Issue type is required');
+    const validIssueTypes = ['food_quality', 'wrong_item', 'wait_time', 'service', 'cleanliness', 'billing', 'other'];
+    if (!validIssueTypes.includes(issueType)) {
+      throw new Error(`Invalid issue type. Must be one of: ${validIssueTypes.join(', ')}`);
+    }
+    if (!description || description.trim().length === 0) {
+      throw new Error('Description is required');
+    }
+
+    // 1. Get order details to extract restaurant_id, table_id, table_number
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('restaurant_id, table_id, table_number')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError) throw orderError;
+    if (!order) throw new Error('Order not found');
+
+    // 2. Insert complaint record with issue_type (singular)
+    const { data: complaint, error: complaintError } = await supabase
+      .from('complaints')
+      .insert({
+        restaurant_id: order.restaurant_id,
+        order_id: orderId,
+        table_id: order.table_id,
+        table_number: order.table_number,
+        issue_type: issueType, // Changed from issue_types to issue_type
+        description: description.trim(),
+        priority: priority || 'medium',
+        status: 'open',
+        action_taken: actionTaken || null,
+        reported_by: reportedBy || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (complaintError) throw complaintError;
+
+    return {
+      success: true,
+      complaint
+    };
+  } catch (error) {
+    console.error('Error creating complaint:', error);
+    throw new Error(`Failed to create complaint: ${error.message}`);
+  }
+};
+
+/**
+ * Update an existing complaint
+ * @param {string} complaintId - Complaint ID
+ * @param {Object} updates - Fields to update (status, action_taken, resolved_by, etc.)
+ * @returns {Object} Updated complaint record
+ */
+export const updateComplaint = async (complaintId, updates) => {
+  try {
+    const payload = {
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+
+    // If status is being set to resolved, set resolved_at timestamp
+    if (updates.status === 'resolved' && !updates.resolved_at) {
+      payload.resolved_at = new Date().toISOString();
+    }
+
+    const { data: complaint, error } = await supabase
+      .from('complaints')
+      .update(payload)
+      .eq('id', complaintId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      complaint
+    };
+  } catch (error) {
+    console.error('Error updating complaint:', error);
+    throw new Error(`Failed to update complaint: ${error.message}`);
+  }
+};
+
+/**
+ * Get complaints for a restaurant with optional filters
+ * @param {string} restaurantId - Restaurant ID
+ * @param {Object} filters - Optional filters (status, priority, startDate, endDate)
+ * @returns {Array} Array of complaint records
+ */
+export const getComplaints = async (restaurantId, filters = {}) => {
+  try {
+    let query = supabase
+      .from('complaints')
+      .select('*, orders(id, order_number, table_number)')
+      .eq('restaurant_id', restaurantId)
+      .order('created_at', { ascending: false });
+
+    // Apply filters
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    if (filters.priority) {
+      query = query.eq('priority', filters.priority);
+    }
+
+    if (filters.startDate) {
+      query = query.gte('created_at', filters.startDate);
+    }
+
+    if (filters.endDate) {
+      query = query.lte('created_at', filters.endDate);
+    }
+
+    const { data: complaints, error } = await query;
+
+    if (error) throw error;
+
+    return complaints || [];
+  } catch (error) {
+    console.error('Error fetching complaints:', error);
+    throw new Error(`Failed to fetch complaints: ${error.message}`);
+  }
+};
+
 // Update order items and totals
 export const updateOrder = async (orderId, updates) => {
   // Map frontend-friendly keys to DB column names
@@ -870,6 +1223,85 @@ export const updatePaymentStatus = async (orderId, paymentStatus) => {
   return data;
 };
 
+// Apply discount to order
+/**
+ * Apply discount to an order
+ * @param {string} orderId - Order ID  
+ * @param {Object} discountData - {type, value, amount, reason, newTotal}
+ * @returns {Object} Updated order with discount applied
+ */
+export const applyDiscount = async (orderId, discountData) => {
+  try {
+    const { type, value, amount, reason, newTotal } = discountData;
+    
+    // Validation
+    if (!orderId) throw new Error('Order ID is required');
+    if (!['percentage', 'fixed'].includes(type)) {
+      throw new Error('Discount type must be "percentage" or "fixed"');
+    }
+    if (!value || value <= 0) {
+      throw new Error('Discount value must be greater than 0');
+    }
+    if (type === 'percentage' && value > 100) {
+      throw new Error('Percentage discount cannot exceed 100%');
+    }
+    if (!reason || reason.trim().length === 0) {
+      throw new Error('Discount reason is required');
+    }
+    if (!amount || amount < 0) {
+      throw new Error('Invalid discount amount');
+    }
+    if (!newTotal || newTotal < 0) {
+      throw new Error('Invalid new total');
+    }
+
+    // Fetch current order to validate discount against original amount
+    const { data: currentOrder, error: fetchError } = await supabase
+      .from('orders')
+      .select('total, subtotal, discount_amount')
+      .eq('id', orderId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!currentOrder) throw new Error('Order not found');
+
+    const originalTotal = currentOrder.total + (currentOrder.discount_amount || 0);
+    
+    // Prevent discount greater than original bill amount
+    if (amount > originalTotal) {
+      throw new Error(`Discount amount (₹${amount}) cannot exceed original bill amount (₹${originalTotal})`);
+    }
+
+    // Prevent negative final total
+    if (newTotal < 0) {
+      throw new Error('Discount would result in negative total. Please reduce the discount.');
+    }
+
+    // Note: type and value are validated but not stored in DB
+    // The discount_amount and discount_reason are sufficient for tracking
+    const updateData = {
+      discount_amount: amount,
+      discount_reason: reason,
+      total: newTotal,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    
+    return data;
+  } catch (error) {
+    console.error('Error applying discount:', error);
+    throw new Error(`Failed to apply discount: ${error.message}`);
+  }
+};
+
 // Get orders for chef dashboard
 export const getOrders = async (restaurantId, filters = {}) => {
   const rid = resolveRestaurantId(restaurantId);
@@ -917,6 +1349,152 @@ export const updatePayment = async (paymentId, paymentData) => {
 
   if (error) throw error;
   return data;
+};
+
+/**
+ * Process split payment (cash + online)
+ * @param {string} orderId - Order ID
+ * @param {number} cashAmount - Cash portion
+ * @param {number} onlineAmount - Online portion
+ * @param {string} razorpayPaymentId - Razorpay payment ID for online portion
+ * @returns {Object} Updated order with split payment details
+ */
+export const processSplitPayment = async (orderId, cashAmount, onlineAmount, razorpayPaymentId = null) => {
+  try {
+    // Validation
+    if (!orderId) throw new Error('Order ID is required');
+    if (!cashAmount || cashAmount <= 0) {
+      throw new Error('Cash amount must be greater than 0');
+    }
+    if (!onlineAmount || onlineAmount <= 0) {
+      throw new Error('Online amount must be greater than 0');
+    }
+
+    // Get order to validate total
+    const { data: order, error: fetchError } = await supabase
+      .from('orders')
+      .select('total, restaurant_id')
+      .eq('id', orderId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!order) throw new Error('Order not found');
+
+    const totalPayment = cashAmount + onlineAmount;
+    const orderTotal = parseFloat(order.total || 0);
+
+    // Validate payment amount matches order total
+    if (Math.abs(totalPayment - orderTotal) > 0.01) {
+      throw new Error(`Split payment total (₹${totalPayment}) does not match order total (₹${orderTotal})`);
+    }
+
+    // Prepare split payment details
+    const splitDetails = {
+      cash_amount: cashAmount,
+      online_amount: onlineAmount,
+      split_timestamp: new Date().toISOString()
+    };
+
+    if (razorpayPaymentId) {
+      splitDetails.razorpay_payment_id = razorpayPaymentId;
+    }
+
+    // Update order with split payment details
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update({
+        payment_method: 'split',
+        payment_split_details: splitDetails,
+        payment_status: 'paid',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    // Create payment record for the online portion if razorpayPaymentId exists
+    if (razorpayPaymentId) {
+      await createPayment({
+        order_id: orderId,
+        restaurant_id: order.restaurant_id,
+        razorpay_payment_id: razorpayPaymentId,
+        amount: onlineAmount,
+        currency: 'INR',
+        status: 'captured',
+        payment_method: 'razorpay',
+        payment_details: { split_payment: true, cash_amount: cashAmount }
+      });
+    }
+
+    return {
+      success: true,
+      order: updatedOrder,
+      splitDetails
+    };
+  } catch (error) {
+    console.error('Error processing split payment:', error);
+    throw new Error(`Failed to process split payment: ${error.message}`);
+  }
+};
+
+/**
+ * Handle full split payment workflow including Razorpay processing
+ * @param {string} orderId - Order ID
+ * @param {Object} payments - {cash: number, online: number, razorpayDetails: object}
+ * @returns {Object} Payment result
+ */
+export const handleSplitPayment = async (orderId, payments) => {
+  try {
+    const { cash, online, razorpayDetails } = payments;
+
+    // Validation
+    if (!cash || cash <= 0) {
+      throw new Error('Cash amount must be greater than 0');
+    }
+    if (!online || online <= 0) {
+      throw new Error('Online amount must be greater than 0');
+    }
+
+    let razorpayPaymentId = null;
+
+    // If online payment details provided, verify/capture payment
+    if (razorpayDetails) {
+      const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = razorpayDetails;
+      
+      if (!razorpay_payment_id) {
+        throw new Error('Razorpay payment ID is required for online portion');
+      }
+
+      razorpayPaymentId = razorpay_payment_id;
+
+      // Verify Razorpay signature via Edge Function (server-side verification)
+      if (razorpay_order_id && razorpay_signature) {
+        const { data: verifyResult, error: verifyError } = await supabase.functions.invoke('verify-payment', {
+          body: {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature,
+            order_id: orderId,
+            restaurant_id: resolveRestaurantId()
+          }
+        });
+        
+        if (verifyError || !verifyResult?.success) {
+          throw new Error(verifyResult?.error || 'Payment verification failed');
+        }
+      }
+    }
+
+    // Process the split payment
+    const result = await processSplitPayment(orderId, cash, online, razorpayPaymentId);
+
+    return result;
+  } catch (error) {
+    console.error('Error handling split payment:', error);
+    throw new Error(`Failed to handle split payment: ${error.message}`);
+  }
 };
 
 // Helper function to transform order data from database format to frontend format

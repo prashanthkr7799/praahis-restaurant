@@ -318,6 +318,128 @@ export const sanitizeInput = (input) => {
     .replace(/\s+/g, ' '); // Normalize whitespace
 };
 
+/**
+ * Validate discount percentage (0-100%)
+ * @param {number} percentage - Discount percentage
+ * @returns {object} { isValid: boolean, error: string }
+ */
+export const validateDiscountPercentage = (percentage) => {
+  if (percentage === null || percentage === undefined || percentage === '') {
+    return { isValid: false, error: 'Discount percentage is required' };
+  }
+  
+  const num = parseFloat(percentage);
+  
+  if (isNaN(num)) {
+    return { isValid: false, error: 'Please enter a valid number' };
+  }
+  
+  if (num < 0) {
+    return { isValid: false, error: 'Discount cannot be negative' };
+  }
+  
+  if (num > 100) {
+    return { isValid: false, error: 'Discount cannot exceed 100%' };
+  }
+  
+  return { isValid: true, error: null };
+};
+
+/**
+ * Validate discount amount against bill total
+ * @param {number} discountAmount - Discount amount
+ * @param {number} billTotal - Total bill amount
+ * @returns {object} { isValid: boolean, error: string }
+ */
+export const validateDiscountAmount = (discountAmount, billTotal) => {
+  if (discountAmount === null || discountAmount === undefined || discountAmount === '') {
+    return { isValid: false, error: 'Discount amount is required' };
+  }
+  
+  const amount = parseFloat(discountAmount);
+  const total = parseFloat(billTotal);
+  
+  if (isNaN(amount) || isNaN(total)) {
+    return { isValid: false, error: 'Invalid amount' };
+  }
+  
+  if (amount < 0) {
+    return { isValid: false, error: 'Discount cannot be negative' };
+  }
+  
+  if (amount > total) {
+    return { 
+      isValid: false, 
+      error: `Discount (₹${amount.toFixed(2)}) cannot exceed bill amount (₹${total.toFixed(2)})` 
+    };
+  }
+  
+  return { isValid: true, error: null };
+};
+
+/**
+ * Validate refund amount
+ * @param {number} refundAmount - Refund amount
+ * @param {number} paidAmount - Amount that was paid
+ * @param {number} alreadyRefunded - Amount already refunded
+ * @returns {object} { isValid: boolean, error: string }
+ */
+export const validateRefundAmount = (refundAmount, paidAmount, alreadyRefunded = 0) => {
+  if (refundAmount === null || refundAmount === undefined || refundAmount === '') {
+    return { isValid: false, error: 'Refund amount is required' };
+  }
+  
+  const amount = parseFloat(refundAmount);
+  const paid = parseFloat(paidAmount);
+  const refunded = parseFloat(alreadyRefunded);
+  
+  if (isNaN(amount) || isNaN(paid)) {
+    return { isValid: false, error: 'Invalid amount' };
+  }
+  
+  if (amount <= 0) {
+    return { isValid: false, error: 'Refund amount must be greater than 0' };
+  }
+  
+  const totalRefund = amount + refunded;
+  
+  if (totalRefund > paid) {
+    return { 
+      isValid: false, 
+      error: `Total refund (₹${totalRefund.toFixed(2)}) cannot exceed paid amount (₹${paid.toFixed(2)})` 
+    };
+  }
+  
+  return { isValid: true, error: null };
+};
+
+/**
+ * Format phone number for display
+ * @param {string} phone - Phone number to format
+ * @returns {string} - Formatted phone number
+ */
+export const formatPhoneNumber = (phone) => {
+  if (!phone) return '';
+  
+  const cleaned = phone.replace(/[\s\-()]/g, '');
+  
+  if (cleaned.length === 10) {
+    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+  }
+  
+  return phone;
+};
+
+/**
+ * Clean phone number (digits only)
+ * @param {string} phone - Phone number to clean
+ * @returns {string} - Cleaned phone number
+ */
+export const cleanPhoneNumber = (phone) => {
+  if (!phone) return '';
+  return phone.replace(/[\s\-()]/g, '');
+};
+
 export default {
   validateEmail,
   validatePhone,
@@ -333,4 +455,9 @@ export default {
   validateFileSize,
   validateForm,
   sanitizeInput,
+  validateDiscountPercentage,
+  validateDiscountAmount,
+  validateRefundAmount,
+  formatPhoneNumber,
+  cleanPhoneNumber,
 };

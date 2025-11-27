@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, Clock, ChefHat, UtensilsCrossed, Bell } from 'lucide-react';
-// eslint-disable-next-line no-unused-vars
-import { motion } from 'framer-motion';
+import { CheckCircle, Clock, ChefHat, UtensilsCrossed, Bell, Receipt, MapPin, ShoppingBag } from 'lucide-react';
+import { motion as Motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { getOrder, subscribeToOrder } from '@shared/utils/api/supabaseClient';
 import { formatCurrency, getOrderStatusText, getEstimatedTime } from '@domains/ordering/utils/orderHelpers';
@@ -17,6 +16,7 @@ const OrderStatusPage = () => {
   const [error, setError] = useState(null);
   const [order, setOrder] = useState(null);
   const lastStatusRef = useRef(null);
+  const [servedCountdown, setServedCountdown] = useState(null); // 2-minute countdown in seconds
 
   // SECURITY: Check if this session is already completed
   useEffect(() => {
@@ -25,16 +25,40 @@ const OrderStatusPage = () => {
     }
   }, [navigate]);
 
+  // Block backward navigation after payment is completed
+  useEffect(() => {
+    const paymentCompleted = sessionStorage.getItem('payment_completed') === 'true';
+    
+    if (paymentCompleted) {
+      // Push multiple states to create a deep history buffer
+      for (let i = 0; i < 10; i++) {
+        window.history.pushState({ paymentComplete: true }, '', window.location.href);
+      }
+      
+      const handlePopState = (_e) => {
+        // Prevent going back - push state again
+        window.history.pushState({ paymentComplete: true }, '', window.location.href);
+        toast('You cannot go back after payment', { icon: '🔒', duration: 2000 });
+      };
+      
+      window.addEventListener('popstate', handlePopState);
+      
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, []);
+
   // Load order function
   const loadOrder = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-  const orderData = await getOrder(orderId);
-  setOrder(orderData);
-  // Track last seen status to avoid setState during render when notifying
-  lastStatusRef.current = orderData.order_status || orderData.status;
+      const orderData = await getOrder(orderId);
+      setOrder(orderData);
+      // Track last seen status to avoid setState during render when notifying
+      lastStatusRef.current = orderData.order_status || orderData.status;
     } catch (err) {
       console.error('Error loading order:', err);
       setError(err.message || 'Failed to load order. Please try again.');
@@ -43,22 +67,42 @@ const OrderStatusPage = () => {
     }
   }, [orderId]);
 
-  // Redirect to post-meal options when order is served (or all items served)
+  // Start 2-minute countdown when order is served, then redirect to post-meal options
+  // Use a ref to track if countdown has already started to prevent resetting
+  const countdownStartedRef = React.useRef(false);
+  
   useEffect(() => {
+    // If countdown already started, don't reset it
+    if (countdownStartedRef.current) return;
+    
     const items = Array.isArray(order?.items) ? order.items : (order ? JSON.parse(order.items || '[]') : []);
     const total = items.length;
     const servedCt = items.filter((it) => (it.item_status || order?.status) === 'served').length;
     const allServed = total > 0 && servedCt === total;
+    
     if (order && (order.status === 'served' || allServed) && order.session_id) {
-      // Wait 2 seconds to show the "served" status, then redirect
-      const timer = setTimeout(() => {
-        // Redirect to post-meal with sessionId instead of orderId (replace history)
-        navigate(`/post-meal/${order.session_id}/${order.table_number}`, { replace: true });
-      }, 2000);
-
-      return () => clearTimeout(timer);
+      // Start 2-minute (120 seconds) countdown - only once
+      countdownStartedRef.current = true;
+      setServedCountdown(120);
     }
-  }, [order, navigate]);
+  }, [order]);
+
+  // Countdown timer effect - navigate when countdown reaches 0
+  useEffect(() => {
+    if (servedCountdown === null || servedCountdown < 0) return;
+    
+    if (servedCountdown === 0 && order?.session_id) {
+      // Countdown finished - redirect to post-meal options
+      navigate(`/post-meal/${order.session_id}/${order.table_number}`, { replace: true });
+      return;
+    }
+    
+    const timer = setTimeout(() => {
+      setServedCountdown((prev) => (prev !== null ? prev - 1 : null));
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [servedCountdown, order, navigate]);
 
   // Load order and setup real-time subscription
   useEffect(() => {
@@ -84,6 +128,11 @@ const OrderStatusPage = () => {
             toast.success(`Order status updated: ${getOrderStatusText(newStatus)}`, {
               icon: '🔔',
               duration: 4000,
+              style: {
+                background: '#1a1f2e',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.1)',
+              },
             });
           }
           lastStatusRef.current = newStatus;
@@ -104,6 +153,11 @@ const OrderStatusPage = () => {
             toast.success(`Order status updated: ${getOrderStatusText(newStatus)}`, {
               icon: '🔔',
               duration: 4000,
+              style: {
+                background: '#1a1f2e',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.1)',
+              },
             });
           }
           lastStatusRef.current = newStatus;
@@ -135,6 +189,11 @@ const OrderStatusPage = () => {
             toast.success(`Order status updated: ${getOrderStatusText(newStatus)}`, {
               icon: '🔔',
               duration: 4000,
+              style: {
+                background: '#1a1f2e',
+                color: '#fff',
+                border: '1px solid rgba(255,255,255,0.1)',
+              },
             });
           }
           lastStatusRef.current = newStatus;
@@ -155,7 +214,7 @@ const OrderStatusPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background text-foreground antialiased flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex items-center justify-center">
         <LoadingSpinner text="Loading your order..." />
       </div>
     );
@@ -163,7 +222,7 @@ const OrderStatusPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background text-foreground antialiased flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex items-center justify-center">
         <ErrorMessage error={error} onRetry={loadOrder} />
       </div>
     );
@@ -195,218 +254,219 @@ const OrderStatusPage = () => {
     : computedSubtotal + computedTax;
 
   return (
-    <div className="min-h-screen bg-background text-foreground antialiased">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white font-sans selection:bg-orange-500/30">
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-border bg-card">
-        <div className="mx-auto w-full max-w-[1400px] px-4 py-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Order Status</h1>
-            <p className="text-base sm:text-2xl font-semibold tracking-tight text-foreground ml-1 sm:ml-4">Order #{order?.order_number || order?.id}</p>
-            {status !== 'served' && (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="h-2 w-2 animate-pulse rounded-full bg-success" />
-                <span className="text-xs text-muted-foreground ml-2">Auto-updating • Tracking your order in real-time</span>
-              </div>
-            )}
+      <header className="sticky top-0 z-40 bg-gradient-to-b from-slate-950/95 via-slate-950/90 to-transparent backdrop-blur-2xl border-b border-white/5">
+        <div className="mx-auto w-full max-w-6xl px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-3">
+                Order Status
+                <span className="px-3 py-1 rounded-xl bg-white/5 text-sm font-mono text-orange-400 border border-orange-500/30 shadow-lg shadow-orange-500/10">
+                  #{order?.order_number || order?.id?.slice(0, 8)}
+                </span>
+              </h1>
+              {status !== 'served' && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-xs text-emerald-400 font-medium">Live Updates Enabled</span>
+                </div>
+              )}
+            </div>
+            
+            {/* Table Badge */}
+            <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/30 shadow-lg shadow-orange-500/10">
+              <MapPin className="w-4 h-4 text-orange-400" />
+              <span className="text-sm font-bold text-orange-400">
+                Table {order?.table_number || order?.tables?.table_number || 'N/A'}
+              </span>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Content */}
-      <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:py-8">
+      <main className="mx-auto w-full max-w-6xl px-4 py-8">
+        
         {/* Success banner after payment */}
         {order?.payment_status === 'paid' && (
-          <div className="mb-6 flex items-center gap-3 rounded-lg border border-success/20 bg-success-light px-4 py-3 text-sm">
-            <CheckCircle className="h-5 w-5 text-success" />
-            <span>Payment successful. Tracking your order below.</span>
-          </div>
+          <Motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/30 flex items-center gap-4 shadow-xl shadow-emerald-900/20 backdrop-blur-sm"
+          >
+            <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400 ring-2 ring-emerald-500/30">
+              <CheckCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-emerald-400">Payment Successful</h3>
+              <p className="text-sm text-emerald-300/80">Your order has been confirmed and is being processed.</p>
+            </div>
+          </Motion.div>
         )}
 
         {/* Two-column responsive grid */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Left: Order Progress */}
-          <motion.section
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="card-minimal p-5"
-          >
-            <h2 className="mb-4 text-2xl font-semibold">Order Progress</h2>
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+          
+          {/* Left: Order Progress (7 cols) */}
+          <div className="lg:col-span-7 space-y-6">
+            <Motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-slate-800/50 backdrop-blur-xl border border-white/10 rounded-3xl p-6 sm:p-8 shadow-xl overflow-hidden relative"
+            >
+              {/* Background Glow */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
-            {/* Stepper */}
-            {(() => {
-              const s1Active = ['received', 'preparing', 'ready', 'served'].includes(status);
-              const s2Active = ['preparing', 'ready', 'served'].includes(status);
-              const s3Active = ['ready', 'served'].includes(status);
-              const s4Active = ['served'].includes(status) || (servedCount === totalCount && totalCount > 0);
-              const stepCls = (active) => (active ? 'bg-warning text-background' : 'border border-border text-muted');
-              const lineCls = (active) => (active ? 'bg-warning' : 'bg-muted');
-              return (
-                <div className="relative mb-6 grid grid-cols-[auto_1fr] items-start gap-x-3">
-                  {/* Step 1: Received */}
-                  <div className={`col-start-1 row-start-1 flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${stepCls(s1Active)}`}>
-                    <CheckCircle className="h-5 w-5" />
-                  </div>
-                  <div className="col-start-2 row-start-1">
-                    <p className="text-sm font-medium">Received</p>
-                  </div>
-                  {/* Connector 1 */}
-                  <div className={`col-start-1 row-start-2 ml-5 h-8 w-0.5 ${lineCls(s2Active)}`} />
+              <h2 className="text-xl font-bold text-white mb-8 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-orange-400" />
+                Track Order
+              </h2>
 
-                  {/* Step 2: Preparing */}
-                  <div className={`col-start-1 row-start-3 flex h-10 w-10 items-center justify-center rounded-full ${stepCls(s2Active)}`}>
-                    <ChefHat className="h-5 w-5" />
-                  </div>
-                  <div className="col-start-2 row-start-3">
-                    <p className="text-sm font-medium">Preparing</p>
-                  </div>
-                  {/* Connector 2 */}
-                  <div className={`col-start-1 row-start-4 ml-5 h-8 w-0.5 ${lineCls(s3Active)}`} />
+              {/* Stepper */}
+              <div className="relative pl-2">
+                {[
+                  { active: ['received', 'preparing', 'ready', 'served'].includes(status), icon: Receipt, label: 'Order Received', description: "We've received your order and sent it to the kitchen." },
+                  { active: ['preparing', 'ready', 'served'].includes(status), icon: ChefHat, label: 'Preparing', description: "Our chefs are cooking your delicious meal." },
+                  { active: ['ready', 'served'].includes(status), icon: Bell, label: 'Ready', description: "Your food is plated and ready to be served." },
+                  { active: ['served'].includes(status) || (servedCount === totalCount && totalCount > 0), icon: UtensilsCrossed, label: 'Served', description: "Enjoy your meal! Bon appétit.", isLast: true }
+                ].map((step, idx) => (
+                  <div key={idx} className="relative flex gap-6 pb-12 last:pb-0">
+                    {/* Line */}
+                    {!step.isLast && (
+                      <div className={`absolute left-[22px] top-12 bottom-0 w-0.5 ${step.active ? 'bg-gradient-to-b from-orange-500 to-slate-700' : 'bg-white/5'}`}></div>
+                    )}
+                    
+                    {/* Icon Bubble */}
+                    <div className={`relative z-10 flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
+                      step.active 
+                        ? 'bg-gradient-to-br from-orange-500 to-amber-600 border-orange-400 text-white shadow-[0_0_20px_rgba(249,115,22,0.4)] scale-110' 
+                        : 'bg-slate-800 border-white/10 text-zinc-600'
+                    }`}>
+                      <step.icon className="w-5 h-5" />
+                    </div>
 
-                  {/* Step 3: Ready */}
-                  <div className={`col-start-1 row-start-5 flex h-10 w-10 items-center justify-center rounded-full ${stepCls(s3Active)}`}>
-                    <Bell className="h-5 w-5" />
+                    {/* Content */}
+                    <div className={`pt-1 transition-all duration-500 ${step.active ? 'opacity-100 translate-x-0' : 'opacity-40'}`}>
+                      <h3 className={`font-bold text-lg ${step.active ? 'text-white' : 'text-zinc-500'}`}>{step.label}</h3>
+                      <p className="text-sm text-zinc-400 mt-1">{step.description}</p>
+                    </div>
                   </div>
-                  <div className="col-start-2 row-start-5">
-                    <p className="text-sm font-medium">Ready</p>
-                  </div>
-                  {/* Connector 3 */}
-                  <div className={`col-start-1 row-start-6 ml-5 h-8 w-0.5 ${lineCls(s4Active)}`} />
+                ))}
+              </div>
 
-                  {/* Step 4: Served */}
-                  <div className={`col-start-1 row-start-7 flex h-10 w-10 items-center justify-center rounded-full ${stepCls(s4Active)}`}>
-                    <UtensilsCrossed className="h-5 w-5" />
-                  </div>
-                  <div className="col-start-2 row-start-7">
-                    <p className="text-sm font-medium">Served</p>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Items grouped by status */}
-            <div className="mt-2">
-              {(() => {
-                const buckets = {
-                  preparing: [],
-                  ready: [],
-                  served: [],
-                  waiting: [], // queued/received
-                };
-                orderItems.forEach((item) => {
-                  const s = deriveItemStatus(item);
-                  if (s === 'preparing') buckets.preparing.push(item);
-                  else if (s === 'ready') buckets.ready.push(item);
-                  else if (s === 'served') buckets.served.push(item);
-                  else buckets.waiting.push(item);
-                });
-
-                const Section = ({ title, items, tone }) => {
-                  if (!items.length) return null;
-                  const toneMap = {
-                    waiting: 'bg-muted text-muted-foreground',
-                    preparing: 'bg-warning-light text-warning',
-                    ready: 'bg-success-light text-success',
-                    served: 'bg-muted text-foreground/90',
-                  };
-                  return (
-                    <div className="mb-3">
-                      <p className="mb-2 text-sm font-semibold text-foreground/80">{title} <span className="text-muted-foreground">({items.length})</span></p>
-                      <div className="space-y-2">
-                        {items.map((item, idx) => (
-                          <div key={`${title}-${idx}`} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                            <span className="text-sm text-foreground truncate max-w-[65%] sm:max-w-[70%]">
-                              {item.quantity}× {item.name}
-                            </span>
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] ${toneMap[tone]}`}>{title}</span>
-                          </div>
-                        ))}
+              {/* Estimated time */}
+              {status !== 'served' && (
+                <div className="mt-8 pt-6 border-t border-white/10">
+                  <div className="flex items-center justify-between bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-orange-500/20 rounded-xl text-orange-400 ring-2 ring-orange-500/20">
+                        <Clock className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-zinc-400 uppercase tracking-wider font-bold">Estimated Wait</p>
+                        <p className="text-lg font-bold text-white">~{estimatedTime} mins</p>
                       </div>
                     </div>
-                  );
-                };
-
-                return (
-                  <div>
-                    <Section title="Started preparing" items={buckets.preparing} tone="preparing" />
-                    <Section title="Ready to serve" items={buckets.ready} tone="ready" />
-                    <Section title="Waiting to start" items={buckets.waiting} tone="waiting" />
-                    <Section title="Served" items={buckets.served} tone="served" />
+                    <div className="h-10 w-[1px] bg-white/10"></div>
+                    <div className="text-right">
+                      <p className="text-xs text-zinc-400 uppercase tracking-wider font-bold">Status</p>
+                      <p className="text-lg font-bold text-orange-400 capitalize">{status}</p>
+                    </div>
                   </div>
-                );
-              })()}
-            </div>
+                </div>
+              )}
+            </Motion.section>
+          </div>
 
-            {/* Estimated time */}
-            {status !== 'served' && (
-              <div className="mt-4 rounded-md bg-warning-light p-3">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-warning" />
-                  <div>
-                    <p className="text-sm font-medium">Estimated time</p>
-                    <p className="text-base font-bold text-foreground">≈ {estimatedTime} minutes</p>
+          {/* Right: Order details (5 cols) */}
+          <div className="lg:col-span-5 space-y-6">
+            <Motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-slate-800/50 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl overflow-hidden"
+            >
+              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-zinc-400" />
+                Order Details
+              </h2>
+
+              <div className="space-y-4">
+                {/* Items List */}
+                <div className="space-y-3">
+                  {orderItems.map((item, index) => (
+                    <div key={index} className="flex items-start justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
+                      <div className="flex gap-3">
+                        <div className="w-6 h-6 rounded-lg bg-orange-500/20 flex items-center justify-center text-xs font-bold text-orange-400 mt-0.5">
+                          {item.quantity}x
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-white">{item.name}</p>
+                          {item.special_notes && (
+                            <p className="text-xs text-orange-400/80 italic mt-1">"{item.special_notes}"</p>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-sm font-bold text-zinc-300 tabular-nums">
+                        {formatCurrency(item.price * item.quantity)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Bill Summary */}
+                <div className="mt-6 pt-6 border-t border-white/10 space-y-3">
+                  <div className="flex justify-between text-sm text-zinc-400">
+                    <span>Subtotal</span>
+                    <span className="tabular-nums">{formatCurrency(computedSubtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-zinc-400">
+                    <span>Tax (5%)</span>
+                    <span className="tabular-nums">{formatCurrency(computedTax)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-3 border-t border-white/10">
+                    <span className="text-base font-bold text-white">Total Amount</span>
+                    <span className="text-xl font-bold text-orange-400 tabular-nums">{formatCurrency(computedTotal)}</span>
                   </div>
                 </div>
               </div>
-            )}
-          </motion.section>
+            </Motion.section>
 
-          {/* Right: Order details */}
-          <motion.section
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="card-minimal p-5"
-          >
-            <h2 className="mb-3 text-2xl font-semibold">Order Details</h2>
-
-            <div className="overflow-hidden rounded-md border border-border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-foreground/80">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-medium">Item</th>
-                    <th className="px-3 py-2 text-right font-medium">Qty</th>
-                    <th className="px-3 py-2 text-right font-medium">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orderItems.map((item, index) => (
-                    <tr key={index} className="border-t border-border">
-                      <td className="px-3 py-2 align-top">
-                        <div className="font-medium">{item.name}</div>
-                        {item.special_notes && (
-                          <div className="text-xs text-muted">Note: {item.special_notes}</div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right text-foreground/90">{item.quantity}</td>
-                      <td className="px-3 py-2 text-right font-medium">{formatCurrency(item.price * item.quantity)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t border-border bg-muted/50">
-                  <tr>
-                    <td className="px-3 py-2 text-right" colSpan={2}>Tax (5%)</td>
-                    <td className="px-3 py-2 text-right font-medium">{formatCurrency(computedTax)}</td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 text-right font-semibold" colSpan={2}>Total</td>
-                    <td className="px-3 py-2 text-right text-[18px] font-extrabold text-warning">{formatCurrency(computedTotal)}</td>
-                  </tr>
-                </tfoot>
-              </table>
+            {/* Order More Card - Always available on Order Status */}
+            <div className="bg-gradient-to-br from-amber-600/10 to-orange-600/10 border border-amber-500/20 rounded-2xl p-6 text-center backdrop-blur-sm">
+              <p className="text-sm text-amber-200 mb-3">Want to add more items?</p>
+              <button 
+                onClick={() => {
+                  const tableNum = order?.table_number || order?.tables?.table_number;
+                  if (tableNum) {
+                    navigate(`/table/${tableNum}`);
+                  } else {
+                    toast.error('Unable to navigate to menu');
+                  }
+                }}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-white font-semibold transition-all border border-amber-500/20 flex items-center justify-center gap-2"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                Order More
+              </button>
             </div>
-
-            {/* Table number box */}
-            <div className="mt-4 rounded-md bg-muted p-3">
-              <div className="text-sm text-muted">Table</div>
-              <div className="text-2xl font-semibold">#{order?.table_number || order?.tables?.table_number || 'N/A'}</div>
-            </div>
-          </motion.section>
+          </div>
         </div>
 
-        {/* Redirecting message when served */}
-        {status === 'served' && (
-          <div className="mt-6 rounded-md border border-success/20 bg-success-light px-3 py-2 text-center text-sm text-success">
-            Food served. Redirecting to options…
-          </div>
+        {/* Countdown message when served */}
+        {status === 'served' && servedCountdown !== null && servedCountdown > 0 && (
+          <Motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-full shadow-2xl shadow-emerald-500/40 flex items-center gap-3 z-50 ring-2 ring-emerald-400/30"
+          >
+            <UtensilsCrossed className="w-5 h-5" />
+            <span className="font-bold">Enjoy your meal! Redirecting in {Math.floor(servedCountdown / 60)}:{String(servedCountdown % 60).padStart(2, '0')}</span>
+          </Motion.div>
         )}
       </main>
     </div>

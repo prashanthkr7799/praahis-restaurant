@@ -3,6 +3,7 @@ import React from 'react';
 /**
  * Professional Card Component for SuperAdmin Dashboard
  * Flexible card with header, body, and footer sections
+ * Updated with improved responsive design and emerald accent
  */
 const Card = ({ 
   children, 
@@ -13,10 +14,10 @@ const Card = ({
   return (
     <div
       className={`
-        bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700
+        bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700
         shadow-sm
-        ${hover ? 'hover:shadow-md transition-shadow duration-200' : ''}
-        ${padding ? 'p-6' : ''}
+        ${hover ? 'hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-800 transition-all duration-200' : ''}
+        ${padding ? 'p-4 sm:p-6' : ''}
         ${className}
       `}
     >
@@ -31,9 +32,9 @@ const CardHeader = ({
   action
 }) => {
   return (
-    <div className={`flex items-center justify-between mb-4 ${className}`}>
+    <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 mb-4 ${className}`}>
       <div>{children}</div>
-      {action && <div>{action}</div>}
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 };
@@ -43,7 +44,7 @@ const CardTitle = ({
   className = '' 
 }) => {
   return (
-    <h3 className={`text-lg font-semibold text-gray-900 dark:text-gray-100 ${className}`}>
+    <h3 className={`text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 ${className}`}>
       {children}
     </h3>
   );
@@ -54,7 +55,7 @@ const CardDescription = ({
   className = '' 
 }) => {
   return (
-    <p className={`text-sm text-gray-600 dark:text-gray-400 mt-1 ${className}`}>
+    <p className={`text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 ${className}`}>
       {children}
     </p>
   );

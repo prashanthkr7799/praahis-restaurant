@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { fromRestaurant } from '@shared/utils/api/supabaseClient';
 import { formatCurrency } from '@shared/utils/helpers/formatters';
-import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
+import { CardSkeleton, ChartSkeleton } from '@shared/components/feedback/LoadingSkeleton';
 import RevenueChart from '@domains/analytics/components/RevenueChart';
 import OrdersChart from '@domains/analytics/components/OrdersChart';
 import StatusChart from '@domains/analytics/components/StatusChart';
@@ -263,7 +263,25 @@ const Analytics = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner text="Loading analytics..." />;
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <div className="h-8 w-56 bg-white/10 rounded animate-pulse mb-2"></div>
+            <div className="h-4 w-72 bg-white/5 rounded animate-pulse"></div>
+          </div>
+          <div className="flex gap-3">
+            <div className="h-10 w-32 bg-white/10 rounded animate-pulse"></div>
+            <div className="h-10 w-24 bg-white/10 rounded animate-pulse"></div>
+          </div>
+        </div>
+        <CardSkeleton count={4} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ChartSkeleton />
+          <ChartSkeleton />
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Activity, Filter, Download, RefreshCw, Search } from 'lucide-react';
 import { supabase } from '@shared/utils/api/supabaseClient';
 import { formatDateTime } from '@shared/utils/helpers/formatters';
-import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
+import { ListSkeleton } from '@shared/components/feedback/LoadingSkeleton';
 import DataTable from '@shared/components/compounds/DataTable';
 import Badge from '@shared/components/primitives/Badge';
 import toast from 'react-hot-toast';
@@ -251,7 +251,21 @@ const ActivityLogs = () => {
   ];
 
   if (loading) {
-    return <LoadingSpinner text="Loading activity logs..." />;
+    return (
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <div className="h-8 w-40 bg-white/10 rounded animate-pulse mb-2"></div>
+            <div className="h-4 w-64 bg-white/5 rounded animate-pulse"></div>
+          </div>
+          <div className="flex gap-2">
+            <div className="h-10 w-24 bg-white/10 rounded animate-pulse"></div>
+            <div className="h-10 w-24 bg-white/10 rounded animate-pulse"></div>
+          </div>
+        </div>
+        <ListSkeleton items={8} />
+      </div>
+    );
   }
 
   const uniqueActions = [...new Set(logs.map(log => log.action))].filter(Boolean);

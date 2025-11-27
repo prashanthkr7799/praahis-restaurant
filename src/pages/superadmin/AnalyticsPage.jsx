@@ -1,18 +1,21 @@
 /**
  * Analytics Dashboard - Super Admin
  * Comprehensive analytics with charts and statistics
+ * Updated with emerald accent and realtime support
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabaseOwner } from '@shared/utils/api/supabaseOwnerClient';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { TrendingUp, DollarSign, Building2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { TrendingUp, DollarSign, Building2, AlertCircle, CheckCircle, Clock, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { useDashboardRealtime } from '@/shared/hooks/useSuperadminRealtime';
 
 const Analytics = () => {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalRestaurants: 0,
     activeRestaurants: 0,
@@ -26,8 +29,20 @@ const Analytics = () => {
   const [statusDistribution, setStatusDistribution] = useState([]);
   const [revenueByMonth, setRevenueByMonth] = useState([]);
 
-  const fetchAnalytics = useCallback(async () => {
-    setLoading(true);
+  // Ref for realtime callback
+  const fetchAnalyticsRef = useRef(null);
+
+  // Realtime subscription
+  const { isConnected } = useDashboardRealtime({
+    onUpdate: useCallback(() => {
+      fetchAnalyticsRef.current?.(true);
+    }, []),
+    enabled: true,
+  });
+
+  const fetchAnalytics = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setRefreshing(true);
     try {
       // Fetch restaurants
       const { data: restaurants } = await supabaseOwner
@@ -90,12 +105,23 @@ const Analytics = () => {
       console.error('Error fetching analytics:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
+
+  // Keep ref updated
+  useEffect(() => {
+    fetchAnalyticsRef.current = fetchAnalytics;
+  }, [fetchAnalytics]);
 
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
+
+  // Manual refresh handler
+  const handleRefresh = () => {
+    fetchAnalytics();
+  };
 
   const generateGrowthData = (restaurants) => {
     const now = new Date();
@@ -187,27 +213,46 @@ const Analytics = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h2>
-          <p className="text-sm text-gray-400 mt-1">Comprehensive insights and statistics</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-100">Analytics Dashboard</h2>
+          <p className="text-xs sm:text-sm text-gray-400 mt-1">Comprehensive insights and statistics</p>
         </div>
-        <button
-          onClick={fetchAnalytics}
-          className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-        >
-          🔄 Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Connection Status */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800">
+            {isConnected ? (
+              <>
+                <Wifi className="h-4 w-4 text-emerald-500" />
+                <span className="text-xs font-medium text-emerald-400">Live</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-4 w-4 text-gray-400" />
+                <span className="text-xs font-medium text-gray-500">Offline</span>
+              </>
+            )}
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+            aria-label="Refresh analytics"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-gray-900 rounded-lg shadow-md p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="bg-gray-900 rounded-xl shadow-md p-4 sm:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Restaurants</p>
-              <p className="text-3xl font-bold text-gray-100 mt-1">{stats.totalRestaurants}</p>
-              <p className="text-xs text-green-600 mt-2">
+              <p className="text-xs sm:text-sm text-gray-400">Total Restaurants</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-100 mt-1">{stats.totalRestaurants}</p>
+              <p className="text-xs text-emerald-500 mt-2">
                 {stats.activeRestaurants} active, {stats.suspendedRestaurants} suspended
               </p>
             </div>

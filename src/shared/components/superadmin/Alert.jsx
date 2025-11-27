@@ -3,6 +3,7 @@ import { AlertTriangle, AlertCircle, CheckCircle, Info } from 'lucide-react';
 
 /**
  * Alert/Notification Card Component for SuperAdmin Dashboard
+ * Updated with emerald accent for success states
  */
 const Alert = ({ 
   children, 
@@ -14,10 +15,10 @@ const Alert = ({
 }) => {
   const variants = {
     success: {
-      container: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800',
+      container: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800',
       icon: CheckCircle,
-      iconColor: 'text-green-600 dark:text-green-400',
-      text: 'text-green-800 dark:text-green-300',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      text: 'text-emerald-800 dark:text-emerald-300',
     },
     warning: {
       container: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800',
@@ -45,22 +46,26 @@ const Alert = ({
   return (
     <div
       className={`
-        flex items-start gap-3 p-4 rounded-lg border
+        flex items-start gap-3 p-3 sm:p-4 rounded-xl border
         ${config.container}
-        ${onAction ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}
+        ${onAction ? 'cursor-pointer hover:shadow-md transition-all duration-200' : ''}
         ${className}
       `}
       onClick={onAction}
+      role={onAction ? 'button' : undefined}
+      tabIndex={onAction ? 0 : undefined}
+      onKeyDown={onAction ? (e) => e.key === 'Enter' && onAction() : undefined}
     >
-      <Icon className={`h-5 w-5 shrink-0 ${config.iconColor}`} />
+      <Icon className={`h-4 w-4 sm:h-5 sm:w-5 shrink-0 mt-0.5 ${config.iconColor}`} />
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${config.text}`}>
+        <p className={`text-xs sm:text-sm font-medium ${config.text}`}>
           {children}
         </p>
       </div>
       {actionLabel && (
         <button
-          className={`text-sm font-medium ${config.iconColor} hover:underline shrink-0`}
+          className={`text-xs sm:text-sm font-medium ${config.iconColor} hover:underline shrink-0`}
+          aria-label={actionLabel}
         >
           {actionLabel}
         </button>

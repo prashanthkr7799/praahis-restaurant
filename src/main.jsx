@@ -5,7 +5,11 @@ import App from './App.jsx'
 import { RestaurantProvider } from '@shared/contexts/RestaurantContext.jsx'
 import { ToastProvider } from '@/shared/components/superadmin/Toast'
 import { initAuthErrorHandling } from '@/shared/utils/helpers/authErrorHandler'
+import { initSentry } from '@/lib/sentry'
 import '@/shared/utils/api/sessionHeartbeat' // Initialize session heartbeat
+
+// Initialize Sentry for production error monitoring
+initSentry();
 
 // Initialize authentication error handling
 initAuthErrorHandling();

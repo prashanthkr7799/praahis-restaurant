@@ -1,380 +1,188 @@
-import React, { useState } from 'react';
-import { Download, Calendar, FileText, Database, Users, ShoppingCart, Activity } from 'lucide-react';
-import Card from '@/shared/components/superadmin/Card';
-import Button from '@/shared/components/superadmin/Button';
-import { useToast } from '@/shared/components/superadmin/useToast';
+import React, { useState, useEffect } from 'react';
+import { Download, RefreshCw, Database, CheckCircle, FileText, Filter, FileSpreadsheet } from 'lucide-react';
+import { supabaseOwner } from '@shared/utils/api/supabaseOwnerClient';
+import toast from 'react-hot-toast';
+import { exportToExcel, exportToPDF, exportToCSV } from '@domains/analytics';
 
-/**
- * Professional Data Export Page - Example Implementation
- * Demonstrates the pattern for building remaining SuperAdmin pages
- */
-const ProfessionalDataExportPage = () => {
-  const { toast } = useToast();
-  const [selectedData, setSelectedData] = useState({
-    restaurants: true,
-    managers: true,
-    billing: false,
-    payments: false,
-    users: false,
-    orders: false,
-    logs: false,
-  });
-
-  const [dateRange, setDateRange] = useState({
-    from: '',
-    to: '',
-    allHistorical: false,
-  });
-
-  const [exportFormat, setExportFormat] = useState('csv');
-  const [advancedOptions, setAdvancedOptions] = useState({
-    includeDeleted: false,
-    anonymize: false,
-    compress: false,
-  });
-
+const DataExportPage = () => {
+  const [loading, setLoading] = useState(true);
+  const [restaurants, setRestaurants] = useState([]);
+  const [selectedRestaurant, setSelectedRestaurant] = useState('all');
+  const [selectedTypes, setSelectedTypes] = useState([]);
+  const [exportFormat, setExportFormat] = useState('excel');
   const [exporting, setExporting] = useState(false);
-  const [exportComplete, setExportComplete] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState('');
+  const [counts, setCounts] = useState({});
+  const [history, setHistory] = useState([]);
 
-  const dataTypes = [
-    { id: 'restaurants', label: 'Restaurants', count: '247 records', icon: Database },
-    { id: 'managers', label: 'Managers', count: '247 records', icon: Users },
-    { id: 'billing', label: 'Billing Records', count: '2,847 invoices', icon: FileText },
-    { id: 'payments', label: 'Payments', count: '2,456 transactions', icon: Download },
-    { id: 'users', label: 'All Users', count: '1,483 staff members', icon: Users },
-    { id: 'orders', label: 'All Orders', count: '78,456 orders', icon: ShoppingCart },
-    { id: 'logs', label: 'Activity Logs', count: '1.2M entries', icon: Activity },
+  const types = [
+    { id: 'restaurants', label: 'Restaurants', table: 'restaurants' },
+    { id: 'users', label: 'Users', table: 'users' },
+    { id: 'orders', label: 'Orders', table: 'orders' },
+    { id: 'payments', label: 'Payments', table: 'payments' },
+    { id: 'billing', label: 'Billing', table: 'billing' },
+    { id: 'menu_items', label: 'Menu Items', table: 'menu_items' },
+    { id: 'categories', label: 'Categories', table: 'categories' },
+    { id: 'tables', label: 'Tables', table: 'tables' }
   ];
 
-  const formatOptions = [
-    { id: 'csv', label: 'CSV', description: 'Excel-compatible, recommended', recommended: true },
-    { id: 'json', label: 'JSON', description: 'Developer-friendly' },
-    { id: 'excel', label: 'Excel (.xlsx)', description: 'Formatted spreadsheet' },
-    { id: 'sql', label: 'SQL Dump', description: 'For backup purposes' },
-  ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchData(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchCounts(); }, [selectedRestaurant]);
 
-  const toggleDataType = (id) => {
-    setSelectedData((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const handleGenerateExport = async () => {
-    // Validation
-    const hasSelection = Object.values(selectedData).some((v) => v);
-    if (!hasSelection) {
-      toast.error('Please select at least one data type to export');
-      return;
-    }
-
-    if (!dateRange.allHistorical && (!dateRange.from || !dateRange.to)) {
-      toast.error('Please select a date range or enable "Include all historical data"');
-      return;
-    }
-
+  const fetchData = async () => {
     try {
-      setExporting(true);
-      toast.info('Generating export... This may take a few moments');
+      const { data } = await supabaseOwner.from('restaurants').select('id, name').order('name');
+      setRestaurants(data || []);
+      await fetchCounts();
+      const saved = localStorage.getItem('exportHistory');
+      if (saved) setHistory(JSON.parse(saved));
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
 
-      // Simulate export generation (replace with actual API call)
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      // Mock download URL (replace with actual download URL from API)
-      setDownloadUrl('https://example.com/export-2025-11-09.csv');
-      setExportComplete(true);
-      toast.success('Export ready! Download link valid for 24 hours');
-    } catch (error) {
-      console.error('Export error:', error);
-      toast.error('Failed to generate export. Please try again.');
-    } finally {
-      setExporting(false);
+  const fetchCounts = async () => {
+    const c = {};
+    for (const t of types) {
+      try {
+        let q = supabaseOwner.from(t.table).select('id', { count: 'exact', head: true });
+        if (selectedRestaurant !== 'all') {
+          q = t.id === 'restaurants' ? q.eq('id', selectedRestaurant) : q.eq('restaurant_id', selectedRestaurant);
+        }
+        const { count } = await q;
+        c[t.id] = count || 0;
+      } catch { c[t.id] = 0; }
     }
+    setCounts(c);
   };
 
-  const handleDownload = () => {
-    toast.success('Download started!');
-    window.open(downloadUrl, '_blank');
+  const toggle = (id) => setSelectedTypes(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const selectAll = () => setSelectedTypes(selectedTypes.length === types.length ? [] : types.map(t => t.id));
+
+  const doExport = async () => {
+    if (!selectedTypes.length) { toast.error('Select data types'); return; }
+    setExporting(true);
+    try {
+      const data = {};
+      for (const id of selectedTypes) {
+        const t = types.find(x => x.id === id);
+        let q = supabaseOwner.from(t.table).select('*');
+        if (selectedRestaurant !== 'all') {
+          q = id === 'restaurants' ? q.eq('id', selectedRestaurant) : q.eq('restaurant_id', selectedRestaurant);
+        }
+        const { data: rows } = await q;
+        data[id] = rows || [];
+      }
+      const name = selectedRestaurant === 'all' ? 'all' : restaurants.find(r => r.id === selectedRestaurant)?.name || 'data';
+      const baseFilename = 'praahis-' + name.toLowerCase().replace(/\s+/g, '-') + '-' + new Date().toISOString().split('T')[0];
+      const total = Object.values(data).reduce((s, a) => s + a.length, 0);
+
+      // Export based on format
+      if (exportFormat === 'excel') {
+        // For Excel, export each data type as a separate sheet or file
+        for (const [key, rows] of Object.entries(data)) {
+          if (rows.length > 0) {
+            exportToExcel(rows, `${baseFilename}-${key}.xlsx`, key);
+          }
+        }
+      } else if (exportFormat === 'pdf') {
+        // For PDF, create a report for each data type
+        for (const [key, rows] of Object.entries(data)) {
+          if (rows.length > 0) {
+            const columns = Object.keys(rows[0]).slice(0, 6).map(k => ({ header: k.replace(/_/g, ' ').toUpperCase(), field: k }));
+            exportToPDF(rows, columns, `${baseFilename}-${key}.pdf`, `${key.replace(/_/g, ' ').toUpperCase()} Report`);
+          }
+        }
+      } else if (exportFormat === 'csv') {
+        // For CSV, export each data type separately
+        for (const [key, rows] of Object.entries(data)) {
+          if (rows.length > 0) {
+            exportToCSV(rows, `${baseFilename}-${key}.csv`);
+          }
+        }
+      } else {
+        // JSON export
+        const filename = baseFilename + '.json';
+        const content = JSON.stringify(data, null, 2);
+        const blob = new Blob([content], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      const h = [{ id: Date.now(), filename: baseFilename + '.' + exportFormat, records: total, date: new Date().toISOString() }, ...history.slice(0, 19)];
+      setHistory(h);
+      localStorage.setItem('exportHistory', JSON.stringify(h));
+      toast.success('Exported ' + total + ' records');
+    } catch (e) { toast.error('Export failed'); console.error(e); }
+    finally { setExporting(false); }
   };
+
+  if (loading) return <div className="flex justify-center p-8"><RefreshCw className="w-8 h-8 animate-spin text-slate-400" /></div>;
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Data Export</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-          Export platform data in various formats for backup, analysis, or migration
-        </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-emerald-500/20"><Download className="w-6 h-6 text-emerald-400" /></div>
+          <div><h1 className="text-2xl font-bold text-white">Data Export</h1><p className="text-sm text-slate-400">Export platform data</p></div>
+        </div>
+        <button onClick={fetchData} className="px-4 py-2 bg-white/5 rounded-xl text-white flex items-center gap-2 hover:bg-white/10"><RefreshCw className="w-4 h-4" />Refresh</button>
       </div>
 
-      {/* Select Data */}
-      <Card>
-        <Card.Header>
-          <Card.Title>Select Data</Card.Title>
-          <Card.Description>Choose which data types to include in your export</Card.Description>
-        </Card.Header>
-        <Card.Body>
-          <div className="space-y-3">
-            {dataTypes.map((type) => {
-              const Icon = type.icon;
-              return (
-                <label
-                  key={type.id}
-                  className="flex items-center gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/50 cursor-pointer transition-colors"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedData[type.id]}
-                    onChange={() => toggleDataType(type.id)}
-                    className="h-4 w-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                  />
-                  <Icon className="h-5 w-5 text-gray-400" />
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{type.label}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{type.count}</p>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        </Card.Body>
-      </Card>
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-slate-800/50 rounded-xl p-4 border border-white/10"><p className="text-2xl font-bold text-emerald-400">{counts.restaurants || 0}</p><p className="text-xs text-slate-400">Restaurants</p></div>
+        <div className="bg-slate-800/50 rounded-xl p-4 border border-white/10"><p className="text-2xl font-bold text-purple-400">{counts.orders || 0}</p><p className="text-xs text-slate-400">Orders</p></div>
+        <div className="bg-slate-800/50 rounded-xl p-4 border border-white/10"><p className="text-2xl font-bold text-amber-400">{counts.payments || 0}</p><p className="text-xs text-slate-400">Payments</p></div>
+        <div className="bg-slate-800/50 rounded-xl p-4 border border-white/10"><p className="text-2xl font-bold text-blue-400">{counts.users || 0}</p><p className="text-xs text-slate-400">Users</p></div>
+      </div>
 
-      {/* Date Range */}
-      <Card>
-        <Card.Header>
-          <Card.Title>Date Range</Card.Title>
-          <Card.Description>Specify the time period for your export</Card.Description>
-        </Card.Header>
-        <Card.Body>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  From Date
-                </label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="date"
-                    value={dateRange.from}
-                    onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                    disabled={dateRange.allHistorical}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
-                             bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100
-                             disabled:opacity-50 disabled:cursor-not-allowed
-                             focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  To Date
-                </label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="date"
-                    value={dateRange.to}
-                    onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                    disabled={dateRange.allHistorical}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
-                             bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100
-                             disabled:opacity-50 disabled:cursor-not-allowed
-                             focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
+      <div className="bg-slate-800/50 rounded-xl p-4 border border-white/10">
+        <div className="flex items-center gap-2 mb-3"><Filter className="w-4 h-4 text-emerald-400" /><span className="text-white font-medium">Filter by Restaurant</span></div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setSelectedRestaurant('all')} className={`px-4 py-2 rounded-lg ${selectedRestaurant === 'all' ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-300'}`}>All Restaurants</button>
+          {restaurants.map(r => <button key={r.id} onClick={() => setSelectedRestaurant(r.id)} className={`px-4 py-2 rounded-lg ${selectedRestaurant === r.id ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-300'}`}>{r.name}</button>)}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 space-y-4">
+          <div className="bg-slate-800/50 rounded-xl p-4 border border-white/10">
+            <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><Database className="w-4 h-4 text-emerald-400" /><span className="text-white font-medium">Select Data</span></div><button onClick={selectAll} className="text-sm text-slate-400 hover:text-white">{selectedTypes.length === types.length ? 'Deselect All' : 'Select All'}</button></div>
+            <div className="grid grid-cols-2 gap-3">
+              {types.map(t => (<button key={t.id} onClick={() => toggle(t.id)} className={`flex items-center gap-3 p-3 rounded-xl border ${selectedTypes.includes(t.id) ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-white/5'}`}><span className="flex-1 text-left text-white">{t.label}</span><span className="text-xs text-slate-400">{counts[t.id] || 0}</span>{selectedTypes.includes(t.id) && <CheckCircle className="w-4 h-4 text-emerald-400" />}</button>))}
             </div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={dateRange.allHistorical}
-                onChange={(e) =>
-                  setDateRange({ ...dateRange, allHistorical: e.target.checked })
-                }
-                className="h-4 w-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                Include all historical data
-              </span>
-            </label>
           </div>
-        </Card.Body>
-      </Card>
+        </div>
+        <div className="space-y-4">
+          <div className="bg-slate-800/50 rounded-xl p-4 border border-white/10">
+            <div className="flex items-center gap-2 mb-3"><FileText className="w-4 h-4 text-amber-400" /><span className="text-white font-medium">Format</span></div>
+            {[
+              { id: 'excel', label: 'Excel', desc: 'Spreadsheet (.xlsx)' },
+              { id: 'pdf', label: 'PDF', desc: 'Document (.pdf)' },
+              { id: 'csv', label: 'CSV', desc: 'Comma separated' },
+              { id: 'json', label: 'JSON', desc: 'Raw data' }
+            ].map(f => (<button key={f.id} onClick={() => setExportFormat(f.id)} className={`w-full p-3 rounded-lg mb-2 text-left ${exportFormat === f.id ? 'bg-emerald-500/20 border-emerald-500' : 'bg-white/5'} border border-white/10`}><span className="text-white font-medium block">{f.label}</span><span className="text-xs text-slate-400">{f.desc}</span></button>))}
+          </div>
+          <div className="bg-slate-800/50 rounded-xl p-6 border border-white/10 text-center">
+            <Download className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+            <p className="text-white font-medium mb-1">Ready to Export</p>
+            <p className="text-sm text-slate-400 mb-4">{selectedTypes.length} types selected</p>
+            <button onClick={doExport} disabled={exporting} className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-xl flex items-center justify-center gap-2">{exporting ? <><RefreshCw className="w-4 h-4 animate-spin" />Exporting...</> : <><Download className="w-4 h-4" />Generate Export</>}</button>
+          </div>
+        </div>
+      </div>
 
-      {/* Export Format */}
-      <Card>
-        <Card.Header>
-          <Card.Title>Export Format</Card.Title>
-          <Card.Description>Choose your preferred file format</Card.Description>
-        </Card.Header>
-        <Card.Body>
-          <div className="space-y-3">
-            {formatOptions.map((format) => (
-              <label
-                key={format.id}
-                className="flex items-start gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/50 cursor-pointer transition-colors"
-              >
-                <input
-                  type="radio"
-                  name="format"
-                  value={format.id}
-                  checked={exportFormat === format.id}
-                  onChange={(e) => setExportFormat(e.target.value)}
-                  className="mt-1 h-4 w-4 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-gray-900 dark:text-gray-100">
-                      {format.label}
-                    </p>
-                    {format.recommended && (
-                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">
-                        Recommended
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                    {format.description}
-                  </p>
-                </div>
-              </label>
-            ))}
+      {history.length > 0 && (
+        <div className="bg-slate-800/50 rounded-xl border border-white/10 overflow-hidden">
+          <div className="p-4 border-b border-white/10"><h3 className="text-white font-medium">Export History</h3></div>
+          <div className="divide-y divide-white/5">
+            {history.map(h => (<div key={h.id} className="p-4 flex items-center gap-4"><CheckCircle className="w-5 h-5 text-emerald-400" /><div className="flex-1"><p className="text-white">{h.filename}</p><p className="text-xs text-slate-400">{new Date(h.date).toLocaleString()} - {h.records} records</p></div></div>))}
           </div>
-        </Card.Body>
-      </Card>
-
-      {/* Advanced Options */}
-      <Card>
-        <Card.Header>
-          <Card.Title>Advanced Options</Card.Title>
-        </Card.Header>
-        <Card.Body>
-          <div className="space-y-3">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={advancedOptions.includeDeleted}
-                onChange={(e) =>
-                  setAdvancedOptions({ ...advancedOptions, includeDeleted: e.target.checked })
-                }
-                className="mt-1 h-4 w-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-              />
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  Include deleted records
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Export soft-deleted items that are not normally visible
-                </p>
-              </div>
-            </label>
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={advancedOptions.anonymize}
-                onChange={(e) =>
-                  setAdvancedOptions({ ...advancedOptions, anonymize: e.target.checked })
-                }
-                className="mt-1 h-4 w-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-              />
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  Anonymize personal data (GDPR)
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Replace sensitive information with random values
-                </p>
-              </div>
-            </label>
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={advancedOptions.compress}
-                onChange={(e) =>
-                  setAdvancedOptions({ ...advancedOptions, compress: e.target.checked })
-                }
-                className="mt-1 h-4 w-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-              />
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  Compress output (ZIP)
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Reduce file size for faster downloads
-                </p>
-              </div>
-            </label>
-          </div>
-        </Card.Body>
-      </Card>
-
-      {/* Generate Export */}
-      <Card>
-        <Card.Body>
-          <div className="text-center py-8">
-            {!exportComplete ? (
-              <>
-                <Download className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                  Ready to Export
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                  Click the button below to generate your export file
-                </p>
-                <Button
-                  variant="primary"
-                  size="lg"
-                  icon={Download}
-                  onClick={handleGenerateExport}
-                  loading={exporting}
-                  disabled={exporting}
-                >
-                  {exporting ? 'Generating Export...' : 'Generate Export'}
-                </Button>
-                {exporting && (
-                  <div className="mt-6">
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                      <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                      Processing... This may take a few moments
-                    </p>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="h-12 w-12 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Download className="h-6 w-6 text-green-600 dark:text-green-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                  Export Ready!
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                  Your export file is ready. Download link valid for 24 hours.
-                </p>
-                <div className="flex gap-3 justify-center">
-                  <Button variant="primary" size="lg" icon={Download} onClick={handleDownload}>
-                    Download File
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => {
-                      setExportComplete(false);
-                      setDownloadUrl('');
-                    }}
-                  >
-                    Generate New Export
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </Card.Body>
-      </Card>
+        </div>
+      )}
     </div>
   );
 };
 
-export default ProfessionalDataExportPage;
+export default DataExportPage;

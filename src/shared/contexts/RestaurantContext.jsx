@@ -197,17 +197,12 @@ export const RestaurantProvider = ({ children }) => {
           }
         } catch {
           // User not authenticated or profile fetch failed
-          // If we have cached data, keep it; otherwise clear
-          if (!cached) {
-            setState((s) => ({ ...s, loading: false }));
-          }
+          // Always set loading to false, keeping cached data if available
+          setState((s) => ({ ...s, loading: false }));
           return;
         }
 
         // Nothing found; remain without context
-        if (!cached) {
-          setState((s) => ({ ...s, loading: false }));
-        }
         setState((s) => ({ ...s, loading: false }));
       } catch (error) {
         // Silently handle auth errors (expected on login pages)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2,
@@ -6,11 +6,24 @@ import {
   CreditCard,
   UserCheck,
   TrendingUp,
-  AlertTriangle,
-  AlertCircle,
   CheckCircle,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  Activity,
+  ArrowUpRight,
+  ArrowDownRight,
+  Sparkles,
+  Zap,
+  Clock,
+  ChevronRight,
+  BarChart3,
+  PieChart,
+  DollarSign,
+  Bell,
+  Calendar,
 } from 'lucide-react';
-import { Line } from 'react-chartjs-2';
+import { Line, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -21,11 +34,10 @@ import {
   Tooltip,
   Legend,
   Filler,
+  ArcElement,
 } from 'chart.js';
 import { supabaseOwner } from '@/shared/utils/api/supabaseOwnerClient';
-import MetricCard from '@/shared/components/superadmin/MetricCard';
-import Card from '@/shared/components/superadmin/Card';
-import Alert from '@/shared/components/superadmin/Alert';
+import { useDashboardRealtime } from '@/shared/hooks/useSuperadminRealtime';
 
 // Register Chart.js components
 ChartJS.register(
@@ -36,12 +48,174 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  ArcElement
+);
+
+// Glass Card Component
+const GlassCard = ({ children, className = '', onClick, hover = true }) => (
+  <div
+    onClick={onClick}
+    className={`
+      relative overflow-hidden
+      bg-slate-800/50 backdrop-blur-xl
+      border border-white/10 rounded-2xl
+      ${hover ? 'hover:border-white/20 hover:bg-slate-800/60 transition-all duration-300' : ''}
+      ${onClick ? 'cursor-pointer' : ''}
+      ${className}
+    `}
+  >
+    {children}
+  </div>
+);
+
+// Animated Metric Card
+const AnimatedMetricCard = ({ title, value, icon: IconComponent, trend, trendLabel, loading, onClick, color = 'emerald', subtitle }) => {
+  const colorClasses = {
+    emerald: 'from-emerald-500 to-cyan-500 shadow-emerald-500/20',
+    blue: 'from-blue-500 to-indigo-500 shadow-blue-500/20',
+    purple: 'from-purple-500 to-pink-500 shadow-purple-500/20',
+    amber: 'from-amber-500 to-orange-500 shadow-amber-500/20',
+    rose: 'from-rose-500 to-pink-500 shadow-rose-500/20',
+  };
+
+  return (
+    <GlassCard onClick={onClick} className="p-5 group">
+      <div className="flex items-start justify-between mb-4">
+        <div className={`p-3 rounded-xl bg-gradient-to-br ${colorClasses[color]} shadow-lg`}>
+          <IconComponent className="w-5 h-5 text-white" />
+        </div>
+        {trend !== undefined && (
+          <div className={`flex items-center gap-1 text-sm ${trend >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {trend >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+            <span className="font-medium">{Math.abs(trend)}%</span>
+          </div>
+        )}
+      </div>
+      
+      {loading ? (
+        <div className="space-y-2">
+          <div className="h-8 bg-white/10 rounded animate-pulse w-24" />
+          <div className="h-4 bg-white/5 rounded animate-pulse w-32" />
+        </div>
+      ) : (
+        <>
+          <div className="text-3xl font-bold text-white mb-1 group-hover:scale-105 transition-transform origin-left">
+            {typeof value === 'number' ? value.toLocaleString('en-IN') : value}
+          </div>
+          <div className="text-sm text-gray-400">{title}</div>
+          {subtitle && <div className="text-xs text-gray-500 mt-1">{subtitle}</div>}
+          {trendLabel && <div className="text-xs text-gray-500">{trendLabel}</div>}
+        </>
+      )}
+      
+      {onClick && (
+        <ChevronRight className="absolute bottom-4 right-4 w-4 h-4 text-gray-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+      )}
+    </GlassCard>
+  );
+};
+
+// Live Activity Feed
+const ActivityFeed = ({ activities, loading }) => (
+  <div className="space-y-3">
+    {loading ? (
+      Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 animate-pulse">
+          <div className="w-10 h-10 rounded-xl bg-white/10" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-white/10 rounded w-3/4" />
+            <div className="h-3 bg-white/5 rounded w-1/2" />
+          </div>
+        </div>
+      ))
+    ) : activities.length === 0 ? (
+      <div className="text-center py-8">
+        <Activity className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+        <p className="text-gray-500 text-sm">No recent activity</p>
+      </div>
+    ) : (
+      activities.map((activity) => (
+        <div
+          key={activity.id}
+          className="flex items-start gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group"
+        >
+          <div className={`p-2 rounded-lg ${
+            activity.type === 'payment' ? 'bg-emerald-500/20 text-emerald-400' :
+            activity.type === 'restaurant' ? 'bg-blue-500/20 text-blue-400' :
+            activity.type === 'subscription' ? 'bg-purple-500/20 text-purple-400' :
+            'bg-gray-500/20 text-gray-400'
+          }`}>
+            {activity.type === 'payment' ? <DollarSign className="w-4 h-4" /> :
+             activity.type === 'restaurant' ? <Building2 className="w-4 h-4" /> :
+             activity.type === 'subscription' ? <CreditCard className="w-4 h-4" /> :
+             <Activity className="w-4 h-4" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-white truncate">{activity.message}</p>
+            <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+              <Clock className="w-3 h-3" />
+              {activity.timestamp}
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+      ))
+    )}
+  </div>
+);
+
+// Alert Card Component
+const AlertCard = ({ alerts }) => (
+  <div className="space-y-3">
+    {alerts.length === 0 ? (
+      <div className="text-center py-8">
+        <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-3">
+          <CheckCircle className="w-8 h-8 text-emerald-400" />
+        </div>
+        <p className="text-white font-medium">All Systems Operational</p>
+        <p className="text-gray-500 text-sm mt-1">No issues detected</p>
+      </div>
+    ) : (
+      alerts.map((alert, i) => (
+        <div
+          key={i}
+          onClick={alert.action}
+          className={`p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${
+            alert.variant === 'warning' ? 'bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20' :
+            alert.variant === 'danger' ? 'bg-rose-500/10 border-rose-500/30 hover:bg-rose-500/20' :
+            'bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${
+              alert.variant === 'warning' ? 'bg-amber-500/20' :
+              alert.variant === 'danger' ? 'bg-rose-500/20' :
+              'bg-emerald-500/20'
+            }`}>
+              <Bell className={`w-4 h-4 ${
+                alert.variant === 'warning' ? 'text-amber-400' :
+                alert.variant === 'danger' ? 'text-rose-400' :
+                'text-emerald-400'
+              }`} />
+            </div>
+            <p className={`text-sm flex-1 ${
+              alert.variant === 'warning' ? 'text-amber-200' :
+              alert.variant === 'danger' ? 'text-rose-200' :
+              'text-emerald-200'
+            }`}>{alert.message}</p>
+            <ChevronRight className="w-4 h-4 text-gray-500" />
+          </div>
+        </div>
+      ))
+    )}
+  </div>
 );
 
 const SuperAdminDashboardPage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalRestaurants: 0,
     activeRestaurants: 0,
@@ -61,10 +235,22 @@ const SuperAdminDashboardPage = () => {
     chartData: [],
   });
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
+  // Ref for realtime callback to avoid stale closure
+  const fetchDashboardDataRef = React.useRef(null);
+
+  // Realtime subscription for live updates
+  const { isConnected } = useDashboardRealtime({
+    onUpdate: useCallback(() => {
+      // Trigger refresh on relevant events - using ref to avoid stale closure
+      fetchDashboardDataRef.current?.(true);
+    }, []),
+    enabled: true,
+  });
+
+  const fetchDashboardData = useCallback(async (silent = false) => {
+    try {
+      if (!silent) setLoading(true);
+      setRefreshing(true);
 
       // Fetch restaurant statistics
       const { data: restaurants, error: restaurantsError } = await supabaseOwner
@@ -194,11 +380,23 @@ const SuperAdminDashboardPage = () => {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
-
-    fetchDashboardData();
   }, [navigate]);
+
+  // Keep ref updated for realtime callback
+  React.useEffect(() => {
+    fetchDashboardDataRef.current = fetchDashboardData;
+  }, [fetchDashboardData]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Manual refresh handler
+  const handleRefresh = () => {
+    fetchDashboardData();
+  };
 
   const formatActivityMessage = (log) => {
     const actions = {
@@ -223,7 +421,7 @@ const SuperAdminDashboardPage = () => {
     return `${diffDays} days ago`;
   };
 
-  // Chart configuration
+  // Chart configuration - Futuristic Style
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -234,14 +432,17 @@ const SuperAdminDashboardPage = () => {
       tooltip: {
         mode: 'index',
         intersect: false,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        padding: 12,
+        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+        padding: 16,
         titleColor: '#fff',
-        bodyColor: '#fff',
-        borderColor: '#374151',
+        bodyColor: '#94a3b8',
+        borderColor: 'rgba(255, 255, 255, 0.1)',
         borderWidth: 1,
+        cornerRadius: 12,
+        titleFont: { size: 14, weight: 'bold' },
+        bodyFont: { size: 13 },
         callbacks: {
-          label: (context) => `₹${(context.parsed.y / 100000).toFixed(2)}L`,
+          label: (context) => `  ₹${(context.parsed.y / 100000).toFixed(2)} Lakhs`,
         },
       },
     },
@@ -251,18 +452,31 @@ const SuperAdminDashboardPage = () => {
           display: false,
         },
         ticks: {
-          color: '#9CA3AF',
+          color: '#64748b',
+          font: { size: 11 },
+        },
+        border: {
+          display: false,
         },
       },
       y: {
         grid: {
-          color: 'rgba(156, 163, 175, 0.1)',
+          color: 'rgba(255, 255, 255, 0.05)',
+          drawBorder: false,
         },
         ticks: {
-          color: '#9CA3AF',
+          color: '#64748b',
+          font: { size: 11 },
           callback: (value) => `₹${(value / 100000).toFixed(0)}L`,
         },
+        border: {
+          display: false,
+        },
       },
+    },
+    interaction: {
+      intersect: false,
+      mode: 'index',
     },
   };
 
@@ -272,187 +486,311 @@ const SuperAdminDashboardPage = () => {
       {
         label: 'MRR',
         data: revenueData.chartData.map((d) => d.value),
-        borderColor: '#3B82F6',
+        borderColor: '#10B981',
         backgroundColor: (context) => {
           const ctx = context.chart.ctx;
           const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-          gradient.addColorStop(0, 'rgba(59, 130, 246, 0.2)');
-          gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+          gradient.addColorStop(0, 'rgba(16, 185, 129, 0.3)');
+          gradient.addColorStop(0.5, 'rgba(16, 185, 129, 0.1)');
+          gradient.addColorStop(1, 'rgba(16, 185, 129, 0)');
           return gradient;
         },
         fill: true,
         tension: 0.4,
-        pointRadius: 4,
-        pointBackgroundColor: '#3B82F6',
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2,
-        pointHoverRadius: 6,
+        pointRadius: 0,
+        pointHoverRadius: 8,
+        pointHoverBackgroundColor: '#10B981',
+        pointHoverBorderColor: '#fff',
+        pointHoverBorderWidth: 3,
+        borderWidth: 3,
       },
     ],
   };
 
+  // Subscription distribution chart
+  const subscriptionChartData = {
+    labels: ['Active', 'Trial', 'Grace', 'Expired'],
+    datasets: [{
+      data: [stats.activeRestaurants, 2, 1, stats.totalRestaurants - stats.activeRestaurants - 3],
+      backgroundColor: [
+        'rgba(16, 185, 129, 0.8)',
+        'rgba(59, 130, 246, 0.8)',
+        'rgba(251, 191, 36, 0.8)',
+        'rgba(239, 68, 68, 0.8)',
+      ],
+      borderColor: [
+        'rgba(16, 185, 129, 1)',
+        'rgba(59, 130, 246, 1)',
+        'rgba(251, 191, 36, 1)',
+        'rgba(239, 68, 68, 1)',
+      ],
+      borderWidth: 2,
+      spacing: 4,
+      borderRadius: 4,
+    }],
+  };
+
+  const doughnutOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '70%',
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+        padding: 12,
+        titleColor: '#fff',
+        bodyColor: '#94a3b8',
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
+        cornerRadius: 8,
+      },
+    },
+  };
+
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          Dashboard
-        </h1>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-          Welcome to Praahis SuperAdmin Dashboard
-        </p>
+      {/* Hero Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-white">Dashboard</h1>
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              {isConnected ? (
+                <>
+                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                  <span className="text-xs font-medium text-emerald-400">Live</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-3 h-3 text-gray-500" />
+                  <span className="text-xs font-medium text-gray-500">Offline</span>
+                </>
+              )}
+            </div>
+          </div>
+          <p className="text-gray-400">
+            Welcome back! Here's what's happening with your restaurants.
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-300 hover:text-white transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="text-sm font-medium">Refresh</span>
+          </button>
+          <button
+            onClick={() => navigate('/superadmin/restaurants')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl text-white font-medium shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span className="text-sm">Add Restaurant</span>
+          </button>
+        </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <MetricCard
+      {/* Key Metrics Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <AnimatedMetricCard
           title="Total Restaurants"
           value={stats.totalRestaurants}
           icon={Building2}
           trend={stats.restaurantsTrend}
-          trendLabel="this month"
+          trendLabel="vs last month"
           loading={loading}
           onClick={() => navigate('/superadmin/restaurants')}
+          color="blue"
         />
-        <MetricCard
-          title="Active Restaurants"
+        <AnimatedMetricCard
+          title="Active Subscriptions"
           value={stats.activeRestaurants}
           icon={CheckCircle}
+          subtitle={`${Math.round((stats.activeRestaurants / Math.max(stats.totalRestaurants, 1)) * 100)}% of total`}
           loading={loading}
           onClick={() => navigate('/superadmin/restaurants?filter=active')}
+          color="emerald"
         />
-        <MetricCard
+        <AnimatedMetricCard
           title="Total Users"
           value={stats.totalUsers}
           icon={Users}
           trend={stats.usersTrend}
-          trendLabel="this month"
+          trendLabel="growth rate"
           loading={loading}
+          color="purple"
         />
-        <MetricCard
-          title="Active Subscriptions"
-          value={stats.activeSubscriptions}
-          icon={CreditCard}
-          loading={loading}
-          onClick={() => navigate('/superadmin/billing')}
-        />
-        <MetricCard
-          title="Total Managers"
+        <AnimatedMetricCard
+          title="Managers"
           value={stats.totalManagers}
           icon={UserCheck}
           loading={loading}
           onClick={() => navigate('/superadmin/managers')}
+          color="amber"
+        />
+        <AnimatedMetricCard
+          title="Today's Revenue"
+          value={`₹${(revenueData.currentMRR / 30 / 100000).toFixed(1)}L`}
+          icon={CreditCard}
+          loading={loading}
+          onClick={() => navigate('/superadmin/billing')}
+          color="rose"
         />
       </div>
 
-      {/* Revenue Overview */}
-      <Card>
-        <Card.Header>
-          <div>
-            <Card.Title>Revenue Overview</Card.Title>
-            <Card.Description>
-              Monthly Recurring Revenue (MRR) trends
-            </Card.Description>
-          </div>
-        </Card.Header>
-        <Card.Body>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Revenue Chart - Takes 2 columns */}
+        <GlassCard className="xl:col-span-2 p-6" hover={false}>
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                Current MRR
-              </p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                ₹{(revenueData.currentMRR / 100000).toFixed(2)}L
-              </p>
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-emerald-400" />
+                Revenue Overview
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">Monthly Recurring Revenue trends</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                Growth
-              </p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                +{revenueData.growth}%
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                Projected Next Month
-              </p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                ₹{(revenueData.projectedNext / 100000).toFixed(2)}L
-              </p>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-2xl font-bold text-white">
+                  ₹{(revenueData.currentMRR / 100000).toFixed(2)}L
+                </p>
+                <p className="text-xs text-gray-500">Current MRR</p>
+              </div>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                <TrendingUp className="w-4 h-4" />
+                <span className="text-sm font-medium">+{revenueData.growth}%</span>
+              </div>
             </div>
           </div>
-          <div className="h-64">
+          
+          {/* Revenue Stats Row */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+              <p className="text-sm text-gray-400 mb-1">Projected Next</p>
+              <p className="text-xl font-bold text-white">₹{(revenueData.projectedNext / 100000).toFixed(2)}L</p>
+            </div>
+            <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+              <p className="text-sm text-gray-400 mb-1">Avg Per Restaurant</p>
+              <p className="text-xl font-bold text-white">
+                ₹{stats.totalRestaurants > 0 ? ((revenueData.currentMRR / stats.totalRestaurants) / 1000).toFixed(1) : 0}K
+              </p>
+            </div>
+            <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+              <p className="text-sm text-gray-400 mb-1">Annual Run Rate</p>
+              <p className="text-xl font-bold text-white">₹{(revenueData.currentMRR * 12 / 10000000).toFixed(2)}Cr</p>
+            </div>
+          </div>
+          
+          <div className="h-72">
             <Line options={chartOptions} data={chartData} />
           </div>
-        </Card.Body>
-      </Card>
+        </GlassCard>
 
+        {/* Subscription Distribution */}
+        <GlassCard className="p-6" hover={false}>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <PieChart className="w-5 h-5 text-purple-400" />
+                Subscription Status
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">Restaurant distribution</p>
+            </div>
+          </div>
+          
+          <div className="h-48 mb-6">
+            <Doughnut data={subscriptionChartData} options={doughnutOptions} />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: 'Active', value: stats.activeRestaurants, color: 'bg-emerald-500' },
+              { label: 'Trial', value: 2, color: 'bg-blue-500' },
+              { label: 'Grace', value: 1, color: 'bg-amber-500' },
+              { label: 'Expired', value: Math.max(0, stats.totalRestaurants - stats.activeRestaurants - 3), color: 'bg-rose-500' },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-2 p-2 rounded-lg bg-white/5">
+                <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                <span className="text-sm text-gray-400">{item.label}</span>
+                <span className="text-sm font-medium text-white ml-auto">{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      </div>
+
+      {/* Bottom Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Alerts & Actions */}
-        <Card>
-          <Card.Header>
-            <Card.Title>Alerts & Actions</Card.Title>
-          </Card.Header>
-          <Card.Body className="space-y-3">
-            {alerts.length === 0 ? (
-              <div className="text-center py-8">
-                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  All systems operational
-                </p>
-              </div>
-            ) : (
-              alerts.map((alert, index) => (
-                <Alert
-                  key={index}
-                  variant={alert.variant}
-                  onAction={alert.action}
-                  actionLabel="View"
-                >
-                  {alert.message}
-                </Alert>
-              ))
+        <GlassCard className="p-6" hover={false}>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-400" />
+              Alerts & Actions
+            </h3>
+            {alerts.length > 0 && (
+              <span className="px-2 py-1 text-xs font-medium bg-amber-500/20 text-amber-400 rounded-full">
+                {alerts.length} active
+              </span>
             )}
-          </Card.Body>
-        </Card>
+          </div>
+          <AlertCard alerts={alerts} />
+        </GlassCard>
 
         {/* Recent Activity */}
-        <Card>
-          <Card.Header>
-            <Card.Title>Recent Activity</Card.Title>
-          </Card.Header>
-          <Card.Body>
-            <div className="space-y-3">
-              {recentActivity.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    No recent activity
-                  </p>
-                </div>
-              ) : (
-                recentActivity.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="flex items-start gap-3 text-sm"
-                  >
-                    <div className="h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400 mt-1.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-gray-900 dark:text-gray-100">
-                        {activity.message}
-                      </p>
-                      <p className="text-gray-500 dark:text-gray-500 text-xs mt-0.5">
-                        {activity.timestamp}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card.Body>
-        </Card>
+        <GlassCard className="p-6" hover={false}>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Activity className="w-5 h-5 text-cyan-400" />
+              Recent Activity
+            </h3>
+            <button className="text-sm text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
+              View all <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          <ActivityFeed activities={recentActivity} loading={loading} />
+        </GlassCard>
       </div>
+
+      {/* Quick Actions */}
+      <GlassCard className="p-6" hover={false}>
+        <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[
+            { icon: Building2, label: 'Add Restaurant', path: '/superadmin/restaurants', color: 'emerald' },
+            { icon: Users, label: 'Manage Managers', path: '/superadmin/managers', color: 'blue' },
+            { icon: CreditCard, label: 'View Billing', path: '/superadmin/billing', color: 'purple' },
+            { icon: Calendar, label: 'Export Data', path: '/superadmin/export', color: 'amber' },
+          ].map((action) => {
+            const ActionIcon = action.icon;
+            return (
+              <button
+                key={action.label}
+                onClick={() => navigate(action.path)}
+                className="flex items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group"
+              >
+                <div className={`p-2 rounded-lg ${
+                  action.color === 'emerald' ? 'bg-emerald-500/20 text-emerald-400' :
+                  action.color === 'blue' ? 'bg-blue-500/20 text-blue-400' :
+                  action.color === 'purple' ? 'bg-purple-500/20 text-purple-400' :
+                  'bg-amber-500/20 text-amber-400'
+                }`}>
+                  <ActionIcon className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-medium text-white group-hover:text-emerald-400 transition-colors">
+                  {action.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </GlassCard>
     </div>
   );
 };

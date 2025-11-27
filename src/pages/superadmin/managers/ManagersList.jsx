@@ -12,14 +12,42 @@ import {
   Building2,
   Mail,
   Phone,
-  Filter
+  Filter,
+  RefreshCw,
+  Users,
+  CheckCircle,
+  XCircle,
+  Shield,
+  UserPlus,
+  ChevronLeft,
+  ChevronRight,
+  Activity,
+  Calendar,
+  X,
 } from 'lucide-react';
-import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
+
+// Glass Card Component
+const GlassCard = ({ children, className = '', onClick, hover = true }) => (
+  <div
+    onClick={onClick}
+    className={`
+      relative overflow-hidden
+      bg-slate-800/50 backdrop-blur-xl
+      border border-white/10 rounded-2xl
+      ${hover ? 'hover:border-white/20 hover:bg-slate-800/60 transition-all duration-300' : ''}
+      ${onClick ? 'cursor-pointer' : ''}
+      ${className}
+    `}
+  >
+    {children}
+  </div>
+);
 
 const ManagersList = () => {
   const [managers, setManagers] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [restaurantFilter, setRestaurantFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -98,6 +126,7 @@ const ManagersList = () => {
       toast.error('Failed to load managers');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -229,7 +258,6 @@ const ManagersList = () => {
         }
       } catch {
         // Silently continue - this might fail with 403 Forbidden if not an admin
-        console.log('Note: Could not delete from auth.users (may not have admin permissions)');
       }
 
       // Delete from public.users (this is the important one)
@@ -344,7 +372,13 @@ const ManagersList = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <LoadingSpinner />
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-500 animate-pulse" />
+            <div className="absolute inset-0 h-16 w-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-500 animate-ping opacity-25" />
+          </div>
+          <p className="text-gray-400">Loading managers...</p>
+        </div>
       </div>
     );
   }
@@ -352,78 +386,91 @@ const ManagersList = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-100 dark:text-foreground">
-            Managers Management
-          </h1>
-          <p className="text-gray-400 dark:text-muted-foreground mt-1">
-            Manage restaurant managers and admins across all locations
+          <h1 className="text-3xl font-bold text-white mb-2">Managers</h1>
+          <p className="text-gray-400">
+            Manage restaurant managers and admins across {restaurants.length} locations
           </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-        >
-          <Plus size={20} />
-          Add Manager
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setRefreshing(true); fetchManagers(); }}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-300 hover:text-white transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="text-sm font-medium hidden sm:inline">Refresh</span>
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 rounded-xl text-white font-medium shadow-lg shadow-emerald-500/25 transition-all"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span className="text-sm hidden sm:inline">Add Manager</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gray-900 dark:bg-card rounded-lg p-4 border border-gray-700 dark:border-border">
-          <div className="text-sm text-gray-400 dark:text-muted-foreground">Total Managers</div>
-          <div className="text-2xl font-bold text-gray-100 dark:text-foreground mt-1">
-            {managers.length}
-          </div>
-        </div>
-        <div className="bg-gray-900 dark:bg-card rounded-lg p-4 border border-gray-700 dark:border-border">
-          <div className="text-sm text-gray-400 dark:text-muted-foreground">Active</div>
-          <div className="text-2xl font-bold text-green-600 dark:text-green-500 mt-1">
-            {managers.filter(m => m.is_active).length}
-          </div>
-        </div>
-        <div className="bg-gray-900 dark:bg-card rounded-lg p-4 border border-gray-700 dark:border-border">
-          <div className="text-sm text-gray-400 dark:text-muted-foreground">Inactive</div>
-          <div className="text-2xl font-bold text-red-600 dark:text-red-500 mt-1">
-            {managers.filter(m => !m.is_active).length}
-          </div>
-        </div>
-        <div className="bg-gray-900 dark:bg-card rounded-lg p-4 border border-gray-700 dark:border-border">
-          <div className="text-sm text-gray-400 dark:text-muted-foreground">Restaurants</div>
-          <div className="text-2xl font-bold text-gray-100 dark:text-foreground mt-1">
-            {restaurants.length}
-          </div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Managers', value: managers.length, icon: Users, color: 'emerald' },
+          { label: 'Active', value: managers.filter(m => m.is_active).length, icon: CheckCircle, color: 'cyan' },
+          { label: 'Inactive', value: managers.filter(m => !m.is_active).length, icon: XCircle, color: 'rose' },
+          { label: 'Restaurants', value: restaurants.length, icon: Building2, color: 'purple' },
+        ].map((stat) => {
+          const StatIcon = stat.icon;
+          return (
+            <GlassCard key={stat.label} className="p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className={`p-2.5 rounded-xl bg-gradient-to-br ${
+                  stat.color === 'emerald' ? 'from-emerald-500/20 to-cyan-500/20' :
+                  stat.color === 'cyan' ? 'from-cyan-500/20 to-blue-500/20' :
+                  stat.color === 'rose' ? 'from-rose-500/20 to-pink-500/20' :
+                  'from-purple-500/20 to-pink-500/20'
+                }`}>
+                  <StatIcon className={`w-5 h-5 ${
+                    stat.color === 'emerald' ? 'text-emerald-400' :
+                    stat.color === 'cyan' ? 'text-cyan-400' :
+                    stat.color === 'rose' ? 'text-rose-400' :
+                    'text-purple-400'
+                  }`} />
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
+              <div className="text-sm text-gray-400">{stat.label}</div>
+            </GlassCard>
+          );
+        })}
       </div>
 
       {/* Filters */}
-      <div className="bg-gray-900 dark:bg-card rounded-lg p-4 border border-gray-700 dark:border-border">
+      <GlassCard className="p-4" hover={false}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
             <input
               type="text"
               placeholder="Search by name, email, or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-600 dark:border-border rounded-lg bg-gray-900 dark:bg-background text-gray-100 dark:text-foreground focus:ring-2 focus:ring-orange-500"
+              className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
             />
           </div>
 
           {/* Restaurant Filter */}
           <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
             <select
               value={restaurantFilter}
               onChange={(e) => setRestaurantFilter(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-600 dark:border-border rounded-lg bg-gray-900 dark:bg-background text-gray-100 dark:text-foreground focus:ring-2 focus:ring-orange-500"
+              className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 appearance-none cursor-pointer transition-all"
             >
-              <option value="all">All Restaurants</option>
+              <option value="all" className="bg-slate-800">All Restaurants</option>
               {restaurants.map(restaurant => (
-                <option key={restaurant.id} value={restaurant.id}>
+                <option key={restaurant.id} value={restaurant.id} className="bg-slate-800">
                   {restaurant.name}
                 </option>
               ))}
@@ -432,154 +479,178 @@ const ManagersList = () => {
 
           {/* Status Filter */}
           <div className="relative">
-            <Power className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <Activity className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-600 dark:border-border rounded-lg bg-gray-900 dark:bg-background text-gray-100 dark:text-foreground focus:ring-2 focus:ring-orange-500"
+              className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 appearance-none cursor-pointer transition-all"
             >
-              <option value="all">All Status</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
+              <option value="all" className="bg-slate-800">All Status</option>
+              <option value="active" className="bg-slate-800">Active Only</option>
+              <option value="inactive" className="bg-slate-800">Inactive Only</option>
             </select>
           </div>
         </div>
-      </div>
+      </GlassCard>
 
       {/* Managers Table */}
-      <div className="bg-gray-900 dark:bg-card rounded-lg border border-gray-700 dark:border-border overflow-hidden">
+      <GlassCard className="overflow-hidden" hover={false}>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-800 dark:bg-muted/50 border-b border-gray-700 dark:border-border">
+            <thead className="bg-white/5 border-b border-white/10">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-100 dark:text-foreground uppercase tracking-wider">
-                  Manager
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-100 dark:text-foreground uppercase tracking-wider">
-                  Contact
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-100 dark:text-foreground uppercase tracking-wider">
-                  Restaurant
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-100 dark:text-foreground uppercase tracking-wider">
-                  Role
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-100 dark:text-foreground uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-100 dark:text-foreground uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Manager</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Contact</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Restaurant</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-border">
-              {paginatedManagers.map((manager) => (
-                <tr key={manager.id} className="hover:bg-gray-800 dark:hover:bg-muted/30">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="font-medium text-gray-100 dark:text-foreground">
-                      {manager.name}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-muted-foreground">
-                        <Mail size={14} />
-                        {manager.email}
+            <tbody className="divide-y divide-white/5">
+              {paginatedManagers.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center">
+                      <div className="p-4 rounded-2xl bg-white/5 mb-4">
+                        <Users className="w-8 h-8 text-gray-600" />
                       </div>
-                      {manager.phone && (
-                        <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-muted-foreground">
-                          <Phone size={14} />
-                          {manager.phone}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2 text-sm text-gray-100 dark:text-foreground">
-                      <Building2 size={16} className="text-gray-400" />
-                      {manager.restaurants?.name || 'Not Assigned'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
-                      {manager.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      manager.is_active
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                        : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                    }`}>
-                      {manager.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openEditModal(manager)}
-                        className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
-                        title="Edit"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleToggleStatus(manager.id, manager.is_active)}
-                        className="p-1.5 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/30 rounded"
-                        title={manager.is_active ? 'Deactivate' : 'Activate'}
-                      >
-                        <Power size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleResetPassword(manager.id, manager.email)}
-                        className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded"
-                        title="Reset Password"
-                      >
-                        <Key size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteManager(manager.id, manager.name)}
-                        className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <p className="text-gray-400 font-medium">No managers found</p>
+                      <p className="text-sm text-gray-600 mt-1">Try adjusting your filters or add a new manager</p>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedManagers.map((manager) => (
+                  <tr key={manager.id} className="hover:bg-white/5 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10">
+                          <span className="text-sm font-bold text-emerald-400">
+                            {manager.name?.charAt(0)?.toUpperCase() || 'M'}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-white">{manager.name}</p>
+                          <p className="text-xs text-gray-500">
+                            Added {new Date(manager.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                          <Mail className="w-3 h-3" />
+                          {manager.email}
+                        </div>
+                        {manager.phone && (
+                          <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <Phone className="w-3 h-3" />
+                            {manager.phone}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm text-white">
+                          {manager.restaurants?.name || 'Not Assigned'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border ${
+                        manager.role === 'admin' 
+                          ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                          : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                      }`}>
+                        <Shield className="w-3 h-3" />
+                        {manager.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border ${
+                        manager.is_active
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                      }`}>
+                        {manager.is_active ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                        {manager.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEditModal(manager)}
+                          className="p-2 text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleToggleStatus(manager.id, manager.is_active)}
+                          className="p-2 text-gray-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
+                          title={manager.is_active ? 'Deactivate' : 'Activate'}
+                        >
+                          <Power className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleResetPassword(manager.id, manager.email)}
+                          className="p-2 text-gray-500 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors"
+                          title="Reset Password"
+                        >
+                          <Key className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteManager(manager.id, manager.name)}
+                          className="p-2 text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-
+        
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-gray-700 dark:border-border flex items-center justify-between">
-            <div className="text-sm text-gray-400 dark:text-muted-foreground">
-              Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredManagers.length)} of {filteredManagers.length} managers
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-600 dark:border-border rounded text-sm text-gray-100 dark:text-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 dark:hover:bg-muted"
-              >
-                Previous
-              </button>
-              <span className="px-3 py-1 text-sm text-gray-100 dark:text-foreground">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-600 dark:border-border rounded text-sm text-gray-100 dark:text-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 dark:hover:bg-muted"
-              >
-                Next
-              </button>
+          <div className="px-6 py-4 border-t border-white/10 bg-white/5">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-400">
+                Showing <span className="text-white font-medium">{startIndex + 1}</span> to{' '}
+                <span className="text-white font-medium">{Math.min(startIndex + itemsPerPage, filteredManagers.length)}</span> of{' '}
+                <span className="text-white font-medium">{filteredManagers.length}</span> managers
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="px-4 py-2 text-sm text-white">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         )}
-      </div>
+      </GlassCard>
 
       {/* Add Manager Modal */}
       {showAddModal && (

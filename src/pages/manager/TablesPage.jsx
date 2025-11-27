@@ -41,8 +41,7 @@ const TablesPage = () => {
           table: 'tables',
           filter: `restaurant_id=eq.${restaurantId}`,
         },
-        (payload) => {
-          console.log('🔄 Table change detected:', payload);
+        () => {
           loadTables();
         }
       )
@@ -59,8 +58,7 @@ const TablesPage = () => {
           table: 'table_sessions',
           filter: `restaurant_id=eq.${restaurantId}`,
         },
-        (payload) => {
-          console.log('🔄 Session change detected:', payload);
+        () => {
           loadTables();
         }
       )
@@ -71,6 +69,7 @@ const TablesPage = () => {
       tablesSubscription.unsubscribe();
       sessionsSubscription.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
 
   const loadTables = async () => {

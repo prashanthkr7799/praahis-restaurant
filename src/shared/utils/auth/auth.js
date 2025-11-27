@@ -216,3 +216,72 @@ export const onAuthStateChange = (callback) => {
     callback(event, session);
   });
 };
+
+/**
+ * Inactivity timeout manager for shared devices
+ * Auto-logout after configurable period of inactivity
+ */
+export const createInactivityManager = (options = {}) => {
+  const {
+    timeoutMinutes = 30, // Default 30 minutes
+    warningMinutes = 5, // Show warning 5 minutes before logout
+    onWarning = () => {},
+    onLogout = () => signOut(),
+    events = ['mousedown', 'keydown', 'scroll', 'touchstart'],
+  } = options;
+
+  let timeoutId = null;
+  let warningTimeoutId = null;
+  let isActive = false;
+
+  const resetTimer = () => {
+    if (!isActive) return;
+    
+    // Clear existing timers
+    if (timeoutId) clearTimeout(timeoutId);
+    if (warningTimeoutId) clearTimeout(warningTimeoutId);
+
+    // Set warning timer
+    const warningTime = (timeoutMinutes - warningMinutes) * 60 * 1000;
+    warningTimeoutId = setTimeout(() => {
+      onWarning(warningMinutes);
+    }, warningTime);
+
+    // Set logout timer
+    const logoutTime = timeoutMinutes * 60 * 1000;
+    timeoutId = setTimeout(() => {
+      onLogout();
+    }, logoutTime);
+  };
+
+  const start = () => {
+    if (isActive) return;
+    isActive = true;
+    
+    // Add event listeners
+    events.forEach(event => {
+      window.addEventListener(event, resetTimer, { passive: true });
+    });
+
+    resetTimer();
+  };
+
+  const stop = () => {
+    isActive = false;
+    
+    // Clear timers
+    if (timeoutId) clearTimeout(timeoutId);
+    if (warningTimeoutId) clearTimeout(warningTimeoutId);
+    
+    // Remove event listeners
+    events.forEach(event => {
+      window.removeEventListener(event, resetTimer);
+    });
+  };
+
+  const extend = () => {
+    resetTimer();
+  };
+
+  return { start, stop, extend };
+};

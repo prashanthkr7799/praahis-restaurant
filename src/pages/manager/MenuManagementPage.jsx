@@ -8,13 +8,14 @@ import { Plus, Search, Filter, Edit2, Trash2, Eye, EyeOff, Image as ImageIcon } 
 import { supabase } from '@shared/utils/api/supabaseClient';
 import { formatCurrency } from '@shared/utils/helpers/formatters';
 import { logMenuItemDeleted } from '@domains/staff/utils/activityLogger';
-import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
+import { CardSkeleton } from '@shared/components/feedback/LoadingSkeleton';
 import Modal from '@shared/components/compounds/Modal';
 import ConfirmDialog from '@shared/components/compounds/ConfirmDialog';
 import MenuItemForm from '@domains/ordering/components/MenuItemForm';
 import Badge from '@shared/components/primitives/Badge';
 import toast from 'react-hot-toast';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
+import { logger } from '@shared/utils/helpers/logger';
 
 const MenuManagement = () => {
   const [menuItems, setMenuItems] = useState([]);
@@ -72,7 +73,7 @@ const MenuManagement = () => {
     try {
       // Don't query if restaurantId is null
       if (!restaurantId) {
-        console.warn('Cannot load menu items: restaurantId is null');
+        logger.warn('Cannot load menu items: restaurantId is null');
         setMenuItems([]);
         setLoading(false);
         return;
@@ -172,7 +173,24 @@ const MenuManagement = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner text="Loading menu items..." />;
+    return (
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <div className="h-8 w-48 bg-white/10 rounded animate-pulse mb-2"></div>
+            <div className="h-4 w-64 bg-white/5 rounded animate-pulse"></div>
+          </div>
+          <div className="h-10 w-36 bg-white/10 rounded-lg animate-pulse"></div>
+        </div>
+        <div className="bg-card rounded-lg shadow-sm p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="h-10 bg-white/5 rounded animate-pulse"></div>
+            <div className="h-10 bg-white/5 rounded animate-pulse"></div>
+          </div>
+        </div>
+        <CardSkeleton count={6} />
+      </div>
+    );
   }
 
   return (

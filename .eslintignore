@@ -1,9 +1,0 @@
-# ESLint Ignore
-node_modules
-dist
-build
-.vite
-*.min.js
-
-# Supabase Edge Functions (Deno environment, different from Node.js)
-supabase/functions/**/*.ts

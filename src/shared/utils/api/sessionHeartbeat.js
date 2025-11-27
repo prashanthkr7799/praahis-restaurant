@@ -6,6 +6,7 @@
 
 import { supabase } from './supabaseClient';
 import { supabaseOwner } from './supabaseOwnerClient';
+import logger from '@shared/utils/helpers/logger';
 
 class SessionHeartbeat {
   constructor() {
@@ -20,7 +21,7 @@ class SessionHeartbeat {
       return; // Already running
     }
 
-    console.log('🫀 Session heartbeat started');
+    logger.log('🫀 Session heartbeat started');
 
     // Track user activity
     this.setupActivityTracking();
@@ -31,7 +32,7 @@ class SessionHeartbeat {
 
       // If user has been inactive for more than 1 hour, stop heartbeat
       if (timeSinceLastActivity > this.INACTIVITY_TIMEOUT) {
-        console.log('⏱️ User inactive for 1+ hour, stopping heartbeat');
+        logger.log('⏱️ User inactive for 1+ hour, stopping heartbeat');
         this.stop();
         return;
       }
@@ -41,13 +42,13 @@ class SessionHeartbeat {
         const { data: managerSession } = await supabase.auth.getSession();
         if (managerSession?.session) {
           await supabase.auth.refreshSession();
-          console.log('🔄 Manager session refreshed');
+          logger.log('🔄 Manager session refreshed');
         }
 
         const { data: ownerSession } = await supabaseOwner.auth.getSession();
         if (ownerSession?.session) {
           await supabaseOwner.auth.refreshSession();
-          console.log('🔄 Owner session refreshed');
+          logger.log('🔄 Owner session refreshed');
         }
       } catch (error) {
         console.error('❌ Failed to refresh session:', error);
@@ -60,7 +61,7 @@ class SessionHeartbeat {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
       this.removeActivityTracking();
-      console.log('💔 Session heartbeat stopped');
+      logger.log('💔 Session heartbeat stopped');
     }
   }
 

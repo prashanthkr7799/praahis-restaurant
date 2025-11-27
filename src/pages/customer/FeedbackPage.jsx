@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Send } from 'lucide-react';
-// eslint-disable-next-line no-unused-vars
-import { motion } from 'framer-motion';
+import { Star, Send, MessageSquare, CheckCircle, ArrowLeft } from 'lucide-react';
+import { motion as Motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { supabase, getSessionWithOrders, endTableSession } from '@shared/utils/api/supabaseClient';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
+import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 
 const FeedbackPage = () => {
   const { sessionId } = useParams(); // Changed from orderId to sessionId
@@ -13,12 +13,13 @@ const FeedbackPage = () => {
   const { restaurantId } = useRestaurant();
 
   const [rating, setRating] = useState(0);
-  const [serviceQuality, setServiceQuality] = useState(0);
+  const [hoveredRating, setHoveredRating] = useState(0);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [session, setSession] = useState(null);
   const [orderItems, setOrderItems] = useState([]);
   const [itemRatings, setItemRatings] = useState({}); // { menu_item_id: rating }
-  const [session, setSession] = useState(null);
 
   // SECURITY: Check if this session is already completed
   useEffect(() => {
@@ -27,7 +28,7 @@ const FeedbackPage = () => {
     }
   }, [navigate]);
 
-  // Load all items from this table session (aggregate across multiple orders during current seating)
+  // Load session data and aggregate items
   useEffect(() => {
     const load = async () => {
       try {
@@ -62,7 +63,7 @@ const FeedbackPage = () => {
         });
         setItemRatings(init);
       } catch (e) {
-        console.error('Could not load session items for ratings:', e);
+        console.error('Could not load session data:', e);
         toast.error('Failed to load session data');
       }
     };
@@ -89,30 +90,61 @@ const FeedbackPage = () => {
     try {
       setIsSubmitting(true);
 
-      // Prepare comment to include extra details (service) since schema only has rating/comment
-      const details = [];
-      if (serviceQuality) details.push(`Service:${serviceQuality}`);
-      const composedComment = [comment.trim(), details.length ? `(${details.join(', ')})` : '']
-        .filter(Boolean)
-        .join(' ');
-
-      // Create feedback record (supports old schema without restaurant_id by retrying)
+      // Create feedback record
       const basePayload = {
         session_id: sessionId,
         rating,
-        comment: composedComment || null,
+        comment: comment.trim() || null,
         restaurant_id: session.restaurant_id,
         created_at: new Date().toISOString(),
       };
+      
       let { error: feedbackError } = await supabase.from('feedbacks').insert([basePayload]);
+      
       if (feedbackError?.code === 'PGRST204') {
-        // Column restaurant_id missing (older schema) – retry without it so user still can submit
+        // Column restaurant_id missing (older schema) – retry without it
         const legacyPayload = { ...basePayload };
         delete legacyPayload.restaurant_id;
         ({ error: feedbackError } = await supabase.from('feedbacks').insert([legacyPayload]));
       }
+      
       if (feedbackError) {
         console.error('Feedback insert error:', feedbackError);
+        throw feedbackError;
+      }
+
+      // Insert per-item ratings
+      try {
+        const rows = Object.entries(itemRatings)
+          .filter(([, r]) => Number(r) > 0)
+          .map(([menuItemId, r]) => ({
+            session_id: sessionId,
+            menu_item_id: menuItemId,
+            rating: Number(r),
+            restaurant_id: session.restaurant_id,
+            created_at: new Date().toISOString(),
+          }));
+          
+        if (rows.length > 0) {
+          const { error: ratingsError } = await supabase
+            .from('menu_item_ratings')
+            .insert(rows);
+            
+          if (ratingsError) {
+             // Fallback for older schema
+             if (ratingsError.code === 'PGRST204') {
+                const legacyRows = rows.map(r => {
+                  const { restaurant_id, ...rest } = r;
+                  return rest;
+                });
+                await supabase.from('menu_item_ratings').insert(legacyRows);
+             } else {
+               console.error('Item ratings insert error:', ratingsError.message);
+             }
+          }
+        }
+      } catch (e) {
+        console.error('Error saving per-item ratings:', e);
       }
 
       // Mark all session orders as feedback submitted
@@ -140,31 +172,17 @@ const FeedbackPage = () => {
         console.error('Error ending session:', endError);
       }
 
-      // Insert per-item ratings (if schema exists and has session_id column)
-      try {
-        const rows = Object.entries(itemRatings)
-          .filter(([, r]) => Number(r) > 0)
-          .map(([menuItemId, r]) => ({
-            session_id: sessionId,
-            menu_item_id: menuItemId,
-            rating: Number(r),
-            restaurant_id: session.restaurant_id,
-            created_at: new Date().toISOString(),
-          }));
-        if (rows.length > 0) {
-          const { error: ratingsError } = await supabase
-            .from('menu_item_ratings')
-            .insert(rows);
-          if (ratingsError) {
-            // If session_id column doesn't exist yet, run migration: database/22_table_sessions.sql
-            console.error('Item ratings insert error:', ratingsError.message);
-          }
-        }
-      } catch (e) {
-        console.error('Error saving per-item ratings:', e);
-      }
-
+      setSubmitted(true);
       toast.success('Thank You! 🎉', { duration: 2500 });
+
+      // Mark order as completed to block all backward navigation
+      sessionStorage.setItem('order_completed', 'true');
+      sessionStorage.removeItem('payment_completed');
+      
+      // Push multiple history states to create a deep buffer that prevents back navigation
+      for (let i = 0; i < 50; i++) {
+        window.history.pushState({ feedbackComplete: true }, '', window.location.href);
+      }
 
       // Redirect to Thank You page instead of homepage (replace history to prevent back)
       setTimeout(() => {
@@ -173,176 +191,184 @@ const FeedbackPage = () => {
     } catch (err) {
       console.error('Error submitting feedback:', err);
       toast.error('Failed to submit feedback');
+    } finally {
       setIsSubmitting(false);
     }
   };
 
-  const StarRow = ({ value, onChange, size = 'lg', label, compact = false, align = 'center' }) => {
-    const [hovered, setHovered] = useState(0);
-    const isLg = size === 'lg';
-    const isMd = size === 'md';
-    const dim = isLg ? 'w-12 h-12' : isMd ? 'w-10 h-10' : 'w-7 h-7'; // 48px, 40px, 28px
-    const gap = isLg ? 'gap-2' : isMd ? 'gap-2' : 'gap-1.5';
-    const justify = align === 'end' ? 'justify-end' : align === 'start' ? 'justify-start' : 'justify-center';
+  if (submitted) {
     return (
-      <div className={compact ? '' : (label ? 'mb-8' : 'mb-6')}>
-        {label && (
-          <label className="block text-lg font-semibold text-foreground mb-3">
-            {label}
-          </label>
-        )}
-        <div role="radiogroup" className={`flex ${gap} ${justify}`} aria-label={label || 'rating'}>
-          {[1, 2, 3, 4, 5].map((star) => {
-            const active = star <= (hovered || value);
-            return (
-              <button
-                key={star}
-                type="button"
-                role="radio"
-                aria-checked={star === value}
-                aria-label={`${star} star${star > 1 ? 's' : ''}`}
-                onClick={() => onChange(star)}
-                onMouseEnter={() => setHovered(star)}
-                onMouseLeave={() => setHovered(0)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onChange(star);
-                  }
-                }}
-                className={`transition-transform ${compact ? 'hover:scale-105' : 'hover:scale-110'} focus:outline-none focus:ring-2 focus:ring-warning rounded-sm`}
-              >
-                <Star
-                  className={`${dim} ${active ? 'fill-yellow-400 text-yellow-400' : 'fill-transparent text-muted-foreground/50'}`}
-                  strokeWidth={2}
-                />
-              </button>
-            );
-          })}
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white flex items-center justify-center p-4">
+        <Motion.div 
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="max-w-md w-full bg-slate-800/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-green-500"></div>
+          <div className="mx-auto w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 ring-4 ring-emerald-500/10">
+            <CheckCircle className="w-10 h-10 text-emerald-400" />
+          </div>
+          <h2 className="text-3xl font-bold text-white mb-2">Thank You!</h2>
+          <p className="text-zinc-400 mb-8">Your feedback helps us serve you better. We hope to see you again soon!</p>
+          <button
+            onClick={() => navigate('/')}
+            className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-semibold transition-all border border-white/10"
+          >
+            Return to Home
+          </button>
+        </Motion.div>
       </div>
     );
-  };
+  }
+
+  // Check if payment is completed - if so, hide back button
+  const paymentCompleted = sessionStorage.getItem('payment_completed') === 'true';
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white font-sans selection:bg-orange-500/30 flex flex-col">
       {/* Header */}
-      <header className="bg-card border-b border-border">
-        <div className="mx-auto w-full max-w-3xl px-4 py-6">
-          <h1 className="text-3xl font-bold tracking-tight">Share Your Feedback</h1>
-          <p className="text-lg text-muted-foreground">We'd love to hear from you!</p>
+      <header className="sticky top-0 z-40 bg-gradient-to-b from-slate-950/95 via-slate-950/90 to-transparent backdrop-blur-2xl border-b border-white/5">
+        <div className="mx-auto w-full max-w-2xl px-4 py-4 flex items-center gap-4">
+          {/* Only show back button if payment is not completed */}
+          {!paymentCompleted && (
+            <button 
+              onClick={() => navigate(-1)}
+              className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-white transition-all"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <h1 className="text-xl font-bold">Feedback</h1>
         </div>
       </header>
 
-      {/* Content */}
-      <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card-minimal bg-card p-6 sm:p-8"
+      <main className="flex-1 flex items-center justify-center p-4">
+        <Motion.div 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="w-full max-w-lg"
         >
-          <form onSubmit={handleSubmit}>
-            {/* Overall Experience */}
-            <div className="mb-8 text-center">
-              <h2 className="text-3xl font-bold text-foreground/90 mb-2">How was your experience?</h2>
-              <p className="text-base text-muted-foreground mb-6">Rate your overall experience</p>
-              <div className="flex justify-center gap-2 mb-2">
-                <StarRow
-                  value={rating}
-                  onChange={setRating}
-                  size="lg"
-                  idPrefix="overall"
+          <div className="bg-slate-800/50 backdrop-blur-xl border border-white/10 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+            {/* Background Glow */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+
+            <div className="text-center mb-10">
+              <h2 className="text-3xl font-bold text-white mb-3">Rate your experience</h2>
+              <p className="text-zinc-400">How was your meal at Taj Restaurant?</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Overall Star Rating */}
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex gap-2 sm:gap-4">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      onMouseEnter={() => setHoveredRating(star)}
+                      onMouseLeave={() => setHoveredRating(0)}
+                      className="group relative focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`w-10 h-10 sm:w-12 sm:h-12 transition-all duration-300 ${
+                          star <= (hoveredRating || rating)
+                            ? 'fill-orange-500 text-orange-500 drop-shadow-[0_0_10px_rgba(249,115,22,0.5)]'
+                            : 'text-zinc-600 fill-transparent group-hover:text-zinc-500'
+                        }`}
+                        strokeWidth={1.5}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <p className="h-6 text-sm font-medium text-orange-400 transition-opacity duration-300">
+                  {hoveredRating === 1 && "Terrible 😞"}
+                  {hoveredRating === 2 && "Bad 😕"}
+                  {hoveredRating === 3 && "Okay 😐"}
+                  {hoveredRating === 4 && "Good 🙂"}
+                  {hoveredRating === 5 && "Excellent! 🤩"}
+                  {!hoveredRating && rating > 0 && (
+                    rating === 1 ? "Terrible 😞" :
+                    rating === 2 ? "Bad 😕" :
+                    rating === 3 ? "Okay 😐" :
+                    rating === 4 ? "Good 🙂" : "Excellent! 🤩"
+                  )}
+                </p>
+              </div>
+
+              {/* Item Ratings */}
+              {orderItems.length > 0 && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-px flex-1 bg-white/10"></div>
+                    <span className="text-sm font-medium text-zinc-400">Rate Items</span>
+                    <div className="h-px flex-1 bg-white/10"></div>
+                  </div>
+                  <div className="space-y-3">
+                    {orderItems.map((item) => (
+                      <div key={item.menu_item_id} className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10">
+                        <div className="flex-1 min-w-0 mr-4">
+                          <p className="text-sm font-medium text-white truncate">{item.name}</p>
+                          <p className="text-xs text-zinc-500">Qty: {item.quantity}</p>
+                        </div>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setItemRating(item.menu_item_id, star)}
+                              className="focus:outline-none transition-transform hover:scale-110"
+                            >
+                              <Star
+                                className={`w-5 h-5 transition-colors ${
+                                  star <= (itemRatings[item.menu_item_id] || 0)
+                                    ? 'fill-amber-400 text-amber-400'
+                                    : 'text-zinc-600 fill-transparent'
+                                }`}
+                                strokeWidth={1.5}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Comment Box */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-orange-400" />
+                  Additional Comments (Optional)
+                </label>
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Tell us what you liked or how we can improve..."
+                  rows={4}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder:text-zinc-600 focus:outline-none focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 transition-all resize-none"
                 />
               </div>
-            </div>
 
-            <div className="border-t border-border my-6" />
-
-            {/* Per-item Ratings (compact inline rows) */}
-            {orderItems && orderItems.length > 0 && (
-              <div className="mb-6">
-                <p className="text-xs text-muted-foreground mb-2">
-                  Items from your current visit (all orders at this table)
-                </p>
-                <ul className="divide-y divide-border">
-                  {orderItems.map((it, idx) => (
-                    <li key={it.menu_item_id || idx} className="flex items-center justify-between py-2">
-                      <span className="text-sm font-medium text-foreground truncate pr-3">
-                        {it.name}
-                        <span className="text-muted-foreground ml-1">× {it.quantity}</span>
-                      </span>
-                      {it.menu_item_id ? (
-                        <StarRow
-                          value={itemRatings[it.menu_item_id] || 0}
-                          onChange={(v) => setItemRating(it.menu_item_id, v)}
-                          size="sm"
-                          compact
-                          align="end"
-                        />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">N/A</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Service Quality (compact inline row, label slightly larger than item name) */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between py-2">
-                <span className="text-base font-semibold text-foreground">Service quality</span>
-                <StarRow value={serviceQuality} onChange={setServiceQuality} size="sm" />
-              </div>
-            </div>
-
-            <div className="border-t border-border my-6" />
-
-            {/* Comments */}
-            <div className="mb-6">
-              <label htmlFor="feedback-comments" className="block text-lg font-semibold mb-2">
-                Comments <span className="text-muted-foreground text-sm font-normal">(Optional)</span>
-              </label>
-              <textarea
-                id="feedback-comments"
-                name="comments"
-                value={comment}
-                onChange={(e) => setComment(e.target.value.slice(0, 500))}
-                placeholder="Tell us more about your experience..."
-                className="w-full min-h-32 px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-warning resize-none"
-                maxLength={500}
-              />
-              <p className="text-sm text-muted-foreground mt-1">{comment.length}/500 characters</p>
-            </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting || rating === 0}
-              className={`w-full h-14 inline-flex items-center justify-center gap-2 rounded-lg text-lg font-semibold transition-colors ${
-                isSubmitting || rating === 0
-                  ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                  : 'bg-warning text-background hover:bg-warning/90'
-              }`}
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Send className="w-5 h-5" />
-                  Submit Feedback
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="mt-8 text-center text-muted-foreground">
-            Your feedback helps us serve you better! 🙏
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isSubmitting || rating === 0}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold text-lg shadow-lg shadow-orange-500/30 hover:shadow-orange-500/40 hover:from-orange-600 hover:to-amber-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <LoadingSpinner size="sm" color="white" />
+                ) : (
+                  <>
+                    Submit Feedback
+                    <Send className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+            </form>
           </div>
-        </motion.section>
+        </Motion.div>
       </main>
     </div>
   );

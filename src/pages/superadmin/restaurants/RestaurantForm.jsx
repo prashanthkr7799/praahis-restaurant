@@ -12,12 +12,13 @@ const RestaurantForm = () => {
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
-    subscription_status: 'trial',
+    subscription_status: 'trial', // This is for UI only, stored in subscriptions table
     max_users: 10,
     max_tables: 20,
     max_menu_items: 100,
     is_active: true,
   });
+  const [subscriptionId, setSubscriptionId] = useState(null); // Track subscription ID for updates
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(isEditMode);
 
@@ -27,18 +28,35 @@ const RestaurantForm = () => {
       if (!restaurantId) return;
       
       try {
+        // Fetch restaurant with subscription data
         const { data, error } = await supabaseOwner
           .from('restaurants')
-          .select('*')
+          .select(`
+            *,
+            subscriptions (
+              id,
+              status,
+              plan_name
+            )
+          `)
           .eq('id', restaurantId)
           .single();
 
         if (error) throw error;
 
+        // Get subscription status from subscriptions table
+        const subscription = Array.isArray(data.subscriptions) 
+          ? data.subscriptions[0] 
+          : data.subscriptions;
+        
+        if (subscription?.id) {
+          setSubscriptionId(subscription.id);
+        }
+
         setFormData({
           name: data.name || '',
           slug: data.slug || '',
-          subscription_status: data.subscription_status || 'trial',
+          subscription_status: subscription?.status || 'trial', // Get from subscriptions table
           max_users: data.max_users || 10,
           max_tables: data.max_tables || 20,
           max_menu_items: data.max_menu_items || 100,
@@ -68,30 +86,57 @@ const RestaurantForm = () => {
 
     try {
       if (isEditMode) {
-        // Update existing restaurant
+        // Update existing restaurant (don't include subscription_status - it's in subscriptions table)
         const { error } = await supabaseOwner
           .from('restaurants')
           .update({
             name: formData.name,
             slug: formData.slug,
-            subscription_status: formData.subscription_status,
             max_users: formData.max_users,
             max_tables: formData.max_tables,
             max_menu_items: formData.max_menu_items,
             is_active: formData.is_active,
+            updated_at: new Date().toISOString(),
           })
           .eq('id', restaurantId);
 
         if (error) throw error;
 
+        // Update subscription status in subscriptions table
+        if (subscriptionId) {
+          const { error: subError } = await supabaseOwner
+            .from('subscriptions')
+            .update({
+              status: formData.subscription_status,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', subscriptionId);
+
+          if (subError) {
+            console.error('Failed to update subscription:', subError);
+            // Don't throw - restaurant update succeeded
+          }
+        } else {
+          // Create subscription if none exists
+          await supabaseOwner.from('subscriptions').insert([{
+            restaurant_id: restaurantId,
+            plan_name: 'Per-Table Plan',
+            status: formData.subscription_status,
+            price_per_table: 75,
+            current_period_start: new Date().toISOString(),
+          }]);
+        }
+
         toast.success('Restaurant updated successfully');
         navigate(`/superadmin/restaurants/${restaurantId}`);
       } else {
-        // Create new restaurant
+        // Create new restaurant (exclude subscription_status - it goes in subscriptions table)
+        const { subscription_status, ...restaurantData } = formData;
+        
         const { data, error } = await supabaseOwner
           .from('restaurants')
           .insert([{
-            ...formData,
+            ...restaurantData,
             slug: formData.slug || generateSlug(formData.name)
           }])
           .select()
@@ -99,28 +144,24 @@ const RestaurantForm = () => {
 
         if (error) throw error;
 
-        // Unified subscription: 3-day trial → ₹35,000/month + ₹5,000 setup
-        const isTrial = formData.subscription_status === 'trial';
+        // Unified subscription: 3-day trial → ₹75/table/day
+        const isTrial = subscription_status === 'trial';
         const trialDays = 3; // Unified: 3-day trial
         const billingDays = 30; // Monthly billing cycle
         
         const currentDate = new Date();
         const subscriptionEndDate = new Date(currentDate.getTime() + (isTrial ? trialDays : billingDays) * 24 * 60 * 60 * 1000);
 
-        // Create subscription record with unified pricing
+        // Create subscription record with per-table pricing
         await supabaseOwner.from('subscriptions').insert([{
           restaurant_id: data.id,
-          plan_name: 'unified', // Single unified plan
+          plan_name: 'Per-Table Plan',
           status: isTrial ? 'trial' : 'active',
-          price: 35000, // ₹35,000/month (unified pricing)
-          billing_cycle: 'monthly',
+          price_per_table: 75, // ₹75/table/day
           current_period_start: currentDate.toISOString(),
           current_period_end: isTrial ? null : subscriptionEndDate.toISOString(),
           trial_ends_at: isTrial ? subscriptionEndDate.toISOString() : null,
-          setup_fee_paid: !isTrial, // Setup fee required for paid subscriptions
-          max_users: formData.max_users,
-          max_tables: formData.max_tables,
-          max_menu_items: formData.max_menu_items,
+          next_billing_date: subscriptionEndDate.toISOString(),
         }]);
 
         toast.success('Restaurant created successfully');
