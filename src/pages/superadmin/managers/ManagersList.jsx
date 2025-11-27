@@ -138,20 +138,26 @@ const ManagersList = () => {
       return;
     }
 
+    if (!formData.restaurant_id) {
+      toast.error('Please select a restaurant');
+      return;
+    }
+
     try {
       // First check if email already exists in users table
-      const { data: existingUser, error: checkError } = await supabaseOwner
+      const { data: existingUsers, error: checkError } = await supabaseOwner
         .from('users')
         .select('id, email')
         .eq('email', formData.email)
-        .single();
+        .limit(1);
 
-      if (checkError && checkError.code !== 'PGRST116') {
+      if (checkError) {
         throw checkError;
       }
 
       // If user already exists in database, just update them
-      if (existingUser) {
+      if (existingUsers && existingUsers.length > 0) {
+        const existingUser = existingUsers[0];
         const { error: updateError } = await supabaseOwner
           .from('users')
           .update({
@@ -173,19 +179,22 @@ const ManagersList = () => {
         return;
       }
 
-      // Otherwise, create new auth user (will be auto-confirmed by database trigger)
+      // Otherwise, create new auth user using signUp (will be auto-confirmed by database trigger)
       const { data: authData, error: authError } = await supabaseOwner.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
             full_name: formData.name
-          },
-          emailRedirectTo: undefined // Prevent confirmation email
+          }
         }
       });
 
       if (authError) throw authError;
+      
+      if (!authData?.user?.id) {
+        throw new Error('Failed to create auth user - no user ID returned');
+      }
 
       // Then create user record in public.users with the new auth user ID
       const { error: userError } = await supabaseOwner
@@ -294,27 +303,19 @@ const ManagersList = () => {
   };
 
   const handleResetPassword = async (managerId, managerEmail) => {
-    const newPassword = prompt(`Enter new password for ${managerEmail} (min 6 characters):`);
-    
-    if (!newPassword) return;
-    
-    if (newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
-      return;
-    }
+    if (!confirm(`Send password reset email to ${managerEmail}?`)) return;
 
     try {
-      const { error } = await supabaseOwner.auth.admin.updateUserById(
-        managerId,
-        { password: newPassword }
-      );
+      const { error } = await supabaseOwner.auth.resetPasswordForEmail(managerEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
 
       if (error) throw error;
 
-      toast.success('Password reset successfully');
+      toast.success(`Password reset email sent to ${managerEmail}`);
     } catch (error) {
-      console.error('Error resetting password:', error);
-      toast.error(error.message || 'Failed to reset password');
+      console.error('Error sending password reset:', error);
+      toast.error(error.message || 'Failed to send password reset email');
     }
   };
 
