@@ -196,21 +196,47 @@ const ManagersList = () => {
         throw new Error('Failed to create auth user - no user ID returned');
       }
 
-      // Then create user record in public.users with the new auth user ID
-      const { error: userError } = await supabaseOwner
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          name: formData.name,
-          full_name: formData.name,
-          email: formData.email,
-          phone: formData.phone || null,
-          restaurant_id: formData.restaurant_id,
-          role: formData.role,
-          is_active: formData.is_active,
+      console.log('Auth user created with ID:', authData.user.id);
+
+      // Use RPC function to create user profile (bypasses RLS issues)
+      const { data: insertedUser, error: userError } = await supabaseOwner
+        .rpc('owner_create_manager', {
+          p_id: authData.user.id,
+          p_email: formData.email,
+          p_full_name: formData.name,
+          p_phone: formData.phone || null,
+          p_restaurant_id: formData.restaurant_id,
+          p_role: formData.role,
+          p_is_active: formData.is_active,
         });
 
-      if (userError) throw userError;
+      if (userError) {
+        console.error('Failed to create manager profile:', userError);
+        // If RPC doesn't exist, fall back to direct insert
+        if (userError.message?.includes('function') || userError.code === '42883') {
+          console.log('RPC not found, trying direct insert...');
+          const { error: directError } = await supabaseOwner
+            .from('users')
+            .insert({
+              id: authData.user.id,
+              name: formData.name,
+              full_name: formData.name,
+              email: formData.email,
+              phone: formData.phone || null,
+              restaurant_id: formData.restaurant_id,
+              role: formData.role,
+              is_active: formData.is_active,
+            });
+          
+          if (directError) {
+            throw new Error(`Failed to create manager profile: ${directError.message}`);
+          }
+        } else {
+          throw new Error(`Failed to create manager profile: ${userError.message}`);
+        }
+      }
+
+      console.log('Manager profile created:', insertedUser);
 
       toast.success('Manager added successfully');
       setShowAddModal(false);
