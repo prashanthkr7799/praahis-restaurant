@@ -222,12 +222,14 @@ const RestaurantFormModal = ({ isOpen, onClose, restaurant = null, onSuccess }) 
           });
           if (authError) { toast.error(`Manager creation failed: ${authError.message}`); }
           else if (authData?.user) {
-            await supabaseOwner.from('profiles').insert([{
+            const { error: userError } = await supabaseOwner.from('users').insert([{
               id: authData.user.id, email: formData.manager_email.trim(),
-              full_name: formData.manager_name.trim(), phone: formData.manager_phone.trim() || null,
-              role: 'Manager', restaurant_id: newRestaurant.id, is_active: true,
+              full_name: formData.manager_name.trim(), name: formData.manager_name.trim(),
+              phone: formData.manager_phone.trim() || null,
+              role: 'manager', restaurant_id: newRestaurant.id, is_active: true,
             }]);
-            toast.success('Manager account created!');
+            if (userError) { toast.error(`Manager profile creation failed: ${userError.message}`); }
+            else { toast.success('Manager account created!'); }
           }
         }
         toast.success(`Restaurant created with ${trialDays}-day trial!`);
