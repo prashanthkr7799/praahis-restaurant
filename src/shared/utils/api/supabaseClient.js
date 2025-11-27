@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getActiveRestaurantId } from '@/lib/restaurantContextStore';
-import { handleAuthError } from '@/shared/utils/helpers/authErrorHandler';
+import { handleAuthError, clearAllSessions } from '@/shared/utils/helpers/authErrorHandler';
 import { logger } from '@/shared/utils/helpers/logger';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -54,6 +54,37 @@ export const supabase = globalAny.__supabase_manager__ ?? (
     },
   }))
 );
+
+// Listen for auth errors and handle invalid refresh tokens automatically
+supabase.auth.onAuthStateChange((event, _session) => {
+  if (event === 'TOKEN_REFRESHED') {
+    logger.info('✅ Token refreshed successfully');
+  }
+  if (event === 'SIGNED_OUT') {
+    logger.info('🔒 User signed out');
+  }
+});
+
+// Handle auth errors globally - catch invalid refresh tokens
+const originalRefresh = supabase.auth._refreshAccessToken?.bind(supabase.auth);
+if (originalRefresh) {
+  supabase.auth._refreshAccessToken = async (...args) => {
+    try {
+      return await originalRefresh(...args);
+    } catch (error) {
+      if (error?.message?.includes('Refresh Token Not Found') || 
+          error?.message?.includes('Invalid Refresh Token')) {
+        logger.warn('⚠️ Invalid refresh token - clearing sessions');
+        clearAllSessions();
+        // Redirect to login after clearing
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+          window.location.href = '/auth/login';
+        }
+      }
+      throw error;
+    }
+  };
+}
 
 /**
  * Wrapper to handle authentication errors in Supabase responses
