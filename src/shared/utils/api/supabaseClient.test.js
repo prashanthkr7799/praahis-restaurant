@@ -47,6 +47,9 @@ vi.mock('@supabase/supabase-js', () => {
     auth: {
       getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
       signOut: vi.fn(() => Promise.resolve({ error: null })),
+      onAuthStateChange: vi.fn(() => ({
+        data: { subscription: { unsubscribe: vi.fn() } },
+      })),
     },
     _mockChain: mockChain, // Expose for tests
     _createChainMock: createChainMock, // Expose for tests

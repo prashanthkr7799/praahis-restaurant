@@ -217,19 +217,44 @@ const RestaurantFormModal = ({ isOpen, onClose, restaurant = null, onSuccess }) 
         }]);
 
         if (formData.manager_email && formData.manager_password) {
-          const { data: authData, error: authError } = await supabaseOwner.auth.admin.createUser({
-            email: formData.manager_email.trim(), password: formData.manager_password, email_confirm: true,
+          // Use signUp instead of admin.createUser (admin requires service role key)
+          const { data: authData, error: authError } = await supabaseOwner.auth.signUp({
+            email: formData.manager_email.trim(),
+            password: formData.manager_password,
+            options: {
+              data: {
+                full_name: formData.manager_name.trim()
+              }
+            }
           });
-          if (authError) { toast.error(`Manager creation failed: ${authError.message}`); }
-          else if (authData?.user) {
-            const { error: userError } = await supabaseOwner.from('users').insert([{
-              id: authData.user.id, email: formData.manager_email.trim(),
-              full_name: formData.manager_name.trim(), name: formData.manager_name.trim(),
-              phone: formData.manager_phone.trim() || null,
-              role: 'manager', restaurant_id: newRestaurant.id, is_active: true,
-            }]);
-            if (userError) { toast.error(`Manager profile creation failed: ${userError.message}`); }
-            else { toast.success('Manager account created!'); }
+          
+          if (authError) { 
+            toast.error(`Manager creation failed: ${authError.message}`); 
+          } else if (authData?.user?.id) {
+            // Check if user needs email confirmation (identities will be empty)
+            const needsConfirmation = !authData.user.identities || authData.user.identities.length === 0;
+            
+            // Use RPC function to create user profile (bypasses RLS issues)
+            const { error: userError } = await supabaseOwner.rpc('owner_create_manager', {
+              p_id: authData.user.id,
+              p_email: formData.manager_email.trim(),
+              p_full_name: formData.manager_name.trim(),
+              p_phone: formData.manager_phone.trim() || null,
+              p_restaurant_id: newRestaurant.id,
+              p_role: 'manager',
+              p_is_active: true,
+            });
+            
+            if (userError) { 
+              console.error('Manager profile error:', userError);
+              toast.error(`Manager profile creation failed: ${userError.message}`); 
+            } else { 
+              if (needsConfirmation) {
+                toast.success('Manager account created! Email confirmation sent.');
+              } else {
+                toast.success('Manager account created!'); 
+              }
+            }
           }
         }
         toast.success(`Restaurant created with ${trialDays}-day trial!`);
