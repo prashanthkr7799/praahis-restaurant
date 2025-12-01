@@ -2,8 +2,48 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   X, Upload, Building2, Loader, User, Key, CreditCard, 
   ChevronRight, ChevronLeft, Check, AlertCircle, Eye, EyeOff,
-  Mail, Phone, MapPin, Hash, Zap, Shield, Sparkles, Crown, CheckCircle2
+  Mail, Phone, MapPin, Hash, Zap, Shield, Sparkles, Crown, CheckCircle2,
+  Smartphone, Wallet, Link2
 } from 'lucide-react';
+
+// Payment Gateway Configuration
+const PAYMENT_GATEWAYS = [
+  { 
+    id: 'razorpay', 
+    name: 'Razorpay', 
+    icon: CreditCard,
+    color: 'blue',
+    description: 'Popular in India. Supports UPI, cards, wallets.',
+    fields: [
+      { key: 'razorpay_key_id', label: 'Key ID', placeholder: 'rzp_live_xxxxxxxxxxxx', hint: 'Starts with rzp_live_ or rzp_test_' },
+      { key: 'razorpay_key_secret', label: 'Key Secret', placeholder: '••••••••••••••••', secret: true },
+      { key: 'razorpay_webhook_secret', label: 'Webhook Secret', placeholder: '••••••••••••••••', secret: true, optional: true, hint: 'For webhook verification' },
+    ]
+  },
+  { 
+    id: 'phonepe', 
+    name: 'PhonePe', 
+    icon: Smartphone,
+    color: 'purple',
+    description: 'UPI-first payments. Great for mobile users.',
+    fields: [
+      { key: 'phonepe_merchant_id', label: 'Merchant ID', placeholder: 'MERCHANTUAT' },
+      { key: 'phonepe_salt_key', label: 'Salt Key', placeholder: '••••••••••••••••', secret: true },
+      { key: 'phonepe_salt_index', label: 'Salt Index', placeholder: '1', hint: 'Usually 1' },
+    ]
+  },
+  { 
+    id: 'paytm', 
+    name: 'Paytm', 
+    icon: Wallet,
+    color: 'cyan',
+    description: 'Paytm wallet + all payment modes.',
+    fields: [
+      { key: 'paytm_merchant_id', label: 'Merchant ID', placeholder: 'YOUR_MID' },
+      { key: 'paytm_merchant_key', label: 'Merchant Key', placeholder: '••••••••••••••••', secret: true },
+    ]
+  }
+];
 import { supabaseOwner } from '@/shared/utils/api/supabaseOwnerClient';
 import { useToast } from '@/shared/components/superadmin/useToast';
 
@@ -62,7 +102,14 @@ const RestaurantFormModal = ({ isOpen, onClose, restaurant = null, onSuccess }) 
     manager_password: '', manager_confirm_password: '',
     pricing_type: 'per_table', price_per_table: RATE_PER_TABLE_PER_DAY.toString(),
     custom_monthly_amount: '', trial_days: '3',
+    // Payment Gateway Selection
+    active_gateway: 'razorpay',
+    // Razorpay
     razorpay_key_id: '', razorpay_key_secret: '', razorpay_webhook_secret: '',
+    // PhonePe
+    phonepe_merchant_id: '', phonepe_salt_key: '', phonepe_salt_index: '1',
+    // Paytm
+    paytm_merchant_id: '', paytm_merchant_key: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -85,9 +132,19 @@ const RestaurantFormModal = ({ isOpen, onClose, restaurant = null, onSuccess }) 
         pricing_type: subscription?.price_per_table ? 'per_table' : 'custom',
         price_per_table: pricePerTable.toString(),
         custom_monthly_amount: subscription?.price?.toString() || '',
+        // Payment Gateway
+        active_gateway: paymentSettings.active_gateway || 'razorpay',
+        // Razorpay
         razorpay_key_id: paymentSettings.razorpay_key_id || '',
         razorpay_key_secret: paymentSettings.razorpay_key_secret || '',
         razorpay_webhook_secret: paymentSettings.razorpay_webhook_secret || '',
+        // PhonePe
+        phonepe_merchant_id: paymentSettings.phonepe_merchant_id || '',
+        phonepe_salt_key: paymentSettings.phonepe_salt_key || '',
+        phonepe_salt_index: paymentSettings.phonepe_salt_index || '1',
+        // Paytm
+        paytm_merchant_id: paymentSettings.paytm_merchant_id || '',
+        paytm_merchant_key: paymentSettings.paytm_merchant_key || '',
       }));
       setLogoPreview(restaurant.logo_url || null);
       setStepCompleted({ 1: true, 2: true, 3: true, 4: true });
@@ -181,9 +238,18 @@ const RestaurantFormModal = ({ isOpen, onClose, restaurant = null, onSuccess }) 
         max_menu_items: parseInt(formData.max_menu_items), max_users: parseInt(formData.max_users),
         logo_url: logoPreview, is_active: true,
         payment_settings: {
+          active_gateway: formData.active_gateway || 'razorpay',
+          // Razorpay
           razorpay_key_id: formData.razorpay_key_id.trim() || null,
           razorpay_key_secret: formData.razorpay_key_secret.trim() || null,
           razorpay_webhook_secret: formData.razorpay_webhook_secret.trim() || null,
+          // PhonePe
+          phonepe_merchant_id: formData.phonepe_merchant_id.trim() || null,
+          phonepe_salt_key: formData.phonepe_salt_key.trim() || null,
+          phonepe_salt_index: formData.phonepe_salt_index.trim() || '1',
+          // Paytm
+          paytm_merchant_id: formData.paytm_merchant_id.trim() || null,
+          paytm_merchant_key: formData.paytm_merchant_key.trim() || null,
         },
       };
 
@@ -494,32 +560,107 @@ const RestaurantFormModal = ({ isOpen, onClose, restaurant = null, onSuccess }) 
 
           {currentStep === 4 && (
             <div className="space-y-6">
-              <div className="p-4 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-xl border border-blue-500/20">
+              {/* Gateway Selector */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {PAYMENT_GATEWAYS.map((gateway) => {
+                  const Icon = gateway.icon;
+                  const isSelected = formData.active_gateway === gateway.id;
+                  const colorClasses = {
+                    blue: { selected: 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20', badge: 'bg-blue-500/20 text-blue-400', icon: 'text-blue-400' },
+                    purple: { selected: 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20', badge: 'bg-purple-500/20 text-purple-400', icon: 'text-purple-400' },
+                    cyan: { selected: 'border-cyan-500 bg-cyan-500/10 shadow-lg shadow-cyan-500/20', badge: 'bg-cyan-500/20 text-cyan-400', icon: 'text-cyan-400' },
+                  };
+                  const colors = colorClasses[gateway.color];
+                  
+                  return (
+                    <button
+                      key={gateway.id}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, active_gateway: gateway.id }))}
+                      disabled={loading}
+                      className={`p-4 rounded-xl border-2 text-left transition-all ${
+                        isSelected ? colors.selected : 'border-white/10 bg-slate-800/30 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <Icon className={`h-6 w-6 ${isSelected ? colors.icon : 'text-slate-400'}`} />
+                        {isSelected && (
+                          <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${colors.badge}`}>
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-white font-semibold">{gateway.name}</h4>
+                      <p className="text-slate-400 text-xs mt-1">{gateway.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Gateway Configuration */}
+              {PAYMENT_GATEWAYS.map((gateway) => {
+                if (formData.active_gateway !== gateway.id) return null;
+                const Icon = gateway.icon;
+                const colorClasses = {
+                  blue: 'from-blue-500/10 to-indigo-500/10 border-blue-500/20',
+                  purple: 'from-purple-500/10 to-pink-500/10 border-purple-500/20',
+                  cyan: 'from-cyan-500/10 to-teal-500/10 border-cyan-500/20',
+                };
+                const iconColors = { blue: 'text-blue-400', purple: 'text-purple-400', cyan: 'text-cyan-400' };
+                
+                return (
+                  <div key={gateway.id} className="space-y-4">
+                    <div className={`p-4 bg-gradient-to-r ${colorClasses[gateway.color]} rounded-xl border`}>
+                      <div className="flex items-start gap-3">
+                        <Shield className={`h-5 w-5 ${iconColors[gateway.color]} mt-0.5 flex-shrink-0`} />
+                        <div>
+                          <h4 className="text-white font-medium">{gateway.name} Configuration</h4>
+                          <p className="text-slate-400 text-sm mt-1">Enter your {gateway.name} API credentials. Securely encrypted.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-5 bg-slate-800/30 rounded-xl border border-white/5 space-y-5">
+                      {gateway.fields.map((field) => (
+                        <div key={field.key} className="relative">
+                          <InputField
+                            label={field.label}
+                            name={field.key}
+                            type={field.secret && !showSecrets ? 'password' : 'text'}
+                            value={formData[field.key] || ''}
+                            onChange={handleChange}
+                            error={errors[field.key]}
+                            icon={Key}
+                            placeholder={field.placeholder}
+                            hint={field.hint || (field.optional ? 'Optional' : undefined)}
+                            disabled={loading}
+                          />
+                          {field.secret && (
+                            <button
+                              type="button"
+                              onClick={() => setShowSecrets(!showSecrets)}
+                              className="absolute right-3 top-9 text-slate-400 hover:text-white transition-colors"
+                            >
+                              {showSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Help Note */}
+              <div className="p-4 bg-slate-800/50 rounded-xl border border-white/5">
                 <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 text-blue-400 mt-0.5 flex-shrink-0" />
+                  <AlertCircle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-white font-medium">Razorpay Payment Gateway</h4>
-                    <p className="text-slate-400 text-sm mt-1">Configure API keys for payment processing. Securely encrypted.</p>
+                    <p className="text-slate-300 text-sm">Payment gateway can be configured later from restaurant settings.</p>
+                    <p className="text-slate-500 text-xs mt-1">You can skip this step and set up payments after restaurant creation.</p>
                   </div>
                 </div>
               </div>
-
-              <div className="p-5 bg-slate-800/30 rounded-xl border border-white/5 space-y-5">
-                <InputField label="Razorpay Key ID" name="razorpay_key_id" value={formData.razorpay_key_id} onChange={handleChange} error={errors.razorpay_key_id} icon={Key} placeholder="rzp_live_xxxxxxxxxxxx" hint="Starts with rzp_live_ or rzp_test_" disabled={loading} />
-                <div className="relative">
-                  <InputField label="Razorpay Key Secret" name="razorpay_key_secret" type={showSecrets ? 'text' : 'password'} value={formData.razorpay_key_secret} onChange={handleChange} icon={Key} placeholder="••••••••••••••••" disabled={loading} />
-                  <button type="button" onClick={() => setShowSecrets(!showSecrets)} className="absolute right-3 top-9 text-slate-400 hover:text-white transition-colors">
-                    {showSecrets ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                <InputField label="Webhook Secret" name="razorpay_webhook_secret" type={showSecrets ? 'text' : 'password'} value={formData.razorpay_webhook_secret} onChange={handleChange} icon={Key} placeholder="••••••••••••••••" hint="Optional - For webhook verification" disabled={loading} />
-              </div>
-
-              {!formData.razorpay_key_id && (
-                <div className="p-4 bg-slate-800/50 rounded-xl border border-white/5 text-center">
-                  <p className="text-slate-400 text-sm"><AlertCircle className="inline h-4 w-4 mr-1 text-amber-400" />Payment keys can be configured later from settings.</p>
-                </div>
-              )}
             </div>
           )}
         </div>
