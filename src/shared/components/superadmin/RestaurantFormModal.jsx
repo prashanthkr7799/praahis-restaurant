@@ -217,6 +217,9 @@ const RestaurantFormModal = ({ isOpen, onClose, restaurant = null, onSuccess }) 
         }]);
 
         if (formData.manager_email && formData.manager_password) {
+          // Save current owner session before signUp (signUp will create a new session)
+          const { data: currentSession } = await supabaseOwner.auth.getSession();
+          
           // Use signUp instead of admin.createUser (admin requires service role key)
           const { data: authData, error: authError } = await supabaseOwner.auth.signUp({
             email: formData.manager_email.trim(),
@@ -227,6 +230,11 @@ const RestaurantFormModal = ({ isOpen, onClose, restaurant = null, onSuccess }) 
               }
             }
           });
+          
+          // Restore owner session immediately after signUp
+          if (currentSession?.session) {
+            await supabaseOwner.auth.setSession(currentSession.session);
+          }
           
           if (authError) { 
             toast.error(`Manager creation failed: ${authError.message}`); 
