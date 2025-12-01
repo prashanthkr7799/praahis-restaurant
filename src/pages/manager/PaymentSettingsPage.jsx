@@ -5,6 +5,7 @@ import useRestaurant from '@/shared/hooks/useRestaurant';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 import { logger } from '@shared/utils/helpers/logger';
+import PaymentGatewayConfig from '@/domains/billing/components/PaymentGatewayConfig';
 
 export default function PaymentSettingsPage() {
   const navigate = useNavigate();
@@ -264,12 +265,26 @@ export default function PaymentSettingsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl mx-auto p-6 space-y-8">
+      {/* Multi-Gateway Configuration - NEW */}
+      <PaymentGatewayConfig 
+        restaurantId={restaurantId} 
+        onUpdate={fetchPaymentSettings}
+      />
+
+      {/* Legacy Razorpay-specific settings below (for advanced configuration) */}
+      <div className="border-t border-gray-700 pt-8">
+        <h2 className="text-xl font-semibold text-gray-200 mb-4">Advanced Razorpay Settings</h2>
+        <p className="text-gray-400 text-sm mb-6">
+          Additional Razorpay-specific configuration options. These apply only when Razorpay is selected as your payment provider.
+        </p>
+      </div>
+
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-100 dark:text-white mb-2">
-            Payment Settings
+          <h1 className="text-2xl font-bold text-gray-100 dark:text-white mb-2">
+            Razorpay Configuration
           </h1>
           <p className="text-gray-400 dark:text-gray-400">
             Connect Razorpay to accept online payments. Use test keys while trying things out.

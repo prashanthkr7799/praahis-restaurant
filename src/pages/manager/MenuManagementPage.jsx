@@ -87,7 +87,11 @@ const MenuManagement = () => {
         .order('name', { ascending: true });
 
       if (error) throw error;
-      setMenuItems(data || []);
+      const normalized = (data || []).map((item) => ({
+        ...item,
+        is_veg: item.is_veg ?? item.is_vegetarian ?? false,
+      }));
+      setMenuItems(normalized);
     } catch (error) {
       console.error('Error loading menu items:', error);
       toast.error('Failed to load menu items');

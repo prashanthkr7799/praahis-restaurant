@@ -19,7 +19,7 @@ import toast from 'react-hot-toast';
 
 const KitchenTab = () => {
   const { menuItems, refreshKitchen, stats, loading } = useRealtimeOrders();
-  useRestaurant();
+  const { restaurantId } = useRestaurant();
 
   // Local state
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
@@ -331,6 +331,7 @@ const KitchenTab = () => {
           isOpen={showEditMenuModal}
           onClose={() => setShowEditMenuModal(false)}
           item={selectedMenuItem}
+          restaurantId={restaurantId}
           onUpdate={handleMenuItemUpdated}
         />
       )}
@@ -339,6 +340,7 @@ const KitchenTab = () => {
         <AddMenuItemModal
           isOpen={showAddMenuModal}
           onClose={() => setShowAddMenuModal(false)}
+          restaurantId={restaurantId}
           onAdd={handleMenuItemAdded}
         />
       )}

@@ -137,7 +137,11 @@ export const RealtimeOrderProvider = ({ children }) => {
         .order('name');
 
       if (error) throw error;
-      setMenuItems(data || []);
+      const normalized = (data || []).map((item) => ({
+        ...item,
+        is_veg: item.is_veg ?? item.is_vegetarian ?? false,
+      }));
+      setMenuItems(normalized);
     } catch (error) {
       console.error('Error refreshing menu:', error);
     }

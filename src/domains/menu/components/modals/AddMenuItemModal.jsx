@@ -192,7 +192,6 @@ const AddMenuItemModal = ({ isOpen, onClose, restaurantId, onItemAdded, onAdd })
             price: parseFloat(formData.price),
             preparation_time: formData.preparationTime ? parseInt(formData.preparationTime) : null,
             is_vegetarian: formData.isVegetarian,
-            is_veg: formData.isVegetarian,
             is_available: formData.isAvailable,
             image_url: formData.imageUrl || null,
             description: formData.description || null,

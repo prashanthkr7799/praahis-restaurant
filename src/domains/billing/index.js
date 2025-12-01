@@ -10,6 +10,7 @@
 // export { default as SubscriptionExpiryBanner } from './components/SubscriptionExpiryBanner';
 // export { default as SubscriptionExpiredScreen } from './components/SubscriptionExpiredScreen';
 // export { default as BillingWarningCard } from './components/BillingWarningCard';
+export { default as PaymentGatewayConfig } from './components/PaymentGatewayConfig';
 
 // Hooks
 // export { default as useSubscriptionCheck } from './hooks/useSubscriptionCheck';
@@ -21,6 +22,7 @@
 // Utils
 // export * from './utils/subscriptionPaymentHelper';
 // export * from './utils/razorpayHelper';
+export * from './utils/paymentGateway';
 
 // Events
 export { BILLING_EVENTS } from './events';

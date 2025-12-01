@@ -24,6 +24,7 @@ import SaaSFooter from '@/shared/components/landing/SaaSFooter'
 const TablePage = lazy(() => import('@/pages/customer/TablePage'))
 const LegacyCustomerMenuRedirect = lazy(() => import('@/pages/customer/LegacyCustomerMenuRedirect'))
 const PaymentPage = lazy(() => import('@/pages/customer/PaymentPage'))
+const PaymentCallbackPage = lazy(() => import('@/pages/customer/PaymentCallbackPage'))
 const OrderStatusPage = lazy(() => import('@/pages/customer/OrderStatusPage'))
 const PostMealOptions = lazy(() => import('@/pages/customer/PostMealOptions'))
 const FeedbackPage = lazy(() => import('@/pages/customer/FeedbackPage'))
@@ -128,6 +129,7 @@ const App = () => {
             <Route path="/customer/menu/:restaurantId/:tableId" element={<LegacyCustomerMenuRedirect />} />
             <Route path="/menu/:restaurantId" element={<LegacyCustomerMenuRedirect />} />
             <Route path="/payment/:orderId" element={<PaymentPage />} />
+            <Route path="/payment-callback" element={<PaymentCallbackPage />} />
             <Route path="/order-status/:orderId" element={<OrderStatusPage />} />
             
             {/* Session-based routes */}
