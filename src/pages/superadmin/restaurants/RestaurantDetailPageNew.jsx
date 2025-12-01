@@ -75,8 +75,7 @@ const RestaurantDetailPageNew = () => {
             end_date,
             trial_ends_at,
             price,
-            price_per_table,
-            billing_cycle
+            price_per_table
           )
         `)
         .eq('id', restaurantId)
