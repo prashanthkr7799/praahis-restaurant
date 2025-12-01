@@ -576,16 +576,120 @@ const StaffTab = ({ restaurantId }) => {
 // ============================================================================
 // ORDERS TAB
 // ============================================================================
-const OrdersTab = ({ restaurantId: _restaurantId }) => {
+const OrdersTab = ({ restaurantId }) => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        let query = supabaseOwner
+          .from('orders')
+          .select('*')
+          .eq('restaurant_id', restaurantId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        
+        if (filter !== 'all') {
+          query = query.eq('status', filter);
+        }
+        
+        const { data } = await query;
+        setOrders(data || []);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchOrders();
+  }, [restaurantId, filter]);
+
+  const getStatusColor = (status) => {
+    const colors = {
+      pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+      confirmed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+      preparing: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+      ready: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+      served: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+      completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+      cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-700';
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="animate-pulse flex items-center gap-4 p-4 border border-gray-700 rounded-lg">
+              <div className="h-10 w-10 bg-gray-700 rounded" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-32 bg-gray-700 rounded" />
+                <div className="h-3 w-48 bg-gray-700 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <div className="text-center py-12">
-        <ShoppingBag className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <p className="text-gray-500 dark:text-gray-400">Orders history coming soon</p>
-        <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-          View order statistics and history
-        </p>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-white">Recent Orders ({orders.length})</h3>
+        <select 
+          value={filter} 
+          onChange={(e) => setFilter(e.target.value)}
+          className="px-3 py-2 bg-slate-800 border border-white/10 rounded-lg text-white text-sm"
+        >
+          <option value="all">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="preparing">Preparing</option>
+          <option value="ready">Ready</option>
+          <option value="served">Served</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
       </div>
+      
+      {orders.length === 0 ? (
+        <div className="text-center py-12">
+          <ShoppingBag className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-400">No orders found</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {orders.map((order) => (
+            <div key={order.id} className="flex items-center gap-4 p-4 border border-white/10 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="h-10 w-10 rounded-lg bg-slate-700 flex items-center justify-center">
+                <Receipt className="h-5 w-5 text-slate-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-white">#{order.order_number || order.id.slice(0, 8)}</p>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(order.status)}`}>
+                    {order.status}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-400 mt-1">
+                  {new Date(order.created_at).toLocaleString()} • Table {order.table_number || 'N/A'}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold text-emerald-400">₹{(order.total_amount || order.total || 0).toLocaleString()}</p>
+                <p className="text-xs text-slate-500">{order.payment_status || 'pending'}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 };
@@ -593,16 +697,83 @@ const OrdersTab = ({ restaurantId: _restaurantId }) => {
 // ============================================================================
 // TABLES TAB
 // ============================================================================
-const TablesTab = ({ restaurantId: _restaurantId }) => {
+const TablesTab = ({ restaurantId }) => {
+  const [tables, setTables] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTables = async () => {
+      try {
+        setLoading(true);
+        const { data } = await supabaseOwner
+          .from('tables')
+          .select('*')
+          .eq('restaurant_id', restaurantId)
+          .order('table_number', { ascending: true });
+        
+        setTables(data || []);
+      } catch (error) {
+        console.error('Error fetching tables:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchTables();
+  }, [restaurantId]);
+
+  const getStatusColor = (status) => {
+    const colors = {
+      available: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      occupied: 'bg-red-500/20 text-red-400 border-red-500/30',
+      reserved: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      inactive: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
+    };
+    return colors[status] || colors.available;
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="animate-pulse h-32 bg-gray-700 rounded-xl" />
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <div className="text-center py-12">
-        <Utensils className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <p className="text-gray-500 dark:text-gray-400">Tables management coming soon</p>
-        <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-          View and manage restaurant tables
-        </p>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-white">Tables ({tables.length})</h3>
+        <div className="flex gap-2 text-xs">
+          <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded">Available: {tables.filter(t => t.status === 'available').length}</span>
+          <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded">Occupied: {tables.filter(t => t.status === 'occupied').length}</span>
+        </div>
       </div>
+      
+      {tables.length === 0 ? (
+        <div className="text-center py-12">
+          <Utensils className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-400">No tables configured</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {tables.map((table) => (
+            <div 
+              key={table.id} 
+              className={`p-4 rounded-xl border ${getStatusColor(table.status)} text-center transition-all hover:scale-105`}
+            >
+              <Utensils className="h-6 w-6 mx-auto mb-2 opacity-70" />
+              <p className="font-bold text-lg">T{table.table_number}</p>
+              <p className="text-xs opacity-70 capitalize">{table.status || 'available'}</p>
+              <p className="text-xs opacity-50 mt-1">{table.capacity || 4} seats</p>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 };
@@ -610,16 +781,93 @@ const TablesTab = ({ restaurantId: _restaurantId }) => {
 // ============================================================================
 // LOGS TAB
 // ============================================================================
-const LogsTab = ({ restaurantId: _restaurantId }) => {
+const LogsTab = ({ restaurantId }) => {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        // Try to fetch from audit_logs table if it exists
+        const { data, error } = await supabaseOwner
+          .from('audit_logs')
+          .select('*')
+          .eq('restaurant_id', restaurantId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        
+        if (error) {
+          // If audit_logs doesn't exist, show empty state
+          console.log('Audit logs table may not exist:', error);
+          setLogs([]);
+        } else {
+          setLogs(data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching logs:', error);
+        setLogs([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchLogs();
+  }, [restaurantId]);
+
+  const getActionColor = (action) => {
+    if (action?.includes('create') || action?.includes('add')) return 'text-emerald-400';
+    if (action?.includes('update') || action?.includes('edit')) return 'text-blue-400';
+    if (action?.includes('delete') || action?.includes('remove')) return 'text-red-400';
+    return 'text-slate-400';
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="animate-pulse flex items-center gap-4 p-3 border border-gray-700 rounded-lg">
+              <div className="h-8 w-8 bg-gray-700 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-48 bg-gray-700 rounded" />
+                <div className="h-2 w-32 bg-gray-700 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card>
-      <div className="text-center py-12">
-        <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <p className="text-gray-500 dark:text-gray-400">Activity logs coming soon</p>
-        <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-          View audit trail and activity logs
-        </p>
-      </div>
+      <h3 className="text-lg font-semibold text-white mb-4">Activity Logs</h3>
+      
+      {logs.length === 0 ? (
+        <div className="text-center py-12">
+          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-400">No activity logs available</p>
+          <p className="text-sm text-gray-500 mt-2">Activity will be recorded here as actions are performed</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {logs.map((log) => (
+            <div key={log.id} className="flex items-start gap-3 p-3 border border-white/5 rounded-lg hover:bg-white/5 transition-colors">
+              <div className="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                <FileText className={`h-4 w-4 ${getActionColor(log.action)}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`font-medium ${getActionColor(log.action)}`}>{log.action || 'Action'}</p>
+                <p className="text-sm text-slate-400 truncate">{log.description || log.details || 'No details'}</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {new Date(log.created_at).toLocaleString()} {log.user_email && `• ${log.user_email}`}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 };
@@ -627,17 +875,109 @@ const LogsTab = ({ restaurantId: _restaurantId }) => {
 // ============================================================================
 // SETTINGS TAB
 // ============================================================================
-const SettingsTab = ({ restaurant: _restaurant, onUpdate: _onUpdate }) => {
+const SettingsTab = ({ restaurant, onUpdate }) => {
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+
+  const handleToggleActive = async () => {
+    try {
+      setSaving(true);
+      const { error } = await supabaseOwner
+        .from('restaurants')
+        .update({ is_active: !restaurant.is_active })
+        .eq('id', restaurant.id);
+      
+      if (error) throw error;
+      toast.success(`Restaurant ${restaurant.is_active ? 'deactivated' : 'activated'}`);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Error updating restaurant:', error);
+      toast.error('Failed to update restaurant');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <Card>
-      <div className="text-center py-12">
-        <SettingsIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <p className="text-gray-500 dark:text-gray-400">Settings management coming soon</p>
-        <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-          Configure restaurant settings and preferences
-        </p>
-      </div>
-    </Card>
+    <div className="space-y-6">
+      {/* Restaurant Status */}
+      <Card>
+        <h3 className="text-lg font-semibold text-white mb-4">Restaurant Status</h3>
+        <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-white/10">
+          <div>
+            <p className="font-medium text-white">Active Status</p>
+            <p className="text-sm text-slate-400">
+              {restaurant.is_active ? 'Restaurant is currently active and accepting orders' : 'Restaurant is deactivated'}
+            </p>
+          </div>
+          <button
+            onClick={handleToggleActive}
+            disabled={saving}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              restaurant.is_active 
+                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
+                : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+            }`}
+          >
+            {saving ? 'Saving...' : restaurant.is_active ? 'Deactivate' : 'Activate'}
+          </button>
+        </div>
+      </Card>
+
+      {/* Payment Settings */}
+      <Card>
+        <h3 className="text-lg font-semibold text-white mb-4">Payment Gateway</h3>
+        <div className="p-4 bg-slate-800/50 rounded-xl border border-white/10">
+          <div className="flex items-center gap-3">
+            <CreditCard className="h-8 w-8 text-blue-400" />
+            <div>
+              <p className="font-medium text-white">
+                {restaurant.payment_settings?.active_gateway 
+                  ? restaurant.payment_settings.active_gateway.charAt(0).toUpperCase() + restaurant.payment_settings.active_gateway.slice(1)
+                  : 'Not Configured'}
+              </p>
+              <p className="text-sm text-slate-400">
+                {restaurant.payment_settings?.razorpay_key_id || restaurant.payment_settings?.phonepe_merchant_id || restaurant.payment_settings?.paytm_merchant_id
+                  ? 'Payment gateway is configured'
+                  : 'No payment gateway configured'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Limits */}
+      <Card>
+        <h3 className="text-lg font-semibold text-white mb-4">Restaurant Limits</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="p-4 bg-slate-800/50 rounded-xl border border-white/10 text-center">
+            <p className="text-2xl font-bold text-emerald-400">{restaurant.max_tables || 20}</p>
+            <p className="text-sm text-slate-400">Max Tables</p>
+          </div>
+          <div className="p-4 bg-slate-800/50 rounded-xl border border-white/10 text-center">
+            <p className="text-2xl font-bold text-blue-400">{restaurant.max_menu_items || 100}</p>
+            <p className="text-sm text-slate-400">Max Menu Items</p>
+          </div>
+          <div className="p-4 bg-slate-800/50 rounded-xl border border-white/10 text-center">
+            <p className="text-2xl font-bold text-purple-400">{restaurant.max_users || 10}</p>
+            <p className="text-sm text-slate-400">Max Staff</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Danger Zone */}
+      <Card>
+        <h3 className="text-lg font-semibold text-red-400 mb-4">Danger Zone</h3>
+        <div className="p-4 bg-red-500/10 rounded-xl border border-red-500/20">
+          <p className="text-sm text-slate-400 mb-3">
+            Deleting a restaurant will permanently remove all associated data including orders, staff, and menu items.
+          </p>
+          <button className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg font-medium hover:bg-red-500/30 transition-colors">
+            Delete Restaurant
+          </button>
+        </div>
+      </Card>
+    </div>
   );
 };
 
