@@ -60,6 +60,8 @@ const RestaurantDetailPageNew = () => {
   const fetchRestaurant = React.useCallback(async () => {
     try {
       setLoading(true);
+      
+      console.log('Fetching restaurant with ID:', restaurantId);
 
       const { data, error } = await supabaseOwner
         .from('restaurants')
@@ -80,7 +82,19 @@ const RestaurantDetailPageNew = () => {
         .eq('id', restaurantId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
+      if (!data) {
+        console.error('No restaurant found with ID:', restaurantId);
+        toast.error('Restaurant not found');
+        navigate('/superadmin/restaurants');
+        return;
+      }
+
+      console.log('Restaurant data:', data);
 
       // Handle subscription - could be array or object
       let subscription = data.subscriptions;
@@ -95,11 +109,19 @@ const RestaurantDetailPageNew = () => {
       });
     } catch (error) {
       console.error('Error fetching restaurant:', error);
-      toast.error('Failed to load restaurant details');
+      if (error.code === 'PGRST116') {
+        toast.error('Restaurant not found');
+        navigate('/superadmin/restaurants');
+      } else if (error.message?.includes('JWT')) {
+        toast.error('Session expired. Please login again.');
+        navigate('/superadmin/login');
+      } else {
+        toast.error('Failed to load restaurant details: ' + (error.message || 'Unknown error'));
+      }
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, toast]);
+  }, [restaurantId, toast, navigate]);
 
   useEffect(() => {
     if (restaurantId) {
