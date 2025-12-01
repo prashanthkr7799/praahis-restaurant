@@ -40,6 +40,67 @@ const ProfessionalSuperAdminLayout = () => {
   const [profileOpen, setProfileOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchOpen, setSearchOpen] = useState(false);
+  
+  // Real counts from database
+  const [sidebarStats, setSidebarStats] = useState({
+    restaurantCount: 0,
+    pendingBillingCount: 0,
+    activeCount: 0,
+    monthlyRevenue: 0,
+  });
+
+  // Fetch real sidebar stats
+  useEffect(() => {
+    const fetchSidebarStats = async () => {
+      try {
+        // Get restaurant count
+        const { count: restaurantCount } = await supabaseOwner
+          .from('restaurants')
+          .select('*', { count: 'exact', head: true });
+
+        // Get active subscriptions count
+        const { count: activeCount } = await supabaseOwner
+          .from('subscriptions')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'active');
+
+        // Get pending/expiring subscriptions (grace period - next 7 days)
+        const sevenDaysFromNow = new Date();
+        sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+        const { count: pendingCount } = await supabaseOwner
+          .from('subscriptions')
+          .select('*', { count: 'exact', head: true })
+          .lte('end_date', sevenDaysFromNow.toISOString())
+          .gte('end_date', new Date().toISOString());
+
+        // Get this month's revenue
+        const firstOfMonth = new Date();
+        firstOfMonth.setDate(1);
+        firstOfMonth.setHours(0, 0, 0, 0);
+        const { data: payments } = await supabaseOwner
+          .from('payments')
+          .select('amount')
+          .gte('created_at', firstOfMonth.toISOString())
+          .eq('status', 'completed');
+
+        const monthlyRevenue = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+
+        setSidebarStats({
+          restaurantCount: restaurantCount || 0,
+          pendingBillingCount: pendingCount || 0,
+          activeCount: activeCount || 0,
+          monthlyRevenue,
+        });
+      } catch (error) {
+        console.error('Error fetching sidebar stats:', error);
+      }
+    };
+
+    fetchSidebarStats();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchSidebarStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Live clock
   useEffect(() => {
@@ -49,9 +110,9 @@ const ProfessionalSuperAdminLayout = () => {
 
   const navigationItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/superadmin', badge: null },
-    { icon: Building2, label: 'Restaurants', path: '/superadmin/restaurants', badge: '12' },
+    { icon: Building2, label: 'Restaurants', path: '/superadmin/restaurants', badge: sidebarStats.restaurantCount > 0 ? String(sidebarStats.restaurantCount) : null },
     { icon: Users, label: 'Managers', path: '/superadmin/managers', badge: null },
-    { icon: CreditCard, label: 'Billing', path: '/superadmin/billing', badge: '3' },
+    { icon: CreditCard, label: 'Billing', path: '/superadmin/billing', badge: sidebarStats.pendingBillingCount > 0 ? String(sidebarStats.pendingBillingCount) : null },
     { icon: Download, label: 'Data Export', path: '/superadmin/export', badge: null },
     { icon: FileText, label: 'Audit Logs', path: '/superadmin/audit', badge: null },
     { icon: HardDrive, label: 'Backups', path: '/superadmin/backups', badge: null },
@@ -163,15 +224,15 @@ const ProfessionalSuperAdminLayout = () => {
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                   <div>
-                    <div className="text-lg font-bold text-white">12</div>
+                    <div className="text-lg font-bold text-white">{sidebarStats.activeCount}</div>
                     <div className="text-[10px] text-gray-500">Active</div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-amber-400">3</div>
+                    <div className="text-lg font-bold text-amber-400">{sidebarStats.pendingBillingCount}</div>
                     <div className="text-[10px] text-gray-500">Pending</div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-emerald-400">₹2.4L</div>
+                    <div className="text-lg font-bold text-emerald-400">₹{sidebarStats.monthlyRevenue >= 100000 ? `${(sidebarStats.monthlyRevenue / 100000).toFixed(1)}L` : sidebarStats.monthlyRevenue.toLocaleString('en-IN')}</div>
                     <div className="text-[10px] text-gray-500">Revenue</div>
                   </div>
                 </div>

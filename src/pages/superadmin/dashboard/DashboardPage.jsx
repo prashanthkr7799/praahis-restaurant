@@ -219,7 +219,7 @@ const SuperAdminDashboardPage = () => {
   const [stats, setStats] = useState({
     totalRestaurants: 0,
     activeRestaurants: 0,
-    totalUsers: 0,
+    totalStaff: 0,
     activeSubscriptions: 0,
     totalManagers: 0,
     restaurantsTrend: 0,
@@ -255,7 +255,7 @@ const SuperAdminDashboardPage = () => {
       // Fetch restaurant statistics
       const { data: restaurants, error: restaurantsError } = await supabaseOwner
         .from('restaurants')
-        .select('*, subscriptions(status, end_date)');
+        .select('*, subscriptions(status, end_date, current_period_end, trial_ends_at)');
 
       if (restaurantsError) throw restaurantsError;
 
@@ -266,14 +266,18 @@ const SuperAdminDashboardPage = () => {
           .length || 0;
 
       // Fetch user statistics
-      const { count: totalUsers } = await supabaseOwner
-        .from('users')
-        .select('*', { count: 'exact', head: true });
-
+      // Get managers count
       const { count: totalManagers } = await supabaseOwner
         .from('users')
         .select('*', { count: 'exact', head: true })
         .eq('role', 'manager');
+
+      // Get staff count (waiters, chefs, etc. - excluding managers and owners)
+      const { count: totalStaff } = await supabaseOwner
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .neq('role', 'manager')
+        .neq('is_owner', true);
 
       // Fetch active subscriptions
       const { count: activeSubscriptions } = await supabaseOwner
@@ -282,14 +286,33 @@ const SuperAdminDashboardPage = () => {
         .eq('status', 'active');
 
       // Calculate alerts
+      // Helper to get the relevant end date based on subscription status
+      const getSubscriptionEndDate = (sub) => {
+        if (!sub) return null;
+        // For trial subscriptions, use trial_ends_at
+        if (sub.status === 'trial' && sub.trial_ends_at) {
+          return sub.trial_ends_at;
+        }
+        // Otherwise use end_date or current_period_end
+        return sub.end_date || sub.current_period_end;
+      };
+
       const gracePeriodAlerts = restaurants?.filter((r) => {
-        const expiresAt = new Date(r.subscriptions?.[0]?.end_date);
+        const sub = r.subscriptions?.[0];
+        const endDate = getSubscriptionEndDate(sub);
+        if (!endDate) return false; // No end date = not in grace period
+        const expiresAt = new Date(endDate);
+        if (isNaN(expiresAt.getTime())) return false; // Invalid date
         const daysLeft = Math.ceil((expiresAt - new Date()) / (1000 * 60 * 60 * 24));
         return daysLeft > 0 && daysLeft <= 5;
       }).length || 0;
 
       const overdueAlerts = restaurants?.filter((r) => {
-        const expiresAt = new Date(r.subscriptions?.[0]?.end_date);
+        const sub = r.subscriptions?.[0];
+        const endDate = getSubscriptionEndDate(sub);
+        if (!endDate) return false; // No end date = not overdue
+        const expiresAt = new Date(endDate);
+        if (isNaN(expiresAt.getTime())) return false; // Invalid date
         const daysOverdue = Math.ceil((new Date() - expiresAt) / (1000 * 60 * 60 * 24));
         return daysOverdue >= 5;
       }).length || 0;
@@ -304,11 +327,11 @@ const SuperAdminDashboardPage = () => {
       setStats({
         totalRestaurants,
         activeRestaurants,
-        totalUsers: totalUsers || 0,
+        totalStaff: totalStaff || 0,
         activeSubscriptions: activeSubscriptions || 0,
         totalManagers: totalManagers || 0,
-        restaurantsTrend: 12, // Mock data - calculate from historical data
-        usersTrend: 18, // Mock data
+        restaurantsTrend: 0, // TODO: Calculate from historical data when available
+        usersTrend: 0, // TODO: Calculate from historical data when available
       });
 
       setAlerts([
@@ -362,20 +385,71 @@ const SuperAdminDashboardPage = () => {
         setRecentActivity([]);
       }
 
-      // Mock revenue data - replace with actual data
-      setRevenueData({
-        currentMRR: 5850000,
-        growth: 18,
-        projectedNext: 6903000,
-        chartData: [
-          { month: 'Jun', value: 4950000 },
-          { month: 'Jul', value: 5100000 },
-          { month: 'Aug', value: 5300000 },
-          { month: 'Sep', value: 5500000 },
-          { month: 'Oct', value: 5700000 },
-          { month: 'Nov', value: 5850000 },
-        ],
-      });
+      // Fetch real revenue data from payments table
+      try {
+        // Get last 6 months of payment data
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        
+        const { data: allPayments } = await supabaseOwner
+          .from('payments')
+          .select('amount, created_at')
+          .gte('created_at', sixMonthsAgo.toISOString())
+          .eq('status', 'completed')
+          .order('created_at', { ascending: true });
+
+        // Group payments by month
+        const monthlyRevenue = {};
+        const months = [];
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date();
+          d.setMonth(d.getMonth() - i);
+          const key = d.toLocaleString('en-US', { month: 'short' });
+          months.push(key);
+          monthlyRevenue[key] = 0;
+        }
+
+        allPayments?.forEach(payment => {
+          const month = new Date(payment.created_at).toLocaleString('en-US', { month: 'short' });
+          if (monthlyRevenue[month] !== undefined) {
+            monthlyRevenue[month] += payment.amount || 0;
+          }
+        });
+
+        const chartData = months.map(month => ({
+          month,
+          value: monthlyRevenue[month]
+        }));
+
+        // Calculate current month revenue
+        const currentMonth = new Date().toLocaleString('en-US', { month: 'short' });
+        const currentMRR = monthlyRevenue[currentMonth] || 0;
+        
+        // Calculate previous month for growth comparison
+        const prevMonthDate = new Date();
+        prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+        const prevMonth = prevMonthDate.toLocaleString('en-US', { month: 'short' });
+        const prevMRR = monthlyRevenue[prevMonth] || 0;
+        
+        const growth = prevMRR > 0 ? Math.round(((currentMRR - prevMRR) / prevMRR) * 100) : 0;
+        const projectedNext = currentMRR > 0 ? Math.round(currentMRR * (1 + growth / 100)) : 0;
+
+        setRevenueData({
+          currentMRR,
+          growth,
+          projectedNext,
+          chartData,
+        });
+      } catch (revenueError) {
+        console.error('Error fetching revenue data:', revenueError);
+        // Set empty revenue data on error
+        setRevenueData({
+          currentMRR: 0,
+          growth: 0,
+          projectedNext: 0,
+          chartData: [],
+        });
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -507,11 +581,15 @@ const SuperAdminDashboardPage = () => {
     ],
   };
 
-  // Subscription distribution chart
+  // Subscription distribution chart - using real data
+  const trialCount = 0; // TODO: Calculate from subscriptions with status='trial'
+  const graceCount = 0; // TODO: Calculate from subscriptions in grace period
+  const expiredCount = Math.max(0, stats.totalRestaurants - stats.activeRestaurants);
+  
   const subscriptionChartData = {
     labels: ['Active', 'Trial', 'Grace', 'Expired'],
     datasets: [{
-      data: [stats.activeRestaurants, 2, 1, stats.totalRestaurants - stats.activeRestaurants - 3],
+      data: [stats.activeRestaurants, trialCount, graceCount, expiredCount],
       backgroundColor: [
         'rgba(16, 185, 129, 0.8)',
         'rgba(59, 130, 246, 0.8)',
@@ -617,11 +695,10 @@ const SuperAdminDashboardPage = () => {
           color="emerald"
         />
         <AnimatedMetricCard
-          title="Total Users"
-          value={stats.totalUsers}
+          title="Staff Users"
+          value={stats.totalStaff}
           icon={Users}
-          trend={stats.usersTrend}
-          trendLabel="growth rate"
+          subtitle="Waiters, Chefs, etc."
           loading={loading}
           color="purple"
         />
@@ -711,9 +788,9 @@ const SuperAdminDashboardPage = () => {
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: 'Active', value: stats.activeRestaurants, color: 'bg-emerald-500' },
-              { label: 'Trial', value: 2, color: 'bg-blue-500' },
-              { label: 'Grace', value: 1, color: 'bg-amber-500' },
-              { label: 'Expired', value: Math.max(0, stats.totalRestaurants - stats.activeRestaurants - 3), color: 'bg-rose-500' },
+              { label: 'Trial', value: trialCount, color: 'bg-blue-500' },
+              { label: 'Grace', value: graceCount, color: 'bg-amber-500' },
+              { label: 'Expired', value: expiredCount, color: 'bg-rose-500' },
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-2 p-2 rounded-lg bg-white/5">
                 <div className={`w-3 h-3 rounded-full ${item.color}`} />
@@ -757,40 +834,6 @@ const SuperAdminDashboardPage = () => {
           <ActivityFeed activities={recentActivity} loading={loading} />
         </GlassCard>
       </div>
-
-      {/* Quick Actions */}
-      <GlassCard className="p-6" hover={false}>
-        <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { icon: Building2, label: 'Add Restaurant', path: '/superadmin/restaurants', color: 'emerald' },
-            { icon: Users, label: 'Manage Managers', path: '/superadmin/managers', color: 'blue' },
-            { icon: CreditCard, label: 'View Billing', path: '/superadmin/billing', color: 'purple' },
-            { icon: Calendar, label: 'Export Data', path: '/superadmin/export', color: 'amber' },
-          ].map((action) => {
-            const ActionIcon = action.icon;
-            return (
-              <button
-                key={action.label}
-                onClick={() => navigate(action.path)}
-                className="flex items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group"
-              >
-                <div className={`p-2 rounded-lg ${
-                  action.color === 'emerald' ? 'bg-emerald-500/20 text-emerald-400' :
-                  action.color === 'blue' ? 'bg-blue-500/20 text-blue-400' :
-                  action.color === 'purple' ? 'bg-purple-500/20 text-purple-400' :
-                  'bg-amber-500/20 text-amber-400'
-                }`}>
-                  <ActionIcon className="w-5 h-5" />
-                </div>
-                <span className="text-sm font-medium text-white group-hover:text-emerald-400 transition-colors">
-                  {action.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </GlassCard>
     </div>
   );
 };

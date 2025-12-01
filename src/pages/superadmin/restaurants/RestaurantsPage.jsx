@@ -70,6 +70,12 @@ const RestaurantsPage = () => {
   const [sortBy, setSortBy] = useState('name');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'table'
   
+  // Sync statusFilter with URL changes
+  useEffect(() => {
+    const filterFromUrl = searchParams.get('filter') || 'all';
+    setStatusFilter(filterFromUrl);
+  }, [searchParams]);
+  
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, restaurant: null });
   const [deactivateDialog, setDeactivateDialog] = useState({ isOpen: false, restaurant: null });
   const [showAddModal, setShowAddModal] = useState(false);
@@ -90,6 +96,10 @@ const RestaurantsPage = () => {
     try {
       setLoading(true);
 
+      // Debug: Check auth status
+      const { data: { user } } = await supabaseOwner.auth.getUser();
+      console.log('[RestaurantsPage] Auth user:', user?.id, user?.email);
+
       // Left join to include restaurants without subscriptions
       // Support both old (current_period_end) and new (end_date) schema
       const { data, error } = await supabaseOwner
@@ -108,6 +118,8 @@ const RestaurantsPage = () => {
           )
         `)
         .order(sortBy, { ascending: true });
+
+      console.log('[RestaurantsPage] Query result - data:', data, 'error:', error);
 
       if (error) {
         console.error('Supabase query error:', error);
@@ -149,9 +161,39 @@ const RestaurantsPage = () => {
 
       // Apply status filter
       if (statusFilter !== 'all') {
-        processedData = processedData.filter(r => r.subscriptionStatus === statusFilter);
+        if (statusFilter === 'overdue') {
+          // Filter restaurants overdue by 5+ days (past end_date)
+          processedData = processedData.filter(r => {
+            const endDate = r.subscription?.end_date || r.subscription?.current_period_end;
+            if (!endDate) return false; // No end date = not overdue (might be new/trial)
+            const daysOverdue = Math.ceil((new Date() - new Date(endDate)) / (1000 * 60 * 60 * 24));
+            return daysOverdue >= 5;
+          });
+        } else if (statusFilter === 'grace') {
+          // Filter restaurants in grace period (0-5 days past end date)
+          processedData = processedData.filter(r => {
+            const endDate = r.subscription?.end_date || r.subscription?.current_period_end;
+            if (!endDate) return false;
+            const daysPast = Math.ceil((new Date() - new Date(endDate)) / (1000 * 60 * 60 * 24));
+            return daysPast > 0 && daysPast < 5;
+          });
+        } else if (statusFilter === 'expiring') {
+          // Filter restaurants expiring soon (within next 7 days)
+          processedData = processedData.filter(r => {
+            const endDate = r.subscription?.end_date || r.subscription?.current_period_end;
+            if (!endDate) return false;
+            const daysLeft = Math.ceil((new Date(endDate) - new Date()) / (1000 * 60 * 60 * 24));
+            return daysLeft > 0 && daysLeft <= 7;
+          });
+        } else {
+          // Standard status filter
+          processedData = processedData.filter(r => r.subscriptionStatus === statusFilter);
+        }
       }
 
+      console.log('[RestaurantsPage] Final processedData:', processedData.length, 'items');
+      console.log('[RestaurantsPage] statusFilter:', statusFilter);
+      
       setRestaurants(processedData);
     } catch (error) {
       console.error('Error fetching restaurants:', error);
