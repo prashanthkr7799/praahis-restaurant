@@ -234,8 +234,11 @@ const RestaurantFormModal = ({ isOpen, onClose, restaurant = null, onSuccess }) 
             // Check if user needs email confirmation (identities will be empty)
             const needsConfirmation = !authData.user.identities || authData.user.identities.length === 0;
             
+            console.log('Creating manager profile for user:', authData.user.id);
+            console.log('Restaurant ID:', newRestaurant.id);
+            
             // Use RPC function to create user profile (bypasses RLS issues)
-            const { error: userError } = await supabaseOwner.rpc('owner_create_manager', {
+            const { data: rpcResult, error: userError } = await supabaseOwner.rpc('owner_create_manager', {
               p_id: authData.user.id,
               p_email: formData.manager_email.trim(),
               p_full_name: formData.manager_name.trim(),
@@ -244,6 +247,9 @@ const RestaurantFormModal = ({ isOpen, onClose, restaurant = null, onSuccess }) 
               p_role: 'manager',
               p_is_active: true,
             });
+            
+            console.log('RPC Result:', rpcResult);
+            console.log('RPC Error:', userError);
             
             if (userError) { 
               console.error('Manager profile error:', userError);
