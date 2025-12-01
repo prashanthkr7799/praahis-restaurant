@@ -49,12 +49,51 @@ export const signIn = async (email, password) => {
 
     if (error) throw error;
 
-    // Update last login
+    // Update last login or create profile if missing
     if (data.user) {
-      await supabase
+      // Check if user profile exists
+      const { data: existingProfile, error: profileCheckError } = await supabase
         .from('users')
-        .update({ last_login: new Date().toISOString() })
-        .eq('id', data.user.id);
+        .select('id, restaurant_id')
+        .eq('id', data.user.id)
+        .maybeSingle();
+      
+      if (!profileCheckError && existingProfile) {
+        // Profile exists, just update last login
+        await supabase
+          .from('users')
+          .update({ last_login: new Date().toISOString() })
+          .eq('id', data.user.id);
+      } else if (!existingProfile) {
+        // Profile missing - try to create from auth metadata
+        const metadata = data.user.user_metadata || {};
+        const fullName = metadata.full_name || metadata.name || email.split('@')[0];
+        const role = metadata.role || 'manager';
+        const restaurantId = metadata.restaurant_id || null;
+        
+        console.log('Creating missing profile for user:', data.user.id, { fullName, role, restaurantId });
+        
+        // Try direct insert (may fail due to RLS, but worth trying)
+        const { error: insertError } = await supabase
+          .from('users')
+          .upsert({
+            id: data.user.id,
+            email: data.user.email,
+            full_name: fullName,
+            role: role,
+            restaurant_id: restaurantId,
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            last_login: new Date().toISOString(),
+          }, { onConflict: 'id' });
+        
+        if (insertError) {
+          console.warn('Could not auto-create profile (may need manual fix):', insertError.message);
+        } else {
+          console.log('Auto-created missing user profile successfully');
+        }
+      }
     }
 
     return { data, error: null };
