@@ -6,7 +6,7 @@ import {
   Radio
 } from 'lucide-react';
 import { supabase } from '@shared/utils/api/supabaseClient';
-import { useRealtimeOrders } from '@/shared/context/RealtimeOrderContext';
+import { useRealtimeOrders } from '@/shared/contexts/RealtimeOrderContext';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
 import StaffCard from '@domains/staff/components/StaffCard';
 import ComplaintsPanel from '@domains/complaints/components/ComplaintsPanel';

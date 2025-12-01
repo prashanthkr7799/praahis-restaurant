@@ -15,7 +15,7 @@ import {
   ShoppingBag,
   Activity
 } from 'lucide-react';
-import { useRealtimeOrders } from '@/shared/context/RealtimeOrderContext';
+import { useRealtimeOrders } from '@/shared/contexts/RealtimeOrderContext';
 import EnhancedStatCard from './StatCard';
 import QuickAction from './QuickAction';
 import SubscriptionBox from './SubscriptionBox';

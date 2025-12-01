@@ -11,7 +11,7 @@ import {
   Drumstick
 } from 'lucide-react';
 import { supabase } from '@shared/utils/api/supabaseClient';
-import { useRealtimeOrders } from '@/shared/context/RealtimeOrderContext';
+import { useRealtimeOrders } from '@/shared/contexts/RealtimeOrderContext';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
 import EditMenuItemModal from '@domains/menu/components/modals/EditMenuItemModal';
 import AddMenuItemModal from '@domains/menu/components/modals/AddMenuItemModal';

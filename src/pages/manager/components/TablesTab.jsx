@@ -8,7 +8,7 @@ import {
   Edit
 } from 'lucide-react';
 import { supabase } from '@shared/utils/api/supabaseClient';
-import { useRealtimeOrders } from '@/shared/context/RealtimeOrderContext';
+import { useRealtimeOrders } from '@/shared/contexts/RealtimeOrderContext';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
 import TableCard from '@domains/tables/components/TableCard';
 import TableListItem from '@domains/tables/components/TableListItem';

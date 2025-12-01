@@ -16,7 +16,7 @@ import {
   Printer,
   ChevronDown
 } from 'lucide-react';
-import { RealtimeOrderProvider, useRealtimeOrders } from '@/shared/context/RealtimeOrderContext';
+import { RealtimeOrderProvider, useRealtimeOrders } from '@/shared/contexts/RealtimeOrderContext';
 import { useRestaurant } from '@/shared/hooks/useRestaurant';
 import { getCurrentUser, signOut } from '@shared/utils/auth/auth';
 import notificationService from '@/domains/notifications/utils/notificationService';
