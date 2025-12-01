@@ -3,20 +3,42 @@
  * Functions to export data to CSV, PDF, Excel formats
  */
 
-import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import Papa from 'papaparse';
 
 /**
+ * Force download a blob
+ */
+const forceDownload = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  // Cleanup
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
+};
+
+/**
  * Export data to CSV
  */
 export const exportToCSV = (data, filename = 'export.csv') => {
   try {
+    if (!data || data.length === 0) {
+      console.warn('No data to export');
+      return { success: false, error: 'No data to export' };
+    }
     const csv = Papa.unparse(data);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    saveAs(blob, filename);
+    forceDownload(blob, filename);
+    console.log('CSV exported:', filename);
     return { success: true };
   } catch (error) {
     console.error('CSV export error:', error);
@@ -29,10 +51,19 @@ export const exportToCSV = (data, filename = 'export.csv') => {
  */
 export const exportToExcel = (data, filename = 'export.xlsx', sheetName = 'Sheet1') => {
   try {
+    if (!data || data.length === 0) {
+      console.warn('No data to export');
+      return { success: false, error: 'No data to export' };
+    }
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    XLSX.writeFile(workbook, filename);
+    
+    // Use writeFile with browser download
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    forceDownload(blob, filename);
+    console.log('Excel exported:', filename);
     return { success: true };
   } catch (error) {
     console.error('Excel export error:', error);
@@ -45,6 +76,10 @@ export const exportToExcel = (data, filename = 'export.xlsx', sheetName = 'Sheet
  */
 export const exportToPDF = (data, columns, filename = 'export.pdf', title = 'Report') => {
   try {
+    if (!data || data.length === 0) {
+      console.warn('No data to export');
+      return { success: false, error: 'No data to export' };
+    }
     const doc = new jsPDF();
 
     // Add title
@@ -61,7 +96,7 @@ export const exportToPDF = (data, columns, filename = 'export.pdf', title = 'Rep
       body: data.map((row) =>
         columns.map((col) => {
           const value = col.accessor ? col.accessor(row) : row[col.field];
-          return value !== undefined && value !== null ? value.toString() : '';
+          return value !== undefined && value !== null ? String(value) : '';
         })
       ),
       startY: 35,
@@ -70,6 +105,7 @@ export const exportToPDF = (data, columns, filename = 'export.pdf', title = 'Rep
     });
 
     doc.save(filename);
+    console.log('PDF exported:', filename);
     return { success: true };
   } catch (error) {
     console.error('PDF export error:', error);

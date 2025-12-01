@@ -64,25 +64,41 @@ const DataExportPage = () => {
     setExporting(true);
     try {
       const data = {};
+      let hasData = false;
+      
       for (const id of selectedTypes) {
         const t = types.find(x => x.id === id);
         let q = supabaseOwner.from(t.table).select('*');
         if (selectedRestaurant !== 'all') {
           q = id === 'restaurants' ? q.eq('id', selectedRestaurant) : q.eq('restaurant_id', selectedRestaurant);
         }
-        const { data: rows } = await q;
+        const { data: rows, error } = await q;
+        if (error) {
+          console.error(`Error fetching ${id}:`, error);
+          toast.error(`Failed to fetch ${t.label}`);
+        }
         data[id] = rows || [];
+        if (rows && rows.length > 0) hasData = true;
       }
+      
+      if (!hasData) {
+        toast.error('No data found to export. Try selecting different data types or restaurant.');
+        setExporting(false);
+        return;
+      }
+      
       const name = selectedRestaurant === 'all' ? 'all' : restaurants.find(r => r.id === selectedRestaurant)?.name || 'data';
       const baseFilename = 'praahis-' + name.toLowerCase().replace(/\s+/g, '-') + '-' + new Date().toISOString().split('T')[0];
       const total = Object.values(data).reduce((s, a) => s + a.length, 0);
+      let filesExported = 0;
 
       // Export based on format
       if (exportFormat === 'excel') {
         // For Excel, export each data type as a separate sheet or file
         for (const [key, rows] of Object.entries(data)) {
           if (rows.length > 0) {
-            exportToExcel(rows, `${baseFilename}-${key}.xlsx`, key);
+            const result = exportToExcel(rows, `${baseFilename}-${key}.xlsx`, key);
+            if (result.success) filesExported++;
           }
         }
       } else if (exportFormat === 'pdf') {
@@ -90,14 +106,16 @@ const DataExportPage = () => {
         for (const [key, rows] of Object.entries(data)) {
           if (rows.length > 0) {
             const columns = Object.keys(rows[0]).slice(0, 6).map(k => ({ header: k.replace(/_/g, ' ').toUpperCase(), field: k }));
-            exportToPDF(rows, columns, `${baseFilename}-${key}.pdf`, `${key.replace(/_/g, ' ').toUpperCase()} Report`);
+            const result = exportToPDF(rows, columns, `${baseFilename}-${key}.pdf`, `${key.replace(/_/g, ' ').toUpperCase()} Report`);
+            if (result.success) filesExported++;
           }
         }
       } else if (exportFormat === 'csv') {
         // For CSV, export each data type separately
         for (const [key, rows] of Object.entries(data)) {
           if (rows.length > 0) {
-            exportToCSV(rows, `${baseFilename}-${key}.csv`);
+            const result = exportToCSV(rows, `${baseFilename}-${key}.csv`);
+            if (result.success) filesExported++;
           }
         }
       } else {
@@ -106,15 +124,24 @@ const DataExportPage = () => {
         const content = JSON.stringify(data, null, 2);
         const blob = new Blob([content], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
-        URL.revokeObjectURL(url);
+        const a = document.createElement('a'); 
+        a.style.display = 'none';
+        a.href = url; 
+        a.download = filename; 
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+        filesExported = 1;
       }
 
-      const h = [{ id: Date.now(), filename: baseFilename + '.' + exportFormat, records: total, date: new Date().toISOString() }, ...history.slice(0, 19)];
+      const h = [{ id: Date.now(), filename: baseFilename + '.' + exportFormat, records: total, files: filesExported, date: new Date().toISOString() }, ...history.slice(0, 19)];
       setHistory(h);
       localStorage.setItem('exportHistory', JSON.stringify(h));
-      toast.success('Exported ' + total + ' records');
-    } catch (e) { toast.error('Export failed'); console.error(e); }
+      toast.success(`Exported ${total} records in ${filesExported} file(s)`);
+    } catch (e) { toast.error('Export failed: ' + e.message); console.error(e); }
     finally { setExporting(false); }
   };
 
