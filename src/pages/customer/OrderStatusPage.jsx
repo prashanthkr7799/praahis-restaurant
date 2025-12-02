@@ -143,7 +143,7 @@ const OrderStatusPage = () => {
         }
       });
 
-      // Also setup polling as fallback (every 10 seconds to reduce load)
+      // Also setup polling as fallback (every 5 seconds for better UX)
       pollingInterval = setInterval(async () => {
         try {
           const updatedOrder = await getOrder(orderId);
@@ -166,7 +166,7 @@ const OrderStatusPage = () => {
           console.error('❌ Polling error:', pollError);
           // Don't set error state on polling failures
         }
-      }, 10000); // Poll every 10 seconds
+      }, 5000); // Poll every 5 seconds
 
       return () => {
         if (subscription && subscription.unsubscribe) {
@@ -179,7 +179,7 @@ const OrderStatusPage = () => {
     } catch (subError) {
       console.error('⚠️ Realtime subscription failed, using polling only:', subError);
       
-      // Setup polling only
+      // Setup polling only (5 seconds for responsive UX)
       pollingInterval = setInterval(async () => {
         try {
           const updatedOrder = await getOrder(orderId);
@@ -202,7 +202,7 @@ const OrderStatusPage = () => {
           console.error('❌ Polling error:', pollError);
           // Don't set error state on polling failures
         }
-      }, 10000); // Poll every 10 seconds
+      }, 5000); // Poll every 5 seconds
 
       return () => {
         if (pollingInterval) {
