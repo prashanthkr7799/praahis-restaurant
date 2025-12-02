@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabaseOwner } from '@/shared/utils/api/supabaseOwnerClient';
+import { supabaseOwner } from '@shared/services/api/ownerApi';
 import { NOTIFICATION_TYPES, NotificationContext } from './notificationTypes';
 
 /**

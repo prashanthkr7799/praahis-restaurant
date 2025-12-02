@@ -6,12 +6,12 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { getCurrentUser } from '@shared/utils/auth/auth';
-import { hasPermission, getDashboardRoute } from '@shared/utils/permissions/permissions';
+import { getCurrentUser } from '@features/auth/services/authService';
+import { hasPermission, getDashboardRoute } from '@shared/utils/permissions';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
-import { useRestaurant } from '@/shared/hooks/useRestaurant';
-import { supabase } from '@shared/utils/api/supabaseClient';
-import { logger } from '@shared/utils/helpers/logger';
+import { useRestaurant } from '@shared/hooks/useRestaurant';
+import { supabase } from '@config/supabase';
+import { logger } from '@shared/utils/logger';
 import toast from 'react-hot-toast';
 
 const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = [], requireRestaurant = true }) => {

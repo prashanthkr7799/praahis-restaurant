@@ -9,7 +9,7 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import ManagerHeader from './ManagerHeader';
 // SIDEBAR REMOVED - Removed import: import ManagerSidebar from './ManagerSidebar';
-import { getCurrentUser } from '@shared/utils/auth/auth';
+import { getCurrentUser } from '@features/auth/services/authService';
 
 const ManagerLayout = () => {
   const [currentUser, setCurrentUser] = useState(null);

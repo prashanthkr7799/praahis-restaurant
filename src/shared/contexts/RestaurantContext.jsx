@@ -1,10 +1,10 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from '@shared/utils/api/supabaseClient';
-import { getCurrentUser } from '@shared/utils/auth/auth';
+import { supabase } from '@config/supabase';
+import { getCurrentUser } from '@features/auth/services/authService';
 import {
   setRestaurantContext as setRuntimeRestaurant,
   clearRestaurantContext as clearRuntimeRestaurant,
-} from '@/lib/restaurantContextStore';
+} from '@shared/services/restaurantContextStore';
 
 const LS_KEY = 'praahis_restaurant_ctx';
 

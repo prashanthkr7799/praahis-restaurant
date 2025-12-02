@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { getCurrentOwnerUser as getCurrentUser } from '@shared/utils/auth/authOwner';
+import { getCurrentOwnerUser as getCurrentUser } from '@features/auth/utils/authHelpers';
 import LoadingSpinner from '@shared/components/feedback/LoadingSpinner';
 
 const ProtectedOwnerRoute = ({ children }) => {

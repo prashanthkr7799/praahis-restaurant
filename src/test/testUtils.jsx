@@ -10,7 +10,7 @@ import { BrowserRouter, MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
 
 // Mock Supabase
-vi.mock('@/shared/utils/api/supabaseClient', () => ({
+vi.mock('@config/supabase', () => ({
   supabase: {
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
@@ -61,7 +61,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 // Mock notification service
-vi.mock('@/domains/notifications/utils/notificationService', () => ({
+vi.mock('@features/notifications/services/notificationService', () => ({
   default: {
     playSound: vi.fn(),
     showToast: vi.fn(),

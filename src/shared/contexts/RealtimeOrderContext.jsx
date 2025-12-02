@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase } from '@shared/utils/api/supabaseClient';
-import { useRestaurant } from '@/shared/hooks/useRestaurant';
-import { logger } from '@/shared/utils/helpers/logger';
+import { supabase } from '@config/supabase';
+import { useRestaurant } from '@shared/hooks/useRestaurant';
+import { logger } from '@shared/utils/logger';
 import toast from 'react-hot-toast';
 
 const RealtimeOrderContext = createContext();

@@ -10,9 +10,9 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useRestaurant } from '@/shared/hooks/useRestaurant';
-import NotificationBell from '@domains/notifications/components/NotificationBell';
-import UserMenu from './UserMenu';
+import { useRestaurant } from '@shared/hooks/useRestaurant';
+import NotificationBell from '@features/notifications/components/NotificationBell';
+import UserMenu from '@shared/components/layout/UserMenu';
 import { LayoutDashboard, Menu, Search, Command } from 'lucide-react';
 
 const ManagerHeader = ({ user, onMenuClick, hideOnDashboard = false }) => {
