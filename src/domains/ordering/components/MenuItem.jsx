@@ -172,7 +172,7 @@ const MenuItem = ({ item, onAddToCart, onUpdateQuantity, cartQuantity = 0 }) => 
         ) : (
           <button
             onClick={handleAdd}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 customer-primary text-white rounded-lg hover:brightness-110 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95 transition-all duration-200 text-sm font-semibold group-hover:scale-105"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95 transition-all duration-200 text-sm font-semibold"
           >
             <ShoppingCart className="w-4 h-4" />
             <span>Add to Cart</span>
