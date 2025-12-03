@@ -3,10 +3,10 @@
  * Provides offline support and caching strategies
  */
 
-const CACHE_NAME = 'praahis-v1';
-const STATIC_CACHE = 'praahis-static-v1';
-const DYNAMIC_CACHE = 'praahis-dynamic-v1';
-const API_CACHE = 'praahis-api-v1';
+const CACHE_NAME = 'praahis-v2';
+const STATIC_CACHE = 'praahis-static-v2';
+const DYNAMIC_CACHE = 'praahis-dynamic-v2';
+const API_CACHE = 'praahis-api-v2';
 
 // Assets to cache immediately on install
 const STATIC_ASSETS = ['/', '/index.html', '/logo.svg', '/manifest.json'];
@@ -199,6 +199,11 @@ self.addEventListener('fetch', (event) => {
 
   // Skip chrome-extension and other protocols
   if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
+  // Skip external requests (Google Fonts, CDNs, etc.) - let browser handle them directly
+  if (url.origin !== self.location.origin) {
     return;
   }
 
