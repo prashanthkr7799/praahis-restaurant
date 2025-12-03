@@ -39,6 +39,7 @@ export default defineConfig({
       react: fileURLToPath(new URL('./node_modules/react', import.meta.url)),
       'react-dom': fileURLToPath(new URL('./node_modules/react-dom', import.meta.url)),
     },
+    dedupe: ['react', 'react-dom', 'use-sync-external-store'],
   },
   build: {
     chunkSizeWarningLimit: 500,
@@ -148,7 +149,7 @@ export default defineConfig({
       },
     },
   },
-  // Optimize dependencies
+  // Optimize dependencies - pre-bundle these for consistent resolution
   optimizeDeps: {
     include: [
       'react',
@@ -158,6 +159,8 @@ export default defineConfig({
       '@supabase/supabase-js',
       'zustand',
       'lucide-react',
+      'use-sync-external-store',
+      'use-sync-external-store/shim',
     ],
   },
 });
