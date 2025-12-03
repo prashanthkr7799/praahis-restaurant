@@ -2,6 +2,57 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
+    
+    <!-- MUST BE FIRST: Suppress storage errors before any other parsing -->
+    <script>
+      (function() {
+        // Catch and suppress storage access errors globally
+        window.addEventListener('error', function(e) {
+          if (e.message && e.message.toLowerCase().includes('storage')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return true;
+          }
+        }, true);
+        
+        window.addEventListener('unhandledrejection', function(e) {
+          if (e.reason && e.reason.message && 
+              e.reason.message.toLowerCase().includes('storage')) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }, true);
+        
+        // Polyfill localStorage if not available
+        var memoryStorage = {};
+        function isStorageAvailable() {
+          try {
+            localStorage.setItem('__test__', '__test__');
+            localStorage.removeItem('__test__');
+            return true;
+          } catch (e) { return false; }
+        }
+        
+        if (!isStorageAvailable()) {
+          window.__storagePolyfilled = true;
+          try {
+            Object.defineProperty(window, 'localStorage', {
+              value: {
+                _data: {},
+                getItem: function(k) { return this._data[k] || null; },
+                setItem: function(k, v) { this._data[k] = String(v); },
+                removeItem: function(k) { delete this._data[k]; },
+                clear: function() { this._data = {}; },
+                get length() { return Object.keys(this._data).length; },
+                key: function(i) { return Object.keys(this._data)[i] || null; }
+              },
+              configurable: true, writable: true
+            });
+          } catch (e) {}
+        }
+      })();
+    </script>
+    
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
     
     <!-- PWA Meta Tags -->
@@ -23,50 +74,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     
     <title>Praahis Restaurant</title>
-    
-    <!-- Early storage polyfill for restricted contexts -->
-    <script>
-      // Create safe localStorage/sessionStorage wrappers before any other scripts run
-      (function() {
-        var memoryStorage = {};
-        
-        function isStorageAvailable(type) {
-          try {
-            var storage = window[type];
-            var x = '__storage_test__';
-            storage.setItem(x, x);
-            storage.removeItem(x);
-            return true;
-          } catch (e) {
-            return false;
-          }
-        }
-        
-        // Only create polyfill if storage is not available
-        if (!isStorageAvailable('localStorage')) {
-          window.__storagePolyfilled = true;
-          Object.defineProperty(window, 'localStorage', {
-            value: {
-              getItem: function(key) { return memoryStorage[key] || null; },
-              setItem: function(key, value) { memoryStorage[key] = String(value); },
-              removeItem: function(key) { delete memoryStorage[key]; },
-              clear: function() { memoryStorage = {}; },
-              get length() { return Object.keys(memoryStorage).length; },
-              key: function(i) { return Object.keys(memoryStorage)[i] || null; }
-            },
-            configurable: true
-          });
-        }
-        
-        // Suppress unhandled promise rejections related to storage
-        window.addEventListener('unhandledrejection', function(event) {
-          if (event.reason && event.reason.message && 
-              event.reason.message.toLowerCase().includes('storage')) {
-            event.preventDefault();
-          }
-        });
-      })();
-    </script>
   </head>
   <body class="dark">
     <noscript>
