@@ -177,7 +177,6 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: ./
-          alias-domains: staging.praahis.com
 
   # =====================================================
   # DEPLOY TO PRODUCTION (on main branch)
