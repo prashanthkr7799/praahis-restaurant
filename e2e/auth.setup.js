@@ -13,18 +13,21 @@ setup('authenticate', async ({ page }) => {
   await page.goto('/superadmin-login');
 
   // Wait for page to load completely
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
+
+  // Wait for any loading spinners to disappear
+  await page.waitForTimeout(2000);
 
   // Fill in credentials (use test user from environment variables)
   const testEmail = process.env.TEST_USER_EMAIL || 'test@example.com';
   const testPassword = process.env.TEST_USER_PASSWORD || 'testpassword123';
 
-  // Wait for and fill email input
-  await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-  await page.fill('input[type="email"]', testEmail);
+  // Wait for and fill email input (using id selector which is more reliable)
+  await page.waitForSelector('#email', { timeout: 30000, state: 'visible' });
+  await page.fill('#email', testEmail);
 
   // Fill password
-  await page.fill('input[type="password"]', testPassword);
+  await page.fill('#password', testPassword);
 
   // Click login button
   await page.click('button[type="submit"]');
