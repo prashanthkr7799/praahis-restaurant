@@ -14,6 +14,59 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
 }
 
+/**
+ * Safe storage wrapper that handles contexts where localStorage is not available
+ * (e.g., some privacy modes, service workers, iframes with restricted permissions)
+ */
+const createSafeStorage = () => {
+  const memoryStorage = new Map();
+
+  const isStorageAvailable = () => {
+    try {
+      const testKey = '__storage_test__';
+      localStorage.setItem(testKey, testKey);
+      localStorage.removeItem(testKey);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const storageAvailable = isStorageAvailable();
+
+  return {
+    getItem: (key) => {
+      try {
+        return storageAvailable ? localStorage.getItem(key) : (memoryStorage.get(key) ?? null);
+      } catch {
+        return memoryStorage.get(key) ?? null;
+      }
+    },
+    setItem: (key, value) => {
+      try {
+        if (storageAvailable) {
+          localStorage.setItem(key, value);
+        } else {
+          memoryStorage.set(key, value);
+        }
+      } catch {
+        memoryStorage.set(key, value);
+      }
+    },
+    removeItem: (key) => {
+      try {
+        if (storageAvailable) {
+          localStorage.removeItem(key);
+        } else {
+          memoryStorage.delete(key);
+        }
+      } catch {
+        memoryStorage.delete(key);
+      }
+    },
+  };
+};
+
 // Suppress expected multi-client warning (we use dual clients for manager + owner sessions)
 // and chart initialization warnings
 if (typeof console !== 'undefined' && !globalThis.__supabase_warn_suppressed__) {
@@ -33,6 +86,9 @@ if (typeof console !== 'undefined' && !globalThis.__supabase_warn_suppressed__) 
   globalThis.__supabase_warn_suppressed__ = true;
 }
 
+// Create safe storage instance for manager client
+const managerStorage = createSafeStorage();
+
 // Ensure a single instance across HMR to avoid multiple GoTrue clients with the same storageKey
 const globalAny = globalThis;
 export const supabase =
@@ -44,6 +100,8 @@ export const supabase =
       detectSessionInUrl: true,
       // Use a distinct storage key for manager/staff sessions
       storageKey: 'sb-manager-session',
+      // Use safe storage that handles restricted contexts
+      storage: managerStorage,
       // Keep session alive for 4 hours of activity
       flowType: 'pkce',
     },
