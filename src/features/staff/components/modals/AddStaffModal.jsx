@@ -47,7 +47,7 @@ const AddStaffModal = ({ isOpen, onClose, onStaffAdded }) => {
           staff={null}
           onSuccess={handleSuccess}
           onCancel={onClose}
-          allowedRoles={['chef', 'waiter', 'staff']}
+          allowedRoles={['chef', 'waiter']}
         />
       </div>
     </div>

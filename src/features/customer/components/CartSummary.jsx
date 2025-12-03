@@ -2,9 +2,21 @@ import React from 'react';
 import { ShoppingCart, Trash2, Plus, Minus, X } from 'lucide-react';
 // eslint-disable-next-line no-unused-vars -- motion is used as motion.div in JSX
 import { motion, AnimatePresence } from 'framer-motion';
-import { formatCurrency, calculateSubtotal, calculateTax, calculateTotal } from '@features/orders/utils/orderHelpers';
+import {
+  formatCurrency,
+  calculateSubtotal,
+  calculateTax,
+  calculateTotal,
+} from '@features/orders/utils/orderHelpers';
 
-const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, onClose, isProcessing = false }) => {
+const CartSummary = ({
+  cartItems,
+  onUpdateQuantity,
+  onRemoveItem,
+  onCheckout,
+  onClose,
+  isProcessing = false,
+}) => {
   const subtotal = calculateSubtotal(cartItems);
   const tax = calculateTax(subtotal);
   const total = calculateTotal(subtotal, tax);
@@ -20,13 +32,22 @@ const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, on
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="flex h-full flex-col"
+      data-testid="cart-summary"
+      role="region"
+      aria-label="Shopping cart"
+    >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-700 p-4">
         <div className="flex items-center gap-2">
           <ShoppingCart className="h-5 w-5 text-orange-500" />
           <h2 className="text-xl font-bold text-white">Your Cart</h2>
-          <span className="rounded-full bg-orange-500 px-2 py-1 text-xs font-bold text-white">
+          <span
+            className="rounded-full bg-orange-500 px-2 py-1 text-xs font-bold text-white"
+            data-testid="cart-count"
+            aria-label={`${cartItems.length} items in cart`}
+          >
             {cartItems.length}
           </span>
         </div>
@@ -53,7 +74,8 @@ const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, on
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="mb-3 rounded-lg border border-gray-700 bg-gray-800 p-3">
+              className="mb-3 rounded-lg border border-gray-700 bg-gray-800 p-3"
+            >
               <div className="flex gap-3">
                 {/* Item image */}
                 <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-gray-700">
@@ -67,9 +89,7 @@ const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, on
                       }}
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-2xl">
-                      🍽️
-                    </div>
+                    <div className="flex h-full items-center justify-center text-2xl">🍽️</div>
                   )}
                 </div>
 
@@ -107,7 +127,9 @@ const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, on
                       >
                         <Minus className="h-3 w-3" />
                       </button>
-                      <span className="w-6 text-center font-semibold text-white tabular-nums">{item.quantity}</span>
+                      <span className="w-6 text-center font-semibold text-white tabular-nums">
+                        {item.quantity}
+                      </span>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -137,7 +159,9 @@ const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, on
         <div className="mb-3 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Subtotal</span>
-            <span className="font-semibold text-white tabular-nums">{formatCurrency(subtotal)}</span>
+            <span className="font-semibold text-white tabular-nums">
+              {formatCurrency(subtotal)}
+            </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Tax (5%)</span>
@@ -145,12 +169,15 @@ const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, on
           </div>
           <div className="flex justify-between border-t border-gray-700 pt-2 text-lg font-bold">
             <span className="text-white">Total</span>
-            <span className="text-yellow-400 tabular-nums">₹{formatCurrency(total).replace('₹', '')}</span>
+            <span className="text-yellow-400 tabular-nums">
+              ₹{formatCurrency(total).replace('₹', '')}
+            </span>
           </div>
         </div>
 
         <button
           type="button"
+          data-testid="checkout-button"
           disabled={isProcessing}
           onClick={(e) => {
             e.preventDefault();
@@ -167,7 +194,8 @@ const CartSummary = ({ cartItems, onUpdateQuantity, onRemoveItem, onCheckout, on
               onCheckout();
             }
           }}
-          className={`w-full rounded-xl px-6 py-3 font-semibold text-white transition-all shadow-lg touch-manipulation ${isProcessing ? 'bg-orange-500/60 cursor-not-allowed' : 'bg-orange-500 active:brightness-90 hover:brightness-110'}`}
+          className={`w-full rounded-xl px-6 py-3 font-semibold text-white transition-all shadow-lg touch-manipulation min-h-[44px] ${isProcessing ? 'bg-orange-500/60 cursor-not-allowed' : 'bg-orange-500 active:brightness-90 hover:brightness-110'}`}
+          aria-busy={isProcessing}
         >
           {isProcessing ? 'Creating order…' : 'Proceed to Payment'}
         </button>

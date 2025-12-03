@@ -2,9 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ShoppingCart, ArrowLeft, Search, X, Bell } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getTable, getMenuItems, createOrder, markTableOccupied, supabase, getOrCreateActiveSessionId, getSharedCart, updateSharedCart, clearSharedCart, subscribeToSharedCart } from '@config/supabase';
+import {
+  getTable,
+  getMenuItems,
+  createOrder,
+  markTableOccupied,
+  supabase,
+  getOrCreateActiveSessionId,
+  getSharedCart,
+  updateSharedCart,
+  clearSharedCart,
+  subscribeToSharedCart,
+} from '@config/supabase';
 import { startSessionTracking, stopSessionTracking } from '@shared/utils/sessionTracker';
-import { groupByCategory, getCategories, prepareOrderData } from '@features/orders/utils/orderHelpers';
+import {
+  groupByCategory,
+  getCategories,
+  prepareOrderData,
+} from '@features/orders/utils/orderHelpers';
 import MenuItem from '@features/customer/components/MenuItem';
 import MenuItemSkeleton from '@features/menu/components/MenuItemSkeleton';
 import CategoryTabs from '@features/customer/components/CategoryTabs';
@@ -48,7 +63,7 @@ const TablePage = () => {
 
   useEffect(() => {
     // Customer pages don't need restaurant context - load data directly
-    
+
     // Guard: Check if tableId is valid
     if (!tableId || tableId === 'undefined') {
       console.error('❌ Invalid table ID:', tableId);
@@ -56,12 +71,10 @@ const TablePage = () => {
       setLoading(false);
       return;
     }
-    
+
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId]);
-
-
 
   const loadData = async () => {
     try {
@@ -71,10 +84,10 @@ const TablePage = () => {
       // Get restaurant slug from URL query params
       const params = new URLSearchParams(location.search);
       const restaurantSlug = params.get('restaurant');
-      
+
       // Fetch table data
       const tableData = await getTable(tableId, restaurantSlug);
-      
+
       if (!tableData || !tableData.restaurant_id) {
         throw new Error('Invalid table data - no restaurant_id found');
       }
@@ -88,10 +101,10 @@ const TablePage = () => {
       // Mark table as occupied and get/create session - 100% DATABASE-DRIVEN
       // All devices scanning the same table will get the SAME session ID from the database
       const tableWithSession = await markTableOccupied(tableData.id);
-      
+
       // Get session ID from database only - NO localStorage
       let currentSessionId = tableWithSession?.session_id;
-      
+
       // If no session from markTableOccupied, explicitly fetch/create one
       if (!currentSessionId) {
         currentSessionId = await getOrCreateActiveSessionId(tableData.id);
@@ -116,11 +129,11 @@ const TablePage = () => {
             const paidOrder = existingOrders[0];
             setOrderPaid(true);
             setPaidOrderId(paidOrder.id);
-            
+
             // Redirect to order status immediately
-            toast('You already have a paid order. Redirecting...', { 
+            toast('You already have a paid order. Redirecting...', {
               icon: 'ℹ️',
-              duration: 2000 
+              duration: 2000,
             });
             setTimeout(() => {
               navigate(`/order-status/${paidOrder.id}`, { replace: true });
@@ -176,7 +189,6 @@ const TablePage = () => {
   useEffect(() => {
     if (!sessionId) return;
 
-    
     const unsubscribe = subscribeToSharedCart(sessionId, (updatedCart) => {
       isUpdatingFromRemote.current = true;
       setCartItems(updatedCart || []);
@@ -195,7 +207,6 @@ const TablePage = () => {
   useEffect(() => {
     if (!sessionId || !table?.id) return;
 
-
     // Subscribe to orders table for this session
     const orderSubscription = supabase
       .channel(`order-payment-${sessionId}`)
@@ -205,18 +216,17 @@ const TablePage = () => {
           event: 'UPDATE',
           schema: 'public',
           table: 'orders',
-          filter: `session_id=eq.${sessionId}`
+          filter: `session_id=eq.${sessionId}`,
         },
         (payload) => {
-          
           // Check if payment_status changed to 'paid'
           if (payload.new.payment_status === 'paid' && payload.old.payment_status !== 'paid') {
             setOrderPaid(true);
             setPaidOrderId(payload.new.id);
-            
+
             // Show toast notification
             toast.success('🎉 Payment completed! Redirecting to order status...');
-            
+
             // Redirect all devices to order status page
             setTimeout(() => {
               navigate(`/order-status/${payload.new.id}`, { replace: true });
@@ -224,8 +234,7 @@ const TablePage = () => {
           }
         }
       )
-      .subscribe((_status) => {
-      });
+      .subscribe((_status) => {});
 
     return () => {
       orderSubscription.unsubscribe();
@@ -250,7 +259,7 @@ const TablePage = () => {
       return;
     }
 
-    const existingItemIndex = cartItems.findIndex(cartItem => cartItem.id === item.id);
+    const existingItemIndex = cartItems.findIndex((cartItem) => cartItem.id === item.id);
     let newCart;
 
     if (existingItemIndex > -1) {
@@ -278,7 +287,7 @@ const TablePage = () => {
       setCartItems(cartItems);
       toast.error('Failed to update cart. Please try again.');
     }
-    
+
     // Do NOT auto-open cart on mobile - let user use the bottom button instead
     // This provides better UX and control
   };
@@ -299,7 +308,7 @@ const TablePage = () => {
       return;
     }
 
-    const newCart = cartItems.map(item =>
+    const newCart = cartItems.map((item) =>
       item.id === itemId ? { ...item, quantity: newQuantity } : item
     );
 
@@ -326,7 +335,7 @@ const TablePage = () => {
       return;
     }
 
-    const newCart = cartItems.filter(item => item.id !== itemId);
+    const newCart = cartItems.filter((item) => item.id !== itemId);
 
     // Optimistic update
     setCartItems(newCart);
@@ -394,7 +403,9 @@ const TablePage = () => {
       console.error('Error creating order:', err);
       console.error('Error message:', err.message);
       console.error('Error details:', JSON.stringify(err, null, 2));
-      toast.error(`Failed to create order: ${err.message || 'Please try again.'}`, { id: 'order-progress' });
+      toast.error(`Failed to create order: ${err.message || 'Please try again.'}`, {
+        id: 'order-progress',
+      });
     } finally {
       setSubmittingOrder(false);
     }
@@ -405,11 +416,12 @@ const TablePage = () => {
   const categories = getCategories(menuItems);
 
   // Filter menu items based on search query
-  const filteredMenuItems = searchQuery.trim() 
-    ? menuItems.filter(item => 
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredMenuItems = searchQuery.trim()
+    ? menuItems.filter(
+        (item) =>
+          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.category.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : menuItems;
 
@@ -441,7 +453,7 @@ const TablePage = () => {
             <div className="h-10 bg-white/10 rounded-xl animate-pulse"></div>
           </div>
         </div>
-        
+
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
             {[...Array(8)].map((_, i) => (
@@ -472,11 +484,18 @@ const TablePage = () => {
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-4">
           {/* Left: Back + Restaurant Info */}
           <div className="flex items-center gap-3">
-            <Link to="/" className="rounded-full p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-all">
+            <Link
+              to="/"
+              className="rounded-full p-2 bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+            >
               <ArrowLeft className="h-5 w-5 text-white" />
             </Link>
             <div className="flex items-center gap-3">
-              <img src="/logo.svg" alt="Restaurant logo" className="h-6 sm:h-7 w-auto object-contain" />
+              <img
+                src="/logo.svg"
+                alt="Restaurant logo"
+                className="h-6 sm:h-7 w-auto object-contain"
+              />
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-1 bg-gradient-to-r from-orange-500/20 to-amber-500/20 rounded-lg border border-orange-500/30 text-xs font-bold text-orange-400">
                   Table #{table?.table_number}
@@ -489,9 +508,7 @@ const TablePage = () => {
           <div className="flex items-center gap-2">
             {/* Profile Icon (placeholder) */}
             <div className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/20 ring-2 ring-orange-400/20">
-              <span className="text-sm font-bold">
-                {table?.table_number || 'T'}
-              </span>
+              <span className="text-sm font-bold">{table?.table_number || 'T'}</span>
             </div>
           </div>
         </div>
@@ -521,7 +538,9 @@ const TablePage = () => {
           </div>
           {isSearching && (
             <p className="mt-2 text-sm text-zinc-400">
-              Found <span className="text-orange-400 font-semibold">{filteredMenuItems.length}</span> {filteredMenuItems.length === 1 ? 'item' : 'items'}
+              Found{' '}
+              <span className="text-orange-400 font-semibold">{filteredMenuItems.length}</span>{' '}
+              {filteredMenuItems.length === 1 ? 'item' : 'items'}
             </p>
           )}
         </div>
@@ -539,20 +558,26 @@ const TablePage = () => {
       )}
 
       {/* Main content */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div
+        className="max-w-7xl mx-auto px-4 py-6"
+        data-testid="menu-container"
+        role="main"
+        aria-live="polite"
+      >
         <div className="flex gap-6">
           {/* Menu items */}
-          <div className="flex-1">
+          <div className="flex-1" data-testid="menu-items-grid">
             {isSearching ? (
               // Search results view
               <div className="mb-6">
                 <h2 className="mb-4 text-2xl font-bold text-white tracking-tight">
-                  Search Results {searchQuery && <span className="text-orange-400">"{searchQuery}"</span>}
+                  Search Results{' '}
+                  {searchQuery && <span className="text-orange-400">"{searchQuery}"</span>}
                 </h2>
                 {filteredMenuItems.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                     {filteredMenuItems.map((item) => {
-                      const cartItem = cartItems.find(ci => ci.id === item.id);
+                      const cartItem = cartItems.find((ci) => ci.id === item.id);
                       return (
                         <MenuItem
                           key={item.id}
@@ -567,11 +592,11 @@ const TablePage = () => {
                 ) : (
                   <div className="py-16 text-center bg-slate-800/30 backdrop-blur-sm rounded-2xl border-2 border-dashed border-white/10">
                     <Search className="mx-auto h-16 w-16 text-zinc-600 mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">
-                      No items found
-                    </h3>
+                    <h3 className="text-xl font-semibold text-white mb-2">No items found</h3>
                     <p className="text-zinc-400 mb-6 max-w-md mx-auto">
-                      We couldn't find any dishes matching "<span className="text-orange-400">{searchQuery}</span>". Try searching with different keywords.
+                      We couldn't find any dishes matching "
+                      <span className="text-orange-400">{searchQuery}</span>". Try searching with
+                      different keywords.
                     </p>
                     <button
                       onClick={clearSearch}
@@ -593,7 +618,7 @@ const TablePage = () => {
                   <h2 className="mb-4 text-2xl font-bold text-white tracking-tight">{category}</h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                     {groupedMenuItems[category]?.map((item) => {
-                      const cartItem = cartItems.find(ci => ci.id === item.id);
+                      const cartItem = cartItems.find((ci) => ci.id === item.id);
                       return (
                         <MenuItem
                           key={item.id}
@@ -613,7 +638,9 @@ const TablePage = () => {
               <div className="py-20 text-center bg-slate-800/30 backdrop-blur-sm rounded-2xl border border-white/10">
                 <Search className="mx-auto h-16 w-16 text-zinc-600 mb-4" />
                 <h2 className="text-2xl font-bold text-white mb-2">Menu Coming Soon</h2>
-                <p className="text-sm text-zinc-400 max-w-md mx-auto">No dishes are available right now. Please ask the staff or try again later.</p>
+                <p className="text-sm text-zinc-400 max-w-md mx-auto">
+                  No dishes are available right now. Please ask the staff or try again later.
+                </p>
                 <button
                   onClick={loadData}
                   className="mt-6 px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-semibold shadow-lg shadow-orange-500/20 active:scale-95 transition-all"
@@ -654,9 +681,7 @@ const TablePage = () => {
         >
           {/* Dim backdrop */}
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
-          <div
-            className="relative bg-gradient-to-b from-slate-800 to-slate-900 rounded-t-3xl shadow-2xl border-t border-white/10 max-h-[85vh] flex flex-col w-full"
-          >
+          <div className="relative bg-gradient-to-b from-slate-800 to-slate-900 rounded-t-3xl shadow-2xl border-t border-white/10 max-h-[85vh] flex flex-col w-full">
             <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-white/10">
               <h2 className="text-white font-bold text-lg">Review Order</h2>
               <button
@@ -686,15 +711,19 @@ const TablePage = () => {
           {/* Review Order Button (replaces Pay Now + Cart) */}
           <button
             type="button"
+            data-testid="cart-button"
             aria-label="Review order"
             onClick={() => setShowCart(true)}
-            className="flex-1 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-600 px-5 py-4 font-semibold text-white shadow-2xl shadow-orange-500/30 transition-all active:scale-[0.98] hover:shadow-orange-500/50 hover:brightness-110 border border-orange-400/30 backdrop-blur-sm"
+            className="flex-1 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-600 px-5 py-4 font-semibold text-white shadow-2xl shadow-orange-500/30 transition-all active:scale-[0.98] hover:shadow-orange-500/50 hover:brightness-110 border border-orange-400/30 backdrop-blur-sm min-h-[56px]"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <ShoppingCart className="h-5 w-5" />
-                  <span className="absolute -top-2 -right-2 bg-white text-orange-600 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg ring-2 ring-orange-500/20">
+                  <span
+                    className="absolute -top-2 -right-2 bg-white text-orange-600 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg ring-2 ring-orange-500/20"
+                    data-testid="cart-badge"
+                  >
                     {cartItems.reduce((sum, item) => sum + item.quantity, 0)}
                   </span>
                 </div>
@@ -702,8 +731,11 @@ const TablePage = () => {
                   <span className="text-sm font-medium block">
                     {cartItems.reduce((sum, item) => sum + item.quantity, 0)} items
                   </span>
-                  <span className="text-lg font-bold tabular-nums">
-                    ₹{cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}
+                  <span className="text-lg font-bold tabular-nums" data-testid="cart-total">
+                    ₹
+                    {cartItems
+                      .reduce((sum, item) => sum + item.price * item.quantity, 0)
+                      .toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -718,7 +750,9 @@ const TablePage = () => {
             aria-label="Call waiter"
             onClick={async () => {
               try {
-                const channelName = table?.restaurant_id ? `waiter-alerts-${table.restaurant_id}` : 'waiter-alerts';
+                const channelName = table?.restaurant_id
+                  ? `waiter-alerts-${table.restaurant_id}`
+                  : 'waiter-alerts';
                 const channel = supabase.channel(channelName);
                 channel.subscribe((status) => {
                   if (status === 'SUBSCRIBED') {
@@ -747,7 +781,7 @@ const TablePage = () => {
           </button>
         </div>
       )}
-      
+
       {/* Call Waiter Button - only when cart is empty and sheet is not open */}
       {cartItems.length === 0 && !showCart && (
         <CallWaiterButton tableNumber={table?.table_number} restaurantId={table?.restaurant_id} />

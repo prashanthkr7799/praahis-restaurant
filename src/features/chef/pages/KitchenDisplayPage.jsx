@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@config/supabase';
 import { useRestaurant } from '@shared/hooks/useRestaurant';
-import { 
-  ChefHat, 
-  Clock, 
-  CheckCircle, 
+import {
+  ChefHat,
+  Clock,
+  CheckCircle,
   AlertCircle,
   RefreshCw,
   LogOut,
@@ -22,7 +22,7 @@ import {
   TrendingUp,
   Filter,
   Zap,
-  ArrowRight
+  ArrowRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -50,36 +50,45 @@ const ChefDashboard = () => {
     localStorage.setItem('chef_sound_enabled', String(newState));
   };
 
-  const loadData = useCallback(async (silent = false) => {
-    try {
-      if (!silent) setLoading(true);
-      // Note: items are stored as JSONB in orders.items field, not in order_items table
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
+  const loadData = useCallback(
+    async (silent = false) => {
+      try {
+        if (!silent) setLoading(true);
+        // Note: items are stored as JSONB in orders.items field, not in order_items table
+        const { data, error } = await supabase
+          .from('orders')
+          .select(
+            `
           *,
           tables (table_number)
-        `)
-        .eq('restaurant_id', restaurantId)
-        .in('order_status', ['received', 'preparing', 'ready'])
-        .order('created_at', { ascending: true });
+        `
+          )
+          .eq('restaurant_id', restaurantId)
+          .in('order_status', ['received', 'preparing', 'ready'])
+          .order('created_at', { ascending: true });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Transform items from JSONB string/array to proper array
-      const transformed = (data || []).map(o => ({
-        ...o,
-        items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items || '[]') : [])
-      }));
+        // Transform items from JSONB string/array to proper array
+        const transformed = (data || []).map((o) => ({
+          ...o,
+          items: Array.isArray(o.items)
+            ? o.items
+            : typeof o.items === 'string'
+              ? JSON.parse(o.items || '[]')
+              : [],
+        }));
 
-      setOrders(transformed);
-    } catch (error) {
-      console.error('Error loading KDS data:', error);
-      if (!silent) toast.error('Failed to load orders');
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [restaurantId]);
+        setOrders(transformed);
+      } catch (error) {
+        console.error('Error loading KDS data:', error);
+        if (!silent) toast.error('Failed to load orders');
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [restaurantId]
+  );
 
   const subscribeToOrders = useCallback(() => {
     const channel = supabase
@@ -134,24 +143,24 @@ const ChefDashboard = () => {
     }
   }, [restaurantId, loadData, subscribeToOrders]);
 
-
-
   // Listen for broadcasts
   useEffect(() => {
     if (!restaurantId) return;
 
-    const channel = supabase.channel(`broadcast:${restaurantId}`)
+    const channel = supabase
+      .channel(`broadcast:${restaurantId}`)
       .on('broadcast', { event: 'announcement' }, (payload) => {
         const { message, priority, from, roles } = payload.payload;
-        
+
         if (roles.includes('all') || roles.includes('chef')) {
-            if (soundEnabled) {
-              notificationService.playSound(priority === 'high' ? 'urgent' : 'success');
-            }
-            toast((t) => (
+          if (soundEnabled) {
+            notificationService.playSound(priority === 'high' ? 'urgent' : 'success');
+          }
+          toast(
+            (t) => (
               <div className="flex flex-col gap-2 min-w-[280px] relative">
-                <button 
-                  onClick={() => toast.dismiss(t.id)} 
+                <button
+                  onClick={() => toast.dismiss(t.id)}
                   className="absolute -top-1 -right-1 p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -162,22 +171,27 @@ const ChefDashboard = () => {
                 </div>
                 <div className="text-sm text-slate-300 leading-relaxed">{message}</div>
                 {priority === 'high' && (
-                    <div className="text-xs text-red-400 font-bold uppercase mt-1 flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                      High Priority
-                    </div>
+                  <div className="text-xs text-red-400 font-bold uppercase mt-1 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    High Priority
+                  </div>
                 )}
               </div>
-            ), {
+            ),
+            {
               duration: priority === 'high' ? 10000 : 6000,
               style: {
-                border: priority === 'high' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)',
+                border:
+                  priority === 'high'
+                    ? '1px solid rgba(239, 68, 68, 0.3)'
+                    : '1px solid rgba(59, 130, 246, 0.3)',
                 background: '#1e293b',
                 color: '#fff',
                 padding: '16px',
                 borderRadius: '12px',
               },
-            });
+            }
+          );
         }
       })
       .subscribe();
@@ -200,9 +214,9 @@ const ChefDashboard = () => {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ 
+        .update({
           order_status: newStatus,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', orderId);
 
@@ -249,29 +263,32 @@ const ChefDashboard = () => {
   // Filter orders based on search and type
   const getFilteredOrders = (statusOrders) => {
     let filtered = [...statusOrders];
-    
+
     // Search filter
     if (searchText.trim()) {
       const q = searchText.toLowerCase();
-      filtered = filtered.filter(o => 
-        String(o.order_number).toLowerCase().includes(q) ||
-        String(o.tables?.table_number || '').toLowerCase().includes(q) ||
-        o.items?.some(item => item.name?.toLowerCase().includes(q))
+      filtered = filtered.filter(
+        (o) =>
+          String(o.order_number).toLowerCase().includes(q) ||
+          String(o.tables?.table_number || '')
+            .toLowerCase()
+            .includes(q) ||
+          o.items?.some((item) => item.name?.toLowerCase().includes(q))
       );
     }
-    
+
     // Type filter
     if (filterType === 'dine-in') {
-      filtered = filtered.filter(o => o.order_type !== 'takeaway');
+      filtered = filtered.filter((o) => o.order_type !== 'takeaway');
     } else if (filterType === 'takeaway') {
-      filtered = filtered.filter(o => o.order_type === 'takeaway');
+      filtered = filtered.filter((o) => o.order_type === 'takeaway');
     } else if (filterType === 'delayed') {
-      filtered = filtered.filter(o => {
+      filtered = filtered.filter((o) => {
         const elapsed = getElapsedTime(o.created_at);
         return elapsed > 15;
       });
     }
-    
+
     return filtered;
   };
 
@@ -280,35 +297,39 @@ const ChefDashboard = () => {
     const elapsed = getElapsedTime(order.created_at);
     const isUrgent = elapsed > 15;
     const isTakeaway = order.order_type === 'takeaway';
-    
+
     const variantStyles = {
       received: {
         accent: 'bg-amber-500',
-        border: isUrgent ? 'border-red-500/50 shadow-lg shadow-red-500/10' : 'border-amber-500/30 hover:border-amber-500/50',
+        border: isUrgent
+          ? 'border-red-500/50 shadow-lg shadow-red-500/10'
+          : 'border-amber-500/30 hover:border-amber-500/50',
         badge: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-        badgeText: 'New'
+        badgeText: 'New',
       },
       preparing: {
         accent: 'bg-blue-500',
         border: 'border-blue-500/30 hover:border-blue-500/50',
         badge: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-        badgeText: 'Cooking'
+        badgeText: 'Cooking',
       },
       ready: {
         accent: 'bg-emerald-500',
         border: 'border-emerald-500/30 hover:border-emerald-500/50 shadow-lg shadow-emerald-500/10',
         badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-        badgeText: 'Ready'
-      }
+        badgeText: 'Ready',
+      },
     };
-    
+
     const style = variantStyles[order.order_status] || variantStyles.received;
-    
+
     return (
-      <div className={`rounded-2xl overflow-hidden bg-slate-900/80 border ${style.border} transition-all duration-300 hover:scale-[1.01]`}>
+      <div
+        className={`rounded-2xl overflow-hidden bg-slate-900/80 border ${style.border} transition-all duration-300 hover:scale-[1.01]`}
+      >
         {/* Top Accent Bar */}
         <div className={`h-1.5 ${style.accent}`} />
-        
+
         {/* Header */}
         <div className="p-4 pb-3">
           <div className="flex items-center justify-between">
@@ -327,17 +348,23 @@ const ChefDashboard = () => {
                 </span>
               )}
             </div>
-            
+
             {/* Timer */}
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${getTimerBg(elapsed)}`}>
+            <div
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${getTimerBg(elapsed)}`}
+            >
               <Timer className={`w-4 h-4 ${getTimerColor(elapsed)}`} />
-              <span className={`font-mono font-bold text-sm ${getTimerColor(elapsed)}`}>{elapsed}m</span>
+              <span className={`font-mono font-bold text-sm ${getTimerColor(elapsed)}`}>
+                {elapsed}m
+              </span>
             </div>
           </div>
 
           {/* Status Badge */}
           <div className="mt-3">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase border ${style.badge}`}>
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase border ${style.badge}`}
+            >
               {order.order_status === 'preparing' && <Flame className="w-3.5 h-3.5" />}
               {order.order_status === 'received' && <Clock className="w-3.5 h-3.5" />}
               {order.order_status === 'ready' && <CheckCircle className="w-3.5 h-3.5" />}
@@ -345,7 +372,7 @@ const ChefDashboard = () => {
             </span>
           </div>
         </div>
-        
+
         {/* Items List */}
         <div className="px-4 pb-3">
           <div className="space-y-2">
@@ -365,9 +392,13 @@ const ChefDashboard = () => {
                       </p>
                     )}
                   </div>
-                  <span className={`flex-shrink-0 w-3 h-3 rounded-full mt-1 ${
-                    item.is_veg ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]'
-                  }`} />
+                  <span
+                    className={`flex-shrink-0 w-3 h-3 rounded-full mt-1 ${
+                      item.is_veg
+                        ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]'
+                        : 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]'
+                    }`}
+                  />
                 </div>
               ))
             ) : (
@@ -375,17 +406,19 @@ const ChefDashboard = () => {
             )}
           </div>
         </div>
-        
+
         {/* Special Instructions */}
         {order.special_instructions && (
           <div className="mx-4 mb-3 px-3 py-2.5 rounded-xl bg-red-500/5 border border-red-500/20">
             <div className="flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-red-200/80 leading-relaxed">{order.special_instructions}</p>
+              <p className="text-xs text-red-200/80 leading-relaxed">
+                {order.special_instructions}
+              </p>
             </div>
           </div>
         )}
-        
+
         {/* Action Button */}
         <div className="p-4 pt-2">
           {order.order_status === 'received' && (
@@ -418,16 +451,16 @@ const ChefDashboard = () => {
   };
 
   // Get filtered orders for each column
-  const receivedOrders = getFilteredOrders(orders.filter(o => o.order_status === 'received'));
-  const preparingOrders = getFilteredOrders(orders.filter(o => o.order_status === 'preparing'));
-  const readyOrders = getFilteredOrders(orders.filter(o => o.order_status === 'ready'));
+  const receivedOrders = getFilteredOrders(orders.filter((o) => o.order_status === 'received'));
+  const preparingOrders = getFilteredOrders(orders.filter((o) => o.order_status === 'preparing'));
+  const readyOrders = getFilteredOrders(orders.filter((o) => o.order_status === 'ready'));
 
   // Stats
   const stats = {
-    received: orders.filter(o => o.order_status === 'received').length,
-    preparing: orders.filter(o => o.order_status === 'preparing').length,
-    ready: orders.filter(o => o.order_status === 'ready').length,
-    delayed: orders.filter(o => getElapsedTime(o.created_at) > 15).length,
+    received: orders.filter((o) => o.order_status === 'received').length,
+    preparing: orders.filter((o) => o.order_status === 'preparing').length,
+    ready: orders.filter((o) => o.order_status === 'ready').length,
+    delayed: orders.filter((o) => getElapsedTime(o.created_at) > 15).length,
   };
 
   // Loading State
@@ -449,7 +482,6 @@ const ChefDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
-      
       {/* ═══════════════════════════════════════════════════════════════════════
           HEADER
       ═══════════════════════════════════════════════════════════════════════ */}
@@ -461,9 +493,9 @@ const ChefDashboard = () => {
               <div className="relative">
                 {branding?.logo_url ? (
                   <div className="w-11 h-11 rounded-xl overflow-hidden bg-slate-800 flex items-center justify-center shadow-lg">
-                    <img 
-                      src={branding.logo_url} 
-                      alt={restaurantName || 'Restaurant'} 
+                    <img
+                      src={branding.logo_url}
+                      alt={restaurantName || 'Restaurant'}
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -492,7 +524,9 @@ const ChefDashboard = () => {
               </div>
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20">
                 <Flame className="w-3.5 h-3.5 text-blue-400" />
-                <span className="text-xs font-semibold text-blue-400">{stats.preparing} Cooking</span>
+                <span className="text-xs font-semibold text-blue-400">
+                  {stats.preparing} Cooking
+                </span>
               </div>
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
@@ -501,7 +535,9 @@ const ChefDashboard = () => {
               {stats.delayed > 0 && (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 animate-pulse">
                   <AlertCircle className="w-3.5 h-3.5 text-red-400" />
-                  <span className="text-xs font-semibold text-red-400">{stats.delayed} Delayed</span>
+                  <span className="text-xs font-semibold text-red-400">
+                    {stats.delayed} Delayed
+                  </span>
                 </div>
               )}
             </div>
@@ -514,25 +550,31 @@ const ChefDashboard = () => {
                   {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
                 <div className="text-[10px] text-slate-500 uppercase tracking-wider">
-                  {currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {currentTime.toLocaleDateString([], {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
                 </div>
               </div>
-              
-              <button 
+
+              <button
                 onClick={toggleSound}
                 className={`p-2.5 rounded-xl transition-all ${soundEnabled ? 'bg-slate-800 text-white' : 'bg-slate-800/50 text-slate-500'}`}
                 title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
               >
                 {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
               </button>
-              <button 
+              <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
                 className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 transition-all disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-400' : 'text-white'}`} />
+                <RefreshCw
+                  className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-400' : 'text-white'}`}
+                />
               </button>
-              <button 
+              <button
                 onClick={handleLogout}
                 className="p-2.5 rounded-xl bg-slate-800 hover:bg-red-500/20 hover:text-red-400 transition-all"
               >
@@ -551,15 +593,15 @@ const ChefDashboard = () => {
           {/* Search */}
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <input 
-              type="text" 
-              placeholder="Search order #, table, or item..." 
+            <input
+              type="text"
+              placeholder="Search order #, table, or item..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-slate-900/50 border border-slate-800 text-white placeholder:text-slate-600 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 outline-none transition-all text-sm"
             />
             {searchText && (
-              <button 
+              <button
                 onClick={() => setSearchText('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-700 transition-colors"
               >
@@ -567,7 +609,7 @@ const ChefDashboard = () => {
               </button>
             )}
           </div>
-          
+
           {/* Filter Pills */}
           <div className="flex items-center gap-2">
             {[
@@ -575,14 +617,14 @@ const ChefDashboard = () => {
               { id: 'dine-in', label: 'Dine-In', icon: Utensils },
               { id: 'takeaway', label: 'Takeaway', icon: ShoppingBag },
               { id: 'delayed', label: 'Delayed', icon: AlertCircle, alert: stats.delayed > 0 },
-            ].map(filter => (
+            ].map((filter) => (
               <button
                 key={filter.id}
                 onClick={() => setFilterType(filter.id)}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                  filterType === filter.id 
-                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/25' 
-                    : filter.alert 
+                  filterType === filter.id
+                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/25'
+                    : filter.alert
                       ? 'text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20'
                       : 'text-slate-400 bg-slate-800 hover:text-white hover:bg-slate-700'
                 }`}
@@ -627,11 +669,14 @@ const ChefDashboard = () => {
       {/* ═══════════════════════════════════════════════════════════════════════
           KANBAN BOARD
       ═══════════════════════════════════════════════════════════════════════ */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-6" role="main" aria-live="polite">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          
           {/* NEW ORDERS Column */}
-          <div className="flex flex-col bg-slate-900/30 rounded-2xl border border-slate-800 overflow-hidden">
+          <div
+            className="flex flex-col bg-slate-900/30 rounded-2xl border border-slate-800 overflow-hidden"
+            role="region"
+            aria-label="New orders"
+          >
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -657,14 +702,20 @@ const ChefDashboard = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {receivedOrders.map(order => <TicketCard key={order.id} order={order} />)}
+                  {receivedOrders.map((order) => (
+                    <TicketCard key={order.id} order={order} />
+                  ))}
                 </div>
               )}
             </div>
           </div>
 
           {/* PREPARING Column */}
-          <div className="flex flex-col bg-slate-900/30 rounded-2xl border border-slate-800 overflow-hidden">
+          <div
+            className="flex flex-col bg-slate-900/30 rounded-2xl border border-slate-800 overflow-hidden"
+            role="region"
+            aria-label="Orders being prepared"
+          >
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
@@ -690,14 +741,20 @@ const ChefDashboard = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {preparingOrders.map(order => <TicketCard key={order.id} order={order} />)}
+                  {preparingOrders.map((order) => (
+                    <TicketCard key={order.id} order={order} />
+                  ))}
                 </div>
               )}
             </div>
           </div>
 
           {/* READY Column */}
-          <div className="flex flex-col bg-slate-900/30 rounded-2xl border border-slate-800 overflow-hidden">
+          <div
+            className="flex flex-col bg-slate-900/30 rounded-2xl border border-slate-800 overflow-hidden"
+            role="region"
+            aria-label="Ready orders"
+          >
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -723,12 +780,13 @@ const ChefDashboard = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {readyOrders.map(order => <TicketCard key={order.id} order={order} />)}
+                  {readyOrders.map((order) => (
+                    <TicketCard key={order.id} order={order} />
+                  ))}
                 </div>
               )}
             </div>
           </div>
-
         </div>
       </main>
     </div>

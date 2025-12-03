@@ -1,12 +1,32 @@
 import React, { useState } from 'react';
-import { 
-  Clock, User, Tag, Percent, AlertTriangle, 
-  Utensils, ShoppingBag, CreditCard, Wallet, 
-  DollarSign, Gift, XCircle, RefreshCw, CheckCircle,
-  Loader2, Phone, Bell, ChevronDown, ChevronUp, Banknote
+import {
+  Clock,
+  User,
+  Tag,
+  Percent,
+  AlertTriangle,
+  Utensils,
+  ShoppingBag,
+  CreditCard,
+  Wallet,
+  DollarSign,
+  Gift,
+  XCircle,
+  RefreshCw,
+  CheckCircle,
+  Loader2,
+  Phone,
+  Bell,
+  ChevronDown,
+  ChevronUp,
+  Banknote,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { formatCurrency, formatTimestamp, getOrderStatusColor } from '@features/orders/utils/orderHelpers';
+import {
+  formatCurrency,
+  formatTimestamp,
+  getOrderStatusColor,
+} from '@features/orders/utils/orderHelpers';
 import { updatePaymentStatus } from '@config/supabase';
 import { PaymentActionsDropdown } from './PaymentActionsDropdown';
 import { CashPaymentModal } from '@features/billing/components/modals/CashPaymentModal';
@@ -23,7 +43,7 @@ const OrderCard = ({
   onUpdateStatus: _onUpdateStatus,
   compact = false,
   onPaymentComplete,
-  onOrderUpdate
+  onOrderUpdate,
 }) => {
   // Modal state management
   const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
@@ -78,9 +98,9 @@ const OrderCard = ({
 
   const handleSplitPaymentSuccess = (splitResults) => {
     if (onPaymentComplete) {
-      onPaymentComplete(order.id, { 
-        method: 'split', 
-        splitPayments: splitResults 
+      onPaymentComplete(order.id, {
+        method: 'split',
+        splitPayments: splitResults,
       });
     }
     setShowSplitPaymentModal(false);
@@ -112,7 +132,7 @@ const OrderCard = ({
       setLoadingAction('discount');
       // Logic to apply discount would go here (likely an API call)
       // For now, we simulate success
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       toast.success('Discount applied successfully');
       setShowDiscountModal(false);
       if (onOrderUpdate) onOrderUpdate();
@@ -128,7 +148,7 @@ const OrderCard = ({
     try {
       setLoadingAction('issue');
       // Logic to report issue
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       toast.success('Issue reported successfully');
       setShowIssueReportModal(false);
     } catch (error) {
@@ -143,7 +163,7 @@ const OrderCard = ({
     try {
       setLoadingAction('cancel');
       // Logic to cancel order
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       toast.success('Order cancelled successfully');
       setShowCancelOrderModal(false);
       if (onOrderUpdate) onOrderUpdate();
@@ -159,7 +179,7 @@ const OrderCard = ({
     try {
       setLoadingAction('refund');
       // Logic to process refund
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       toast.success('Refund processed successfully');
       setShowRefundModal(false);
       if (onOrderUpdate) onOrderUpdate();
@@ -175,7 +195,7 @@ const OrderCard = ({
     try {
       setLoadingAction('mark-ready');
       // Logic to mark order as ready
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       toast.success('Order marked as ready');
       if (onOrderUpdate) onOrderUpdate();
     } catch (error) {
@@ -190,7 +210,7 @@ const OrderCard = ({
     try {
       setLoadingAction('notify-customer');
       // Logic to notify customer
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       toast.success('Customer notified successfully');
       setShowNotificationModal(false);
     } catch (error) {
@@ -204,25 +224,26 @@ const OrderCard = ({
   // Calculate time since marked ready
   const getTimeSinceReady = () => {
     if (!order.marked_ready_at) return null;
-    
+
     const readyTime = new Date(order.marked_ready_at);
     const now = new Date();
     const diffInMinutes = Math.floor((now - readyTime) / (1000 * 60));
-    
+
     return diffInMinutes;
   };
 
   const timeSinceReady = getTimeSinceReady();
 
   const statusColor = getOrderStatusColor(order.status);
-  const statusBorder = {
-    received: 'border-blue-400',
-    preparing: 'border-yellow-400',
-    ready: 'border-green-500',
-    served: 'border-gray-300',
-    cancelled: 'border-red-400',
-  }[order.status] || 'border-gray-200';
-  
+  const statusBorder =
+    {
+      received: 'border-blue-400',
+      preparing: 'border-yellow-400',
+      ready: 'border-green-500',
+      served: 'border-gray-300',
+      cancelled: 'border-red-400',
+    }[order.status] || 'border-gray-200';
+
   // Determine order type for display
   const orderType = order.order_type || 'dine_in';
   const isPaymentPaid = (order.payment_status || '').toLowerCase() === 'paid';
@@ -244,45 +265,61 @@ const OrderCard = ({
       ready: 'bg-green-100 text-green-800 border-green-300',
       served: 'bg-purple-100 text-purple-800 border-purple-300',
     };
-    const label = {
-      queued: 'Queued',
-      received: 'Received',
-      preparing: 'Preparing',
-      ready: 'Ready',
-      served: 'Served',
-    }[s] || s;
-    return (
-      <span className={`text-[10px] px-2 py-0.5 rounded-full border ${map[s]}`}>{label}</span>
-    );
+    const label =
+      {
+        queued: 'Queued',
+        received: 'Received',
+        preparing: 'Preparing',
+        ready: 'Ready',
+        served: 'Served',
+      }[s] || s;
+    return <span className={`text-[10px] px-2 py-0.5 rounded-full border ${map[s]}`}>{label}</span>;
   };
 
   // Order-level buttons removed; chefs should update per-item statuses only.
 
   return (
-    <div className={`
-      ${compact 
-        ? 'p-4 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl hover:bg-white/10 transition-colors group relative overflow-hidden' 
-        : `card-minimal p-4 sm:p-5 border-l-4 ${statusBorder} hover:shadow-md transition-shadow`
+    <div
+      data-testid="order-card"
+      className={`
+      ${
+        compact
+          ? 'p-4 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl hover:bg-white/10 transition-colors group relative overflow-hidden'
+          : `card-minimal p-4 sm:p-5 border-l-4 ${statusBorder} hover:shadow-md transition-shadow`
       }
-    `}>
+    `}
+      role="article"
+      aria-label={`Order ${order.order_number}`}
+    >
       {/* Compact Header */}
       {compact ? (
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg bg-white/5 text-white/70 group-hover:text-white group-hover:bg-white/10 transition-colors`}>
-               {orderType === 'takeaway' ? <ShoppingBag className="w-5 h-5" /> : <Utensils className="w-5 h-5" />}
+            <div
+              className={`p-2 rounded-lg bg-white/5 text-white/70 group-hover:text-white group-hover:bg-white/10 transition-colors`}
+            >
+              {orderType === 'takeaway' ? (
+                <ShoppingBag className="w-5 h-5" />
+              ) : (
+                <Utensils className="w-5 h-5" />
+              )}
             </div>
             <div>
               <h3 className="text-base font-bold text-white">
-                {orderType === 'takeaway' ? 'Takeaway' : `Table ${order.tables?.table_number || order.table_number || 'N/A'}`}
+                {orderType === 'takeaway'
+                  ? 'Takeaway'
+                  : `Table ${order.tables?.table_number || order.table_number || 'N/A'}`}
               </h3>
               <p className="text-xs text-zinc-500 font-mono">#{order.order_number}</p>
             </div>
           </div>
           <div className="text-right">
-             <span className="text-xs font-medium text-zinc-500 block">
-               {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-             </span>
+            <span className="text-xs font-medium text-zinc-500 block">
+              {new Date(order.created_at).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
           </div>
         </div>
       ) : (
@@ -290,13 +327,15 @@ const OrderCard = ({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 pb-4 border-b border-border">
           <div className="flex items-center gap-3">
             {/* Order Type Icon */}
-            <div className={`p-2 rounded-lg ${
-              orderType === 'takeaway' 
-                ? 'bg-purple-100 text-purple-700' 
-                : orderType === 'delivery'
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-emerald-100 text-emerald-700'
-            }`}>
+            <div
+              className={`p-2 rounded-lg ${
+                orderType === 'takeaway'
+                  ? 'bg-purple-100 text-purple-700'
+                  : orderType === 'delivery'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-emerald-100 text-emerald-700'
+              }`}
+            >
               {orderType === 'takeaway' ? (
                 <ShoppingBag className="w-5 h-5" />
               ) : orderType === 'delivery' ? (
@@ -305,22 +344,26 @@ const OrderCard = ({
                 <Utensils className="w-5 h-5" />
               )}
             </div>
-            
+
             {/* Order Info */}
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">
                   #{order.order_number}
                 </h3>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusColor}`}>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusColor}`}
+                >
                   {order.status.toUpperCase()}
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <p className="text-sm text-muted-foreground font-medium">
-                  {orderType === 'takeaway' ? 'Takeaway Order' : 
-                   orderType === 'delivery' ? 'Delivery Order' :
-                   `Table ${order.tables?.table_number || order.table_number || order.table?.table_number || 'N/A'}`}
+                  {orderType === 'takeaway'
+                    ? 'Takeaway Order'
+                    : orderType === 'delivery'
+                      ? 'Delivery Order'
+                      : `Table ${order.tables?.table_number || order.table_number || order.table?.table_number || 'N/A'}`}
                 </p>
                 {order.customer_name && (
                   <>
@@ -333,7 +376,7 @@ const OrderCard = ({
                 )}
               </div>
             </div>
-            
+
             {/* Takeaway: Customer Phone (Clickable) - Only show in expanded header */}
             {orderType === 'takeaway' && order.customer_phone && (
               <a
@@ -344,7 +387,7 @@ const OrderCard = ({
                 <span>{order.customer_phone}</span>
               </a>
             )}
-            
+
             {/* Takeaway: Ready Warning (if ready > 15 mins) */}
             {orderType === 'takeaway' && timeSinceReady !== null && timeSinceReady > 15 && (
               <div className="flex items-center gap-2 mt-2 px-3 py-1.5 bg-amber-100 border border-amber-300 rounded-lg">
@@ -355,34 +398,36 @@ const OrderCard = ({
               </div>
             )}
           </div>
-        
-        {/* Time & Payment Status */}
-        <div className="flex flex-col items-start sm:items-end gap-2">
-          <div className="flex items-center text-muted-foreground text-sm tabular-nums">
-            <Clock className="w-4 h-4 mr-1.5" />
-            {formatTimestamp(order.created_at)}
-          </div>
-          
-          {/* Payment Status Badge */}
-          <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
-            isPaymentPaid
-              ? 'bg-green-100 text-green-800 border-green-300' 
-              : 'bg-amber-100 text-amber-800 border-amber-300'
-          }`}>
-            {isPaymentPaid ? (
-              <>
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span>PAID</span>
-              </>
-            ) : (
-              <>
-                <CreditCard className="w-3.5 h-3.5" />
-                <span>PENDING</span>
-              </>
-            )}
+
+          {/* Time & Payment Status */}
+          <div className="flex flex-col items-start sm:items-end gap-2">
+            <div className="flex items-center text-muted-foreground text-sm tabular-nums">
+              <Clock className="w-4 h-4 mr-1.5" />
+              {formatTimestamp(order.created_at)}
+            </div>
+
+            {/* Payment Status Badge */}
+            <div
+              className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
+                isPaymentPaid
+                  ? 'bg-green-100 text-green-800 border-green-300'
+                  : 'bg-amber-100 text-amber-800 border-amber-300'
+              }`}
+            >
+              {isPaymentPaid ? (
+                <>
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>PAID</span>
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>PENDING</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
       )}
 
       {/* ============= ITEMS LIST (Compact Ticket View) ============= */}
@@ -405,11 +450,15 @@ const OrderCard = ({
         </div>
       ) : (
         /* Expanded / Full View */
-        <div className={`space-y-3 mb-4 ${compact ? 'py-3 border-b border-dashed border-white/10' : ''}`}>
+        <div
+          className={`space-y-3 mb-4 ${compact ? 'py-3 border-b border-dashed border-white/10' : ''}`}
+        >
           {order.items.map((item, index) => (
             <div key={index} className="flex items-start justify-between text-sm group">
               <div className="flex gap-3">
-                <span className="font-bold text-muted-foreground w-6 tabular-nums">{item.quantity}×</span>
+                <span className="font-bold text-muted-foreground w-6 tabular-nums">
+                  {item.quantity}×
+                </span>
                 <div className="flex flex-col">
                   <span className="text-foreground font-medium group-hover:text-primary transition-colors">
                     {item.name}
@@ -427,7 +476,7 @@ const OrderCard = ({
                 <span className="font-medium tabular-nums text-foreground">
                   {formatCurrency(item.price * item.quantity)}
                 </span>
-                
+
                 {/* Item Actions (Only for active orders) */}
                 {!compact && order.status !== 'cancelled' && order.status !== 'served' && (
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
@@ -442,7 +491,7 @@ const OrderCard = ({
 
       {/* Compact Mode Toggle */}
       {compact && (
-        <button 
+        <button
           onClick={() => setShowDetails(!showDetails)}
           className="w-full py-2 text-xs font-medium text-zinc-500 hover:text-white hover:bg-white/5 rounded transition-colors flex items-center justify-center gap-1 mt-1"
         >
@@ -474,22 +523,25 @@ const OrderCard = ({
       {/* ============= FOOTER: Totals & Actions ============= */}
       <div className={`mt-auto ${compact ? '' : 'pt-4 border-t border-border'}`}>
         <div className="space-y-2">
-          
           {/* Detailed Breakdown (Only if not compact or expanded) */}
           {(!compact || showDetails) && (
             <>
               {/* Subtotal */}
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Subtotal:</span>
-                <span className="tabular-nums">{formatCurrency(order.subtotal || order.subtotal_amount || 0)}</span>
+                <span className="tabular-nums">
+                  {formatCurrency(order.subtotal || order.subtotal_amount || 0)}
+                </span>
               </div>
-              
+
               {/* Tax */}
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Tax (5%):</span>
-                <span className="tabular-nums font-medium">{formatCurrency(order.tax_amount || 0)}</span>
+                <span className="tabular-nums font-medium">
+                  {formatCurrency(order.tax_amount || 0)}
+                </span>
               </div>
-              
+
               {/* Discount */}
               {order.discount > 0 && (
                 <div className="flex justify-between items-center px-3 py-2 bg-red-50 rounded-lg border border-red-200">
@@ -509,72 +561,85 @@ const OrderCard = ({
               )}
             </>
           )}
-          
+
           {/* Total - Always Visible */}
-          <div className={`flex justify-between items-center ${compact ? 'pt-2' : 'pt-2 border-t border-border'}`}>
-            <span className={`${compact ? 'text-sm' : 'text-base'} font-bold text-foreground`}>Total:</span>
+          <div
+            className={`flex justify-between items-center ${compact ? 'pt-2' : 'pt-2 border-t border-border'}`}
+          >
+            <span className={`${compact ? 'text-sm' : 'text-base'} font-bold text-foreground`}>
+              Total:
+            </span>
             <div className="flex items-center gap-2">
               {(!compact || showDetails) && order.discount > 0 && (
                 <span className="text-sm text-muted-foreground line-through tabular-nums">
                   {formatCurrency((order.subtotal || 0) + (order.tax_amount || 0))}
                 </span>
               )}
-              <span className={`${compact ? 'text-lg' : 'text-xl'} font-bold text-foreground tabular-nums`}>
+              <span
+                className={`${compact ? 'text-lg' : 'text-xl'} font-bold text-foreground tabular-nums`}
+              >
                 {formatCurrency(order.total_amount)}
               </span>
             </div>
           </div>
         </div>
-        
+
         {/* Split Payment Breakdown */}
-        {order.payment_method === 'split' && order.payment_split_details && (!compact || showDetails) && (
-          <div className="mt-4 p-3 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg">
-            <div className="text-xs font-bold text-purple-900 mb-2 flex items-center gap-1.5">
-              <Wallet className="w-4 h-4" />
-              <span>Split Payment Breakdown</span>
+        {order.payment_method === 'split' &&
+          order.payment_split_details &&
+          (!compact || showDetails) && (
+            <div className="mt-4 p-3 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg">
+              <div className="text-xs font-bold text-purple-900 mb-2 flex items-center gap-1.5">
+                <Wallet className="w-4 h-4" />
+                <span>Split Payment Breakdown</span>
+              </div>
+              <div className="flex items-center justify-center gap-3 text-sm font-semibold">
+                {order.payment_split_details.cash_amount > 0 && (
+                  <div className="flex items-center gap-1.5 text-purple-800">
+                    <span>💵 Cash:</span>
+                    <span className="tabular-nums">
+                      {formatCurrency(order.payment_split_details.cash_amount)}
+                    </span>
+                  </div>
+                )}
+                {order.payment_split_details.cash_amount > 0 &&
+                  order.payment_split_details.online_amount > 0 && (
+                    <span className="text-purple-400">|</span>
+                  )}
+                {order.payment_split_details.online_amount > 0 && (
+                  <div className="flex items-center gap-1.5 text-purple-800">
+                    <span>💳 UPI:</span>
+                    <span className="tabular-nums">
+                      {formatCurrency(order.payment_split_details.online_amount)}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex items-center justify-center gap-3 text-sm font-semibold">
-              {order.payment_split_details.cash_amount > 0 && (
-                <div className="flex items-center gap-1.5 text-purple-800">
-                  <span>💵 Cash:</span>
-                  <span className="tabular-nums">{formatCurrency(order.payment_split_details.cash_amount)}</span>
-                </div>
-              )}
-              {order.payment_split_details.cash_amount > 0 && order.payment_split_details.online_amount > 0 && (
-                <span className="text-purple-400">|</span>
-              )}
-              {order.payment_split_details.online_amount > 0 && (
-                <div className="flex items-center gap-1.5 text-purple-800">
-                  <span>💳 UPI:</span>
-                  <span className="tabular-nums">{formatCurrency(order.payment_split_details.online_amount)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+          )}
 
         {/* ============= COMPACT MODE: QUICK CASH PAYMENT BUTTON ============= */}
         {/* Only show when customer has explicitly selected cash payment (payment_method must be exactly 'cash') */}
-        {compact && 
-         typeof order.payment_method === 'string' && 
-         order.payment_method.toLowerCase() === 'cash' && 
-         !isPaymentPaid && 
-         order.status !== 'cancelled' && (
-          <div className="mt-4 pt-3 border-t border-white/10">
-            <button
-              onClick={handleQuickCashPayment}
-              disabled={loadingAction === 'quick-cash'}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-green-600 rounded-xl hover:from-emerald-700 hover:to-green-700 border border-emerald-500/50 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              {loadingAction === 'quick-cash' ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Banknote className="w-5 h-5" />
-              )}
-              <span>💵 Paid Cash</span>
-            </button>
-          </div>
-        )}
+        {compact &&
+          typeof order.payment_method === 'string' &&
+          order.payment_method.toLowerCase() === 'cash' &&
+          !isPaymentPaid &&
+          order.status !== 'cancelled' && (
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <button
+                onClick={handleQuickCashPayment}
+                disabled={loadingAction === 'quick-cash'}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-green-600 rounded-xl hover:from-emerald-700 hover:to-green-700 border border-emerald-500/50 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                {loadingAction === 'quick-cash' ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Banknote className="w-5 h-5" />
+                )}
+                <span>💵 Paid Cash</span>
+              </button>
+            </div>
+          )}
       </div>
 
       {/* ============= TAKEAWAY-SPECIFIC ACTIONS ============= */}
@@ -596,7 +661,7 @@ const OrderCard = ({
                 <span>Mark Ready</span>
               </button>
             )}
-            
+
             {/* Notify Customer Button - Only if marked ready */}
             {order.marked_ready_at && (
               <button
@@ -630,7 +695,11 @@ const OrderCard = ({
                     ) : (
                       <DollarSign className="w-4 h-4" />
                     )}
-                    <span>{order.status === 'pending_payment' && isPaymentPaid ? 'Retry Status Update' : 'Confirm Cash Received'}</span>
+                    <span>
+                      {order.status === 'pending_payment' && isPaymentPaid
+                        ? 'Retry Status Update'
+                        : 'Confirm Cash Received'}
+                    </span>
                   </button>
                 ) : (
                   <PaymentActionsDropdown
@@ -712,8 +781,8 @@ const OrderCard = ({
       {/* ============= STATUS MESSAGES ============= */}
       {/* Served Status */}
       {/* Served Status */}
-      {order.status === 'served' && (
-        compact ? (
+      {order.status === 'served' &&
+        (compact ? (
           <div className="mt-2 flex items-center justify-center gap-1.5 py-1.5 bg-green-500/10 text-green-500 rounded border border-green-500/20 text-xs font-bold uppercase tracking-wide">
             <CheckCircle className="w-3.5 h-3.5" />
             <span>Completed</span>
@@ -723,12 +792,11 @@ const OrderCard = ({
             <CheckCircle className="w-5 h-5" />
             <span>Order Completed</span>
           </div>
-        )
-      )}
-      
+        ))}
+
       {/* Cancelled Status */}
-      {order.status === 'cancelled' && (
-        compact ? (
+      {order.status === 'cancelled' &&
+        (compact ? (
           <div className="mt-2 flex items-center justify-center gap-1.5 py-1.5 bg-red-500/10 text-red-500 rounded border border-red-500/20 text-xs font-bold uppercase tracking-wide">
             <XCircle className="w-3.5 h-3.5" />
             <span>Cancelled</span>
@@ -759,15 +827,16 @@ const OrderCard = ({
                   {order.cancelled_at && (
                     <div className="flex items-start gap-2">
                       <span className="text-xs font-bold text-red-600">Cancelled:</span>
-                      <span className="text-xs text-red-700 tabular-nums">{formatTimestamp(order.cancelled_at)}</span>
+                      <span className="text-xs text-red-700 tabular-nums">
+                        {formatTimestamp(order.cancelled_at)}
+                      </span>
                     </div>
                   )}
                 </div>
               </div>
             )}
           </div>
-        )
-      )}
+        ))}
 
       {/* Payment Modals */}
       <CashPaymentModal

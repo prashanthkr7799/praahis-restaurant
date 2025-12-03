@@ -1,0 +1,588 @@
+# Page snapshot
+
+```yaml
+- main [ref=e3]:
+    - navigation [ref=e4]:
+        - generic [ref=e6]:
+            - link "Praahis Logo" [ref=e7] [cursor=pointer]:
+                - /url: /
+                - img "Praahis Logo" [ref=e8]
+            - generic [ref=e9]:
+                - link "Features" [ref=e10] [cursor=pointer]:
+                    - /url: '#features'
+                - link "How It Works" [ref=e11] [cursor=pointer]:
+                    - /url: '#how-it-works'
+                - link "Benefits" [ref=e12] [cursor=pointer]:
+                    - /url: '#benefits'
+                - link "Testimonials" [ref=e13] [cursor=pointer]:
+                    - /url: '#testimonials'
+                - link "Pricing" [ref=e14] [cursor=pointer]:
+                    - /url: '#pricing'
+                - link "Contact" [ref=e15] [cursor=pointer]:
+                    - /url: '#contact'
+            - link "Sign In" [ref=e17] [cursor=pointer]:
+                - /url: /login
+    - generic [ref=e24]:
+        - generic [ref=e25]:
+            - generic [ref=e26]: Trusted by Modern Restaurants
+            - heading "Smart Restaurant Operating System" [level=1] [ref=e28]:
+                - text: Smart Restaurant
+                - text: Operating System
+            - paragraph [ref=e29]:
+                - text: Manage orders, tables, billing & kitchen in real time.
+                - generic [ref=e30]: No training needed — get started immediately.
+            - link "Try Live Demo" [ref=e32] [cursor=pointer]:
+                - /url: /safe-demo
+                - text: Try Live Demo
+                - img [ref=e33]
+            - generic [ref=e35]:
+                - generic [ref=e36]:
+                    - generic [ref=e37]: 500+
+                    - generic [ref=e38]: Restaurants
+                - generic [ref=e39]:
+                    - generic [ref=e40]: 99.9%
+                    - generic [ref=e41]: Uptime
+                - generic [ref=e42]:
+                    - generic [ref=e43]: 24/7
+                    - generic [ref=e44]: Support
+        - generic [ref=e45]:
+            - generic [ref=e54]:
+                - generic [ref=e55]:
+                    - generic [ref=e56]: Total Revenue
+                    - generic [ref=e57]: $12,450
+                - generic [ref=e58]:
+                    - generic [ref=e59]: Active Orders
+                    - generic [ref=e60]: '24'
+                - generic [ref=e61]:
+                    - generic [ref=e62]: Pending
+                    - generic [ref=e63]: '12'
+            - generic [ref=e95]:
+                - generic [ref=e96]: Real-Time Sync
+                - generic [ref=e97]: ⚡ Live
+            - generic [ref=e98]:
+                - generic [ref=e99]: Cloud Based
+                - generic [ref=e100]: ☁️ Secure
+    - generic [ref=e103]:
+        - generic [ref=e104]:
+            - generic [ref=e106]: Complete Restaurant Solution
+            - heading "Everything You Need In One Platform" [level=2] [ref=e107]:
+                - text: Everything You Need
+                - text: In One Platform
+            - paragraph [ref=e108]: Praahis brings together all essential restaurant operations into a unified, intelligent system
+        - generic [ref=e109]:
+            - generic [ref=e111]:
+                - img [ref=e113]
+                - heading "QR Digital Menu" [level=3] [ref=e115]
+                - paragraph [ref=e116]: Contactless ordering with dynamic QR codes for each table. Customers scan, browse, and order instantly.
+            - generic [ref=e118]:
+                - img [ref=e120]
+                - heading "Table Management" [level=3] [ref=e122]
+                - paragraph [ref=e123]: Real-time table occupancy tracking, waiter assignments, and session monitoring with live status updates.
+            - generic [ref=e125]:
+                - img [ref=e127]
+                - heading "Kitchen Display System" [level=3] [ref=e129]
+                - paragraph [ref=e130]: Live order queue for chefs with preparation tracking, delayed order alerts, and seamless coordination.
+            - generic [ref=e132]:
+                - img [ref=e134]
+                - heading "Analytics & Reports" [level=3] [ref=e136]
+                - paragraph [ref=e137]: Detailed revenue breakdowns, sales trends, peak hours analysis, and exportable reports (PDF/CSV/Excel).
+            - generic [ref=e139]:
+                - img [ref=e141]
+                - heading "Payment Processing" [level=3] [ref=e143]
+                - paragraph [ref=e144]: Integrated billing with UPI, cards, and cash. Automatic receipt generation and payment tracking.
+            - generic [ref=e146]:
+                - img [ref=e148]
+                - heading "Staff Management" [level=3] [ref=e150]
+                - paragraph [ref=e151]: Track waiter performance, broadcast messages, one-on-one chat, and activity monitoring.
+            - generic [ref=e153]:
+                - img [ref=e155]
+                - heading "Real-Time Notifications" [level=3] [ref=e157]
+                - paragraph [ref=e158]: Instant alerts for new orders, waiter calls, kitchen updates, and customer requests across all devices.
+            - generic [ref=e160]:
+                - img [ref=e162]
+                - heading "Complete Settings" [level=3] [ref=e164]
+                - paragraph [ref=e165]: Customize menu availability, pricing, offers, restaurant info, and operational preferences.
+    - generic [ref=e167]:
+        - generic [ref=e169]:
+            - generic [ref=e170]: Seamless Workflow
+            - heading "From Order to Payment" [level=2] [ref=e171]
+            - paragraph [ref=e172]: Experience a fully automated restaurant operation that flows naturally from one step to the next.
+        - generic [ref=e174]:
+            - generic [ref=e175]:
+                - generic:
+                    - img
+                - generic [ref=e180]:
+                    - generic [ref=e182]: 📱
+                    - generic [ref=e183]:
+                        - generic [ref=e184]: Step 01
+                        - heading "Scan & Browse" [level=3] [ref=e185]
+                        - paragraph [ref=e186]: Guests scan the table QR code to view your menu instantly on their phones.
+            - generic [ref=e187]:
+                - generic:
+                    - img
+                - generic [ref=e192]:
+                    - generic [ref=e194]: 🍽️
+                    - generic [ref=e195]:
+                        - generic [ref=e196]: Step 02
+                        - heading "Order Instantly" [level=3] [ref=e197]
+                        - paragraph [ref=e198]: Guests place orders directly, sending details straight to your staff.
+            - generic [ref=e199]:
+                - generic:
+                    - img
+                - generic [ref=e204]:
+                    - generic [ref=e206]: 👨‍🍳
+                    - generic [ref=e207]:
+                        - generic [ref=e208]: Step 03
+                        - heading "Kitchen Prepares" [level=3] [ref=e209]
+                        - paragraph [ref=e210]: Your kitchen team sees orders immediately and starts preparation.
+            - generic [ref=e211]:
+                - generic:
+                    - img
+                - generic [ref=e216]:
+                    - generic [ref=e218]: ✅
+                    - generic [ref=e219]:
+                        - generic [ref=e220]: Step 04
+                        - heading "Quick Service" [level=3] [ref=e221]
+                        - paragraph [ref=e222]: Staff are notified when food is ready to serve, ensuring hot meals.
+            - generic [ref=e223]:
+                - generic:
+                    - img
+                - generic [ref=e228]:
+                    - generic [ref=e230]: 💳
+                    - generic [ref=e231]:
+                        - generic [ref=e232]: Step 05
+                        - heading "Easy Payment" [level=3] [ref=e233]
+                        - paragraph [ref=e234]: Guests can pay via their preferred method for a smooth exit.
+            - generic [ref=e240]:
+                - generic [ref=e242]: 📊
+                - generic [ref=e243]:
+                    - generic [ref=e244]: Step 06
+                    - heading "Track Growth" [level=3] [ref=e245]
+                    - paragraph [ref=e246]: View daily sales and performance to help your business grow.
+        - generic [ref=e247]:
+            - generic [ref=e248]:
+                - generic [ref=e249]: < 30 sec
+                - generic [ref=e250]: Order to Kitchen Time
+            - generic [ref=e251]:
+                - generic [ref=e252]: 100%
+                - generic [ref=e253]: Real-Time Sync
+            - generic [ref=e254]:
+                - generic [ref=e255]: '0'
+                - generic [ref=e256]: Manual Errors
+    - generic [ref=e259]:
+        - generic [ref=e260]:
+            - generic [ref=e262]: Measurable Impact
+            - heading "Why Restaurants Choose Praahis" [level=2] [ref=e263]:
+                - text: Why Restaurants
+                - text: Choose Praahis
+            - paragraph [ref=e264]: Real results from restaurants that switched to Praahis
+        - generic [ref=e265]:
+            - generic [ref=e267]:
+                - generic [ref=e268]:
+                    - img [ref=e270]
+                    - generic [ref=e272]: 40%
+                - heading "40% Faster Service" [level=3] [ref=e273]
+                - paragraph [ref=e274]: Reduce order processing time with automated workflows and real-time kitchen coordination
+            - generic [ref=e276]:
+                - generic [ref=e277]:
+                    - img [ref=e279]
+                    - generic [ref=e281]: +25%
+                - heading "Increase Revenue" [level=3] [ref=e282]
+                - paragraph [ref=e283]: Serve more customers, reduce errors, and optimize table turnover for higher profits
+            - generic [ref=e285]:
+                - generic [ref=e286]:
+                    - img [ref=e288]
+                    - generic [ref=e290]: 100%
+                - heading "Zero Manual Errors" [level=3] [ref=e291]
+                - paragraph [ref=e292]: Eliminate billing mistakes and order confusion with digital automation
+            - generic [ref=e294]:
+                - generic [ref=e295]:
+                    - img [ref=e297]
+                    - generic [ref=e299]: 3x
+                - heading "Better Staff Efficiency" [level=3] [ref=e300]
+                - paragraph [ref=e301]: Track performance, streamline communication, and optimize staff allocation
+            - generic [ref=e303]:
+                - generic [ref=e304]:
+                    - img [ref=e306]
+                    - generic [ref=e308]: 24/7
+                - heading "Data-Driven Decisions" [level=3] [ref=e309]
+                - paragraph [ref=e310]: Access real-time analytics and insights to make informed business choices
+            - generic [ref=e312]:
+                - generic [ref=e313]:
+                    - img [ref=e315]
+                    - generic [ref=e317]: 98%
+                - heading "Happy Customers" [level=3] [ref=e318]
+                - paragraph [ref=e319]: Faster service, accurate orders, and seamless payment lead to better reviews
+        - generic [ref=e321]:
+            - heading "Ready to transform your restaurant?" [level=3] [ref=e322]
+            - paragraph [ref=e323]: Join 500+ restaurants already using Praahis to streamline operations and boost revenue
+            - generic [ref=e324]:
+                - link "View Pricing" [ref=e325] [cursor=pointer]:
+                    - /url: '#pricing'
+                - link "Talk to Sales" [ref=e326] [cursor=pointer]:
+                    - /url: '#contact'
+    - generic [ref=e331]:
+        - generic [ref=e332]:
+            - generic [ref=e334]: Trusted by Restaurant Owners
+            - heading "What Our Customers Are Saying" [level=2] [ref=e335]:
+                - text: What Our Customers
+                - text: Are Saying
+            - paragraph [ref=e336]: Real feedback from restaurant owners, managers, and chefs using Praahis daily
+        - generic [ref=e337]:
+            - generic [ref=e339]:
+                - img [ref=e341]
+                - generic [ref=e343]:
+                    - img [ref=e344]
+                    - img [ref=e346]
+                    - img [ref=e348]
+                    - img [ref=e350]
+                    - img [ref=e352]
+                - paragraph [ref=e354]: '"Praahis simplified our operations. Order errors dropped, and our table turnover increased significantly."'
+                - generic [ref=e355]:
+                    - generic [ref=e356]: 👨‍💼
+                    - generic [ref=e357]:
+                        - generic [ref=e358]: Rajesh Kumar
+                        - generic [ref=e359]: Owner, Spice Garden Restaurant
+                        - generic [ref=e360]: Mumbai
+            - generic [ref=e362]:
+                - img [ref=e364]
+                - generic [ref=e366]:
+                    - img [ref=e367]
+                    - img [ref=e369]
+                    - img [ref=e371]
+                    - img [ref=e373]
+                    - img [ref=e375]
+                - paragraph [ref=e377]: '"Managing tables is so much easier now. Our staff loves the simplicity, and customers appreciate the faster service."'
+                - generic [ref=e378]:
+                    - generic [ref=e379]: 👩‍💼
+                    - generic [ref=e380]:
+                        - generic [ref=e381]: Priya Sharma
+                        - generic [ref=e382]: Manager, Coastal Bites
+                        - generic [ref=e383]: Bangalore
+            - generic [ref=e385]:
+                - img [ref=e387]
+                - generic [ref=e389]:
+                    - img [ref=e390]
+                    - img [ref=e392]
+                    - img [ref=e394]
+                    - img [ref=e396]
+                    - img [ref=e398]
+                - paragraph [ref=e400]: '"The kitchen view is brilliant! Orders come in clearly, and the team knows exactly what to prepare."'
+                - generic [ref=e401]:
+                    - generic [ref=e402]: 👨‍🍳
+                    - generic [ref=e403]:
+                        - generic [ref=e404]: Chef Arjun Mehta
+                        - generic [ref=e405]: Head Chef, Urban Kitchen
+                        - generic [ref=e406]: Delhi
+            - generic [ref=e408]:
+                - img [ref=e410]
+                - generic [ref=e412]:
+                    - img [ref=e413]
+                    - img [ref=e415]
+                    - img [ref=e417]
+                    - img [ref=e419]
+                    - img [ref=e421]
+                - paragraph [ref=e423]: '"The insights help me see peak hours and best-selling items. It’s great to have everything in one place."'
+                - generic [ref=e424]:
+                    - generic [ref=e425]: 👩‍💼
+                    - generic [ref=e426]:
+                        - generic [ref=e427]: Sneha Patel
+                        - generic [ref=e428]: Owner, Cafe Delight
+                        - generic [ref=e429]: Pune
+            - generic [ref=e431]:
+                - img [ref=e433]
+                - generic [ref=e435]:
+                    - img [ref=e436]
+                    - img [ref=e438]
+                    - img [ref=e440]
+                    - img [ref=e442]
+                    - img [ref=e444]
+                - paragraph [ref=e446]: '"QR ordering is a hit! Customers love the convenience, and billing is smooth and automated."'
+                - generic [ref=e447]:
+                    - generic [ref=e448]: 👨‍💼
+                    - generic [ref=e449]:
+                        - generic [ref=e450]: Vikram Singh
+                        - generic [ref=e451]: Restaurant Manager, Tandoor House
+                        - generic [ref=e452]: Hyderabad
+            - generic [ref=e454]:
+                - img [ref=e456]
+                - generic [ref=e458]:
+                    - img [ref=e459]
+                    - img [ref=e461]
+                    - img [ref=e463]
+                    - img [ref=e465]
+                    - img [ref=e467]
+                - paragraph [ref=e469]: '"Best investment for us. The communication tools keep everyone in sync and customers happy."'
+                - generic [ref=e470]:
+                    - generic [ref=e471]: 👩‍💼
+                    - generic [ref=e472]:
+                        - generic [ref=e473]: Anita Desai
+                        - generic [ref=e474]: Owner, South Spice
+                        - generic [ref=e475]: Chennai
+        - generic [ref=e476]:
+            - generic [ref=e477]:
+                - generic [ref=e478]: 500+
+                - generic [ref=e479]: Active Restaurants
+            - generic [ref=e480]:
+                - generic [ref=e481]: 4.9/5
+                - generic [ref=e482]: Average Rating
+            - generic [ref=e483]:
+                - generic [ref=e484]: 98%
+                - generic [ref=e485]: Customer Satisfaction
+            - generic [ref=e486]:
+                - generic [ref=e487]: 10K+
+                - generic [ref=e488]: Daily Orders Processed
+    - generic [ref=e491]:
+        - generic [ref=e492]:
+            - generic [ref=e494]: Simple & Transparent Pricing
+            - heading "Choose Your Perfect Plan" [level=2] [ref=e495]:
+                - text: Choose Your
+                - text: Perfect Plan
+            - paragraph [ref=e496]: No hidden fees. No setup costs. Cancel anytime.
+        - generic [ref=e498]:
+            - generic [ref=e500]:
+                - img [ref=e501]
+                - text: Most Popular Choice
+            - generic [ref=e504]:
+                - generic [ref=e505]:
+                    - heading "Professional Plan" [level=3] [ref=e506]
+                    - paragraph [ref=e507]: Ideal for growing restaurants
+                    - generic [ref=e508]:
+                        - generic [ref=e509]:
+                            - generic [ref=e510]: ₹75
+                            - generic [ref=e511]: / table / day
+                        - paragraph [ref=e512]: (Billed monthly based on the number of active tables)
+                    - generic [ref=e513]:
+                        - generic [ref=e514]: Contact Admin to Get Started
+                        - generic [ref=e515]:
+                            - link "+91 98765 43210" [ref=e516] [cursor=pointer]:
+                                - /url: tel:+919876543210
+                                - img [ref=e517]
+                                - generic [ref=e519]: +91 98765 43210
+                            - link "admin@praahis.com" [ref=e520] [cursor=pointer]:
+                                - /url: mailto:admin@praahis.com
+                                - img [ref=e521]
+                                - generic [ref=e523]: admin@praahis.com
+                - generic [ref=e524]:
+                    - heading "What's Included:" [level=4] [ref=e525]
+                    - list [ref=e526]:
+                        - listitem [ref=e527]:
+                            - img [ref=e529]
+                            - generic [ref=e531]: Reliable & Fast Performance
+                        - listitem [ref=e532]:
+                            - img [ref=e534]
+                            - generic [ref=e536]: Digital Kitchen Screen
+                        - listitem [ref=e537]:
+                            - img [ref=e539]
+                            - generic [ref=e541]: Live Table Overview
+                        - listitem [ref=e542]:
+                            - img [ref=e544]
+                            - generic [ref=e546]: Complete Staff Accounts
+                        - listitem [ref=e547]:
+                            - img [ref=e549]
+                            - generic [ref=e551]: Instant Order Updates
+                        - listitem [ref=e552]:
+                            - img [ref=e554]
+                            - generic [ref=e556]: Integrated Payments
+                        - listitem [ref=e557]:
+                            - img [ref=e559]
+                            - generic [ref=e561]: Business Analytics Dashboard
+                        - listitem [ref=e562]:
+                            - img [ref=e564]
+                            - generic [ref=e566]: Custom Branding
+                        - listitem [ref=e567]:
+                            - img [ref=e569]
+                            - generic [ref=e571]: Priority Support
+                        - listitem [ref=e572]:
+                            - img [ref=e574]
+                            - generic [ref=e576]: Unlimited Staff Devices
+                        - listitem [ref=e577]:
+                            - img [ref=e579]
+                            - generic [ref=e581]: Multi-Location Support
+                        - listitem [ref=e582]:
+                            - img [ref=e584]
+                            - generic [ref=e586]: Live Updates
+                        - listitem [ref=e587]:
+                            - img [ref=e589]
+                            - generic [ref=e591]: Secure Cloud Hosting
+                        - listitem [ref=e592]:
+                            - img [ref=e594]
+                            - generic [ref=e596]: Continuous Updates
+        - generic [ref=e597]:
+            - paragraph [ref=e598]: Contact our team to get started • Custom setup available • Dedicated support
+            - generic [ref=e599]:
+                - generic [ref=e600]:
+                    - img [ref=e601]
+                    - generic [ref=e603]: Free Setup & Training
+                - generic [ref=e604]:
+                    - img [ref=e605]
+                    - generic [ref=e607]: Free Updates
+                - generic [ref=e608]:
+                    - img [ref=e609]
+                    - generic [ref=e611]: Data Migration Included
+        - generic [ref=e613]:
+            - heading "Need a Custom Solution?" [level=3] [ref=e614]
+            - paragraph [ref=e615]: For restaurant chains or custom requirements, contact our sales team for a tailored plan
+            - link "Contact Sales" [ref=e616] [cursor=pointer]:
+                - /url: '#contact'
+    - generic [ref=e621]:
+        - generic [ref=e622]:
+            - generic [ref=e624]: Get In Touch
+            - heading "Ready to Get Started? Let's Talk" [level=2] [ref=e625]:
+                - text: Ready to Get Started?
+                - text: Let's Talk
+            - paragraph [ref=e626]: Schedule a demo or get in touch with our team to learn how Praahis can transform your restaurant
+        - generic [ref=e627]:
+            - generic [ref=e629]:
+                - heading "Send us a message" [level=3] [ref=e630]
+                - generic [ref=e631]:
+                    - generic [ref=e632]:
+                        - generic [ref=e633]: Your Name *
+                        - textbox "Your Name *" [ref=e634]:
+                            - /placeholder: John Doe
+                    - generic [ref=e635]:
+                        - generic [ref=e636]: Email Address *
+                        - textbox "Email Address *" [ref=e637]:
+                            - /placeholder: john@example.com
+                    - generic [ref=e638]:
+                        - generic [ref=e639]: Phone Number
+                        - textbox "Phone Number" [ref=e640]:
+                            - /placeholder: +91 98765 43210
+                    - generic [ref=e641]:
+                        - generic [ref=e642]: Restaurant Name
+                        - textbox "Restaurant Name" [ref=e643]:
+                            - /placeholder: Your Restaurant
+                    - generic [ref=e644]:
+                        - generic [ref=e645]: Message *
+                        - textbox "Message *" [ref=e646]:
+                            - /placeholder: Tell us about your requirements...
+                    - button "Send Message" [ref=e647] [cursor=pointer]:
+                        - text: Send Message
+                        - img [ref=e648]
+            - generic [ref=e650]:
+                - generic [ref=e652]:
+                    - img [ref=e654]
+                    - generic [ref=e656]:
+                        - heading "Email Us" [level=4] [ref=e657]
+                        - paragraph [ref=e658]: We'll respond within 24 hours
+                        - link "contact@praahis.com" [ref=e659] [cursor=pointer]:
+                            - /url: mailto:contact@praahis.com
+                - generic [ref=e661]:
+                    - img [ref=e663]
+                    - generic [ref=e665]:
+                        - heading "Call Us" [level=4] [ref=e666]
+                        - paragraph [ref=e667]: Mon-Sat, 9 AM - 6 PM IST
+                        - link "+91 96765 81878" [ref=e668] [cursor=pointer]:
+                            - /url: tel:+919676581878
+                - generic [ref=e670]:
+                    - img [ref=e672]
+                    - generic [ref=e674]:
+                        - heading "Visit Us" [level=4] [ref=e675]
+                        - paragraph [ref=e676]: Our office location
+                        - paragraph [ref=e677]:
+                            - text: Tirupati, Andhra Pradesh
+                            - text: India - 517102
+                - generic [ref=e678]:
+                    - heading "Why Choose Praahis?" [level=4] [ref=e679]
+                    - generic [ref=e680]:
+                        - generic [ref=e683]: 500+ Restaurants Trust Us
+                        - generic [ref=e686]: Quick Setup & Onboarding
+                        - generic [ref=e689]: Free Training Included
+                        - generic [ref=e692]: 24/7 Support Available
+    - generic [ref=e694]:
+        - generic [ref=e695]:
+            - generic [ref=e696]:
+                - link "Praahis Logo" [ref=e697] [cursor=pointer]:
+                    - /url: /
+                    - img "Praahis Logo" [ref=e698]
+                - paragraph [ref=e699]: The complete restaurant management platform that streamlines operations, boosts efficiency, and increases revenue.
+                - generic [ref=e700]:
+                    - link "Facebook" [ref=e701] [cursor=pointer]:
+                        - /url: https://facebook.com
+                        - img [ref=e702]
+                    - link "Instagram" [ref=e704] [cursor=pointer]:
+                        - /url: https://instagram.com
+                        - img [ref=e705]
+                    - link "Twitter" [ref=e707] [cursor=pointer]:
+                        - /url: https://twitter.com
+                        - img [ref=e708]
+                    - link "LinkedIn" [ref=e710] [cursor=pointer]:
+                        - /url: https://linkedin.com
+                        - img [ref=e711]
+                    - link "GitHub" [ref=e713] [cursor=pointer]:
+                        - /url: https://github.com
+                        - img [ref=e714]
+            - generic [ref=e716]:
+                - heading "Product" [level=3] [ref=e717]
+                - list [ref=e718]:
+                    - listitem [ref=e719]:
+                        - link "Features" [ref=e720] [cursor=pointer]:
+                            - /url: /#features
+                    - listitem [ref=e721]:
+                        - link "Pricing" [ref=e722] [cursor=pointer]:
+                            - /url: /#pricing
+                    - listitem [ref=e723]:
+                        - link "Contact Us" [ref=e724] [cursor=pointer]:
+                            - /url: /#contact
+                    - listitem [ref=e725]:
+                        - link "How It Works" [ref=e726] [cursor=pointer]:
+                            - /url: /#how-it-works
+            - generic [ref=e727]:
+                - heading "Company" [level=3] [ref=e728]
+                - list [ref=e729]:
+                    - listitem [ref=e730]:
+                        - link "About Us" [ref=e731] [cursor=pointer]:
+                            - /url: /#about
+                    - listitem [ref=e732]:
+                        - link "Contact" [ref=e733] [cursor=pointer]:
+                            - /url: /#contact
+                    - listitem [ref=e734]:
+                        - link "Careers" [ref=e735] [cursor=pointer]:
+                            - /url: /
+                    - listitem [ref=e736]:
+                        - link "Blog" [ref=e737] [cursor=pointer]:
+                            - /url: /
+            - generic [ref=e738]:
+                - heading "Resources" [level=3] [ref=e739]
+                - list [ref=e740]:
+                    - listitem [ref=e741]:
+                        - link "Documentation" [ref=e742] [cursor=pointer]:
+                            - /url: /
+                    - listitem [ref=e743]:
+                        - link "Help Center" [ref=e744] [cursor=pointer]:
+                            - /url: /
+                    - listitem [ref=e745]:
+                        - link "API Reference" [ref=e746] [cursor=pointer]:
+                            - /url: /
+                    - listitem [ref=e747]:
+                        - link "System Status" [ref=e748] [cursor=pointer]:
+                            - /url: /
+            - generic [ref=e749]:
+                - heading "Legal" [level=3] [ref=e750]
+                - list [ref=e751]:
+                    - listitem [ref=e752]:
+                        - link "Privacy Policy" [ref=e753] [cursor=pointer]:
+                            - /url: /
+                    - listitem [ref=e754]:
+                        - link "Terms of Service" [ref=e755] [cursor=pointer]:
+                            - /url: /
+                    - listitem [ref=e756]:
+                        - link "Cookie Policy" [ref=e757] [cursor=pointer]:
+                            - /url: /
+                    - listitem [ref=e758]:
+                        - link "GDPR" [ref=e759] [cursor=pointer]:
+                            - /url: /
+        - generic [ref=e761]:
+            - heading "Stay Updated" [level=3] [ref=e762]
+            - paragraph [ref=e763]: Get the latest updates on new features, tips, and restaurant management insights
+            - generic [ref=e764]:
+                - textbox "Enter your email" [ref=e765]
+                - button "Subscribe" [ref=e766] [cursor=pointer]
+        - generic [ref=e768]:
+            - paragraph [ref=e769]: © 2025 Praahis. All rights reserved.
+            - generic [ref=e770]:
+                - generic [ref=e771]: Made with ❤️ in India
+                - generic [ref=e772]: •
+                - link "Staff Login" [ref=e773] [cursor=pointer]:
+                    - /url: /login
+```

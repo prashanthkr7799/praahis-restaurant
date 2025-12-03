@@ -48,7 +48,7 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
       </div>
     );
   }
-  
+
   if (!restaurantId) {
     return (
       <div className="bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/30 rounded-xl p-6 text-center">
@@ -56,8 +56,12 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
           <span className="text-2xl">⚠️</span>
         </div>
         <h2 className="text-lg font-bold text-destructive mb-2">Missing Restaurant Context</h2>
-        <p className="text-foreground/80 mb-2">Cannot add staff because restaurant context is not set.</p>
-        <p className="text-sm text-muted-foreground">Please log out and log in again as manager, or reload the page.</p>
+        <p className="text-foreground/80 mb-2">
+          Cannot add staff because restaurant context is not set.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Please log out and log in again as manager, or reload the page.
+        </p>
       </div>
     );
   }
@@ -92,19 +96,19 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
     // Clear error for this field
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: undefined }));
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       toast.error('Please fix the errors in the form');
       return;
@@ -117,12 +121,11 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
         toast.error('Missing restaurant context');
         return;
       }
-      
+
       // For new staff: Check max_users limit before creating
       if (!staff) {
         // Fetch restaurant's limits using RPC (this bypasses RLS issues)
-        const { data: limits, error: limitsError } = await supabase
-          .rpc('get_restaurant_limits');
+        const { data: limits, error: limitsError } = await supabase.rpc('get_restaurant_limits');
 
         if (limitsError) {
           console.error('Failed to fetch restaurant limits:', limitsError);
@@ -132,13 +135,15 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
         if (limits && limits.length > 0) {
           const { max_users, current_users } = limits[0];
           if (current_users >= max_users) {
-            toast.error(`Staff limit reached! Your plan allows maximum ${max_users} staff members (currently ${current_users}). Please upgrade your subscription or contact SuperAdmin.`);
+            toast.error(
+              `Staff limit reached! Your plan allows maximum ${max_users} staff members (currently ${current_users}). Please upgrade your subscription or contact SuperAdmin.`
+            );
             setLoading(false);
             return;
           }
         }
       }
-      
+
       if (staff) {
         // Edit existing staff member via SECURITY DEFINER RPC (bypasses users RLS safely)
         const { error: updateError } = await supabase.rpc('admin_update_staff', {
@@ -197,7 +202,7 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
           p_phone: formData.phone || null,
           p_restaurant_id: restaurantId,
         });
-        
+
         if (profileErr) {
           // Better error messages for RPC failures
           const rpcErrorMsg = profileErr.message?.toLowerCase() || '';
@@ -234,15 +239,31 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
 
   // Define all available role options
   const allRoleOptions = [
-    { value: ROLES.ADMIN, label: getRoleDisplayName(ROLES.ADMIN), description: 'Full system access' },
-    { value: ROLES.MANAGER, label: getRoleDisplayName(ROLES.MANAGER), description: 'Manage operations & staff' },
-    { value: ROLES.CHEF, label: getRoleDisplayName(ROLES.CHEF), description: 'View & update orders' },
-    { value: ROLES.WAITER, label: getRoleDisplayName(ROLES.WAITER), description: 'Take & serve orders' },
+    {
+      value: ROLES.ADMIN,
+      label: getRoleDisplayName(ROLES.ADMIN),
+      description: 'Full system access',
+    },
+    {
+      value: ROLES.MANAGER,
+      label: getRoleDisplayName(ROLES.MANAGER),
+      description: 'Manage operations & staff',
+    },
+    {
+      value: ROLES.CHEF,
+      label: getRoleDisplayName(ROLES.CHEF),
+      description: 'View & update orders',
+    },
+    {
+      value: ROLES.WAITER,
+      label: getRoleDisplayName(ROLES.WAITER),
+      description: 'Take & serve orders',
+    },
   ];
 
   // Filter roles if allowedRoles is specified
-  const roleOptions = allowedRoles 
-    ? allRoleOptions.filter(option => allowedRoles.includes(option.value))
+  const roleOptions = allowedRoles
+    ? allRoleOptions.filter((option) => allowedRoles.includes(option.value))
     : allRoleOptions;
 
   return (
@@ -285,7 +306,7 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
             className={`w-full px-4 py-2.5 bg-card border rounded-lg text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-smooth ${
               errors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border'
             } ${staff ? 'bg-muted/50 cursor-not-allowed opacity-60' : ''}`}
-            placeholder="hgewf"
+            placeholder="staff@restaurant.com"
           />
           {errors.email && (
             <p className="mt-1.5 text-sm text-destructive flex items-center gap-1">
@@ -301,9 +322,7 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
 
         {/* Phone */}
         <div>
-          <label className="block text-sm font-semibold text-foreground mb-2">
-            Phone Number
-          </label>
+          <label className="block text-sm font-semibold text-foreground mb-2">Phone Number</label>
           <input
             type="tel"
             name="phone"
@@ -373,9 +392,13 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
                 className="mt-0.5 h-5 w-5 text-primary focus:ring-2 focus:ring-primary/50 border-border cursor-pointer relative z-10"
               />
               <div className="ml-3 relative z-10">
-                <div className={`font-semibold mb-0.5 transition-smooth ${
-                  formData.role === option.value ? 'text-primary' : 'text-foreground group-hover:text-primary'
-                }`}>
+                <div
+                  className={`font-semibold mb-0.5 transition-smooth ${
+                    formData.role === option.value
+                      ? 'text-primary'
+                      : 'text-foreground group-hover:text-primary'
+                  }`}
+                >
                   {option.label}
                 </div>
                 <div className="text-sm text-muted-foreground">{option.description}</div>
@@ -401,7 +424,9 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
               Active (Can login to the system)
             </div>
             <div className="text-sm text-muted-foreground mt-0.5">
-              {formData.is_active ? '✓ This user can access the system' : '⚠ This user cannot login'}
+              {formData.is_active
+                ? '✓ This user can access the system'
+                : '⚠ This user cannot login'}
             </div>
           </div>
         </label>
@@ -419,7 +444,11 @@ const StaffForm = ({ staff, onSuccess, onCancel, allowedRoles }) => {
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               Saving...
             </span>
-          ) : staff ? 'Update Staff' : 'Add Staff'}
+          ) : staff ? (
+            'Update Staff'
+          ) : (
+            'Add Staff'
+          )}
         </button>
         <button
           type="button"

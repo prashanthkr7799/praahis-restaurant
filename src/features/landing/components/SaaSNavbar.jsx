@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { FaBars, FaTimes } from 'react-icons/fa'
-import logo from '/logo.svg'
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { FaBars, FaTimes } from 'react-icons/fa';
+import logo from '/logo.svg';
 
 const navLinks = [
   { text: 'Features', href: '#features' },
@@ -10,31 +10,31 @@ const navLinks = [
   { text: 'Testimonials', href: '#testimonials' },
   { text: 'Pricing', href: '#pricing' },
   { text: 'Contact', href: '#contact' },
-]
+];
 
 const SaaSNavbar = () => {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen)
-  }
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
 
   const handleScroll = (event, href) => {
-    event.preventDefault()
-    
+    event.preventDefault();
+
     if (href.startsWith('#')) {
-      const targetId = href.substring(1)
-      const targetElement = document.getElementById(targetId)
+      const targetId = href.substring(1);
+      const targetElement = document.getElementById(targetId);
       if (targetElement) {
-        const offsetTop = targetElement.offsetTop - 120
+        const offsetTop = targetElement.offsetTop - 120;
         window.scrollTo({
           top: offsetTop,
           behavior: 'smooth',
-        })
+        });
       }
     }
-    setIsMobileMenuOpen(false)
-  }
+    setIsMobileMenuOpen(false);
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0e1a]/80 backdrop-blur-xl border-b border-white/10">
@@ -42,7 +42,11 @@ const SaaSNavbar = () => {
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
-            <img src={logo} alt="Praahis Logo" className="h-10 w-auto group-hover:scale-105 transition-transform" />
+            <img
+              src={logo}
+              alt="Praahis Logo"
+              className="h-10 w-auto group-hover:scale-105 transition-transform"
+            />
           </Link>
 
           {/* Desktop Navigation */}
@@ -72,7 +76,9 @@ const SaaSNavbar = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={toggleMobileMenu}
-            className="lg:hidden p-2 text-gray-300 hover:text-white transition-colors"
+            className="lg:hidden p-3 text-gray-300 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={isMobileMenuOpen}
           >
             {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
           </button>
@@ -106,7 +112,7 @@ const SaaSNavbar = () => {
         </div>
       )}
     </nav>
-  )
-}
+  );
+};
 
-export default SaaSNavbar
+export default SaaSNavbar;

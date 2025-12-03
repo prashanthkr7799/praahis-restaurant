@@ -1,14 +1,20 @@
-import { Link } from 'react-router-dom'
-import { motion as Motion } from 'framer-motion'
-import { FaArrowRight } from 'react-icons/fa6'
+import { Link } from 'react-router-dom';
+import { motion as Motion } from 'framer-motion';
+import { FaArrowRight } from 'react-icons/fa6';
 
 const SaaSHero = () => {
   return (
-    <section id="hero" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#0a0e1a] via-[#1a1f35] to-[#0a0e1a]">
+    <section
+      id="hero"
+      className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#0a0e1a] via-[#1a1f35] to-[#0a0e1a]"
+    >
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-20 left-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div
+          className="absolute bottom-20 right-10 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse"
+          style={{ animationDelay: '1s' }}
+        ></div>
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-3xl"></div>
       </div>
 
@@ -58,7 +64,9 @@ const SaaSHero = () => {
             className="text-xl md:text-2xl text-gray-400 max-w-xl"
           >
             Manage orders, tables, billing & kitchen in real time.
-            <span className="block mt-2 text-lg text-gray-500">No training needed — get started immediately.</span>
+            <span className="block mt-2 text-lg text-gray-500">
+              No training needed — get started immediately.
+            </span>
           </Motion.p>
 
           {/* CTAs */}
@@ -70,7 +78,7 @@ const SaaSHero = () => {
           >
             <Link
               to="/safe-demo"
-              className="group flex items-center gap-3 bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-4 rounded-full font-semibold text-lg transition-all shadow-[0_0_30px_-5px_rgba(16,185,129,0.5)] hover:shadow-[0_0_40px_-5px_rgba(16,185,129,0.7)] hover:scale-105"
+              className="group flex items-center gap-3 bg-emerald-700 hover:bg-emerald-600 text-white px-8 py-4 rounded-full font-bold text-lg transition-all shadow-[0_0_30px_-5px_rgba(16,185,129,0.5)] hover:shadow-[0_0_40px_-5px_rgba(16,185,129,0.7)] hover:scale-105"
             >
               Try Live Demo
               <FaArrowRight className="group-hover:translate-x-1 transition-transform" />
@@ -87,7 +95,7 @@ const SaaSHero = () => {
             {[
               { value: '500+', label: 'Restaurants' },
               { value: '99.9%', label: 'Uptime' },
-              { value: '24/7', label: 'Support' }
+              { value: '24/7', label: 'Support' },
             ].map((stat, i) => (
               <div key={i} className="text-center lg:text-left">
                 <div className="text-3xl font-bold text-white tabular-nums">{stat.value}</div>
@@ -123,7 +131,7 @@ const SaaSHero = () => {
                 {[
                   { label: 'Total Revenue', value: '$12,450', color: 'text-emerald-400' },
                   { label: 'Active Orders', value: '24', color: 'text-blue-400' },
-                  { label: 'Pending', value: '12', color: 'text-orange-400' }
+                  { label: 'Pending', value: '12', color: 'text-orange-400' },
                 ].map((stat, i) => (
                   <div key={i} className="bg-white/5 rounded-xl p-4 border border-white/5">
                     <div className="text-xs text-gray-400 mb-1">{stat.label}</div>
@@ -137,7 +145,7 @@ const SaaSHero = () => {
                 {/* List */}
                 <div className="col-span-2 bg-white/5 rounded-xl p-4 border border-white/5 space-y-3">
                   <div className="h-2 w-20 bg-white/10 rounded-full mb-4"></div>
-                  {[1, 2, 3].map(i => (
+                  {[1, 2, 3].map((i) => (
                     <div key={i} className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-white/10"></div>
@@ -152,17 +160,17 @@ const SaaSHero = () => {
                 </div>
                 {/* Chart/Side */}
                 <div className="bg-white/5 rounded-xl p-4 border border-white/5 flex flex-col justify-between">
-                   <div className="h-2 w-16 bg-white/10 rounded-full"></div>
-                   <div className="flex items-end justify-between gap-2 h-32">
-                      <div className="w-full bg-blue-500/20 rounded-t-sm h-[40%]"></div>
-                      <div className="w-full bg-blue-500/20 rounded-t-sm h-[70%]"></div>
-                      <div className="w-full bg-blue-500/20 rounded-t-sm h-[50%]"></div>
-                      <div className="w-full bg-blue-500/20 rounded-t-sm h-[80%]"></div>
-                   </div>
+                  <div className="h-2 w-16 bg-white/10 rounded-full"></div>
+                  <div className="flex items-end justify-between gap-2 h-32">
+                    <div className="w-full bg-blue-500/20 rounded-t-sm h-[40%]"></div>
+                    <div className="w-full bg-blue-500/20 rounded-t-sm h-[70%]"></div>
+                    <div className="w-full bg-blue-500/20 rounded-t-sm h-[50%]"></div>
+                    <div className="w-full bg-blue-500/20 rounded-t-sm h-[80%]"></div>
+                  </div>
                 </div>
               </div>
             </div>
-            
+
             {/* Overlay Text - Removed as per request to design a preview dashboard, but user said 'remove these also in the page' referring to 'Want to see it in action?'. 
                The user said 'design the preview dashboard in the home screen but it should not be exactly our page.'
                I will remove the 'PREVIEW Dashboard Concept' overlay to make it look like a real dashboard.
@@ -190,7 +198,7 @@ const SaaSHero = () => {
         </Motion.div>
       </div>
     </section>
-  )
-}
+  );
+};
 
-export default SaaSHero
+export default SaaSHero;

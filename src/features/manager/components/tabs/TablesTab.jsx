@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  Plus, 
-  QrCode, 
-  LayoutGrid, 
-  List, 
-  Search,
-  Edit
-} from 'lucide-react';
+import { Plus, QrCode, LayoutGrid, List, Search, Edit } from 'lucide-react';
 import { supabase } from '@config/supabase';
 import { useRealtimeOrders } from '@shared/contexts/RealtimeOrderContext';
 import { useRestaurant } from '@shared/hooks/useRestaurant';
@@ -33,9 +26,10 @@ const TablesTab = () => {
   const [tableToEdit, setTableToEdit] = useState(null);
 
   // Filter tables
-  const filteredTables = tables.filter(table => 
-    table.table_number.toString().includes(searchQuery) ||
-    (table.zone && table.zone.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredTables = tables.filter(
+    (table) =>
+      table.table_number.toString().includes(searchQuery) ||
+      (table.zone && table.zone.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   // Handlers
@@ -71,15 +65,13 @@ const TablesTab = () => {
   const handleCallWaiter = async (tableNumber) => {
     try {
       // Insert notification for waiters
-      const { error } = await supabase
-        .from('notifications')
-        .insert({
-          restaurant_id: restaurantId,
-          type: 'alert',
-          title: `Table ${tableNumber} needs assistance`,
-          body: `Customer at table ${tableNumber} has called for a waiter.`,
-          data: { tableNumber, type: 'call_waiter' },
-        });
+      const { error } = await supabase.from('notifications').insert({
+        restaurant_id: restaurantId,
+        type: 'alert',
+        title: `Table ${tableNumber} needs assistance`,
+        body: `Customer at table ${tableNumber} has called for a waiter.`,
+        data: { tableNumber, type: 'call_waiter' },
+      });
 
       if (error) throw error;
 
@@ -169,7 +161,7 @@ const TablesTab = () => {
       {/* Tables Grid/List */}
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <div key={i} className="aspect-square glass-panel rounded-xl animate-pulse"></div>
           ))}
         </div>
@@ -180,13 +172,15 @@ const TablesTab = () => {
           <p className="text-zinc-400">Try adjusting your search or add a new table.</p>
         </div>
       ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {filteredTables.map(table => (
-            <div key={table.id} className="relative group">
-              <TableCard
-                table={table}
-                onClick={() => handleTableClick(table)}
-              />
+        <div
+          data-testid="table-grid"
+          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+          role="list"
+          aria-label="Tables"
+        >
+          {filteredTables.map((table) => (
+            <div key={table.id} className="relative group" role="listitem">
+              <TableCard table={table} onClick={() => handleTableClick(table)} />
               {/* Edit Button Overlay */}
               <button
                 onClick={(e) => handleEditTable(table, e)}
@@ -201,13 +195,10 @@ const TablesTab = () => {
       ) : (
         <div className="glass-panel rounded-xl border border-white/10 overflow-hidden">
           <div className="divide-y divide-white/5">
-            {filteredTables.map(table => (
+            {filteredTables.map((table) => (
               <div key={table.id} className="relative flex items-center">
                 <div className="flex-1">
-                  <TableListItem
-                    table={table}
-                    onClick={() => handleTableClick(table)}
-                  />
+                  <TableListItem table={table} onClick={() => handleTableClick(table)} />
                 </div>
                 {/* Edit Button */}
                 <button

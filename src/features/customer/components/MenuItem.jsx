@@ -5,7 +5,7 @@ import { formatCurrency } from '@features/orders/utils/orderHelpers';
 /**
  * Premium MenuItem Component for Customer Page
  * Dark theme with vibrant orange accents
- * 
+ *
  * Features:
  * - 5:4 aspect ratio image
  * - Green veg indicator (border + dot)
@@ -30,15 +30,13 @@ const MenuItem = ({ item, onAddToCart, onUpdateQuantity, cartQuantity = 0 }) => 
   const renderStars = () => {
     const stars = [];
     const rating = item.avg_rating || 0;
-    
+
     for (let i = 1; i <= 5; i++) {
       stars.push(
         <Star
           key={i}
           className={`w-3 h-3 ${
-            i <= Math.floor(rating)
-              ? 'fill-current customer-rating'
-              : 'text-gray-600'
+            i <= Math.floor(rating) ? 'fill-current customer-rating' : 'text-gray-600'
           }`}
         />
       );
@@ -53,7 +51,10 @@ const MenuItem = ({ item, onAddToCart, onUpdateQuantity, cartQuantity = 0 }) => 
   if (item.is_popular) tags.push('⭐ Popular');
 
   return (
-    <div className="customer-card p-3 transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] hover:border-orange-500/30 border border-transparent group">
+    <div
+      data-testid="menu-item"
+      className="customer-card p-3 transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] hover:border-orange-500/30 border border-transparent group"
+    >
       {/* Image Area - 5:4 Aspect Ratio */}
       <div className="relative aspect-5-4 mb-3 rounded-lg overflow-hidden bg-gray-800">
         {item.image_url ? (
@@ -80,7 +81,7 @@ const MenuItem = ({ item, onAddToCart, onUpdateQuantity, cartQuantity = 0 }) => 
             <span className="text-4xl">🍽️</span>
           </div>
         )}
-        
+
         {imageError && !imageLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
             <span className="text-4xl">🍽️</span>
@@ -118,9 +119,7 @@ const MenuItem = ({ item, onAddToCart, onUpdateQuantity, cartQuantity = 0 }) => 
 
       {/* Title & Price - Side by Side */}
       <div className="flex items-start justify-between mb-2">
-        <h3 className="text-sm font-semibold text-white flex-1 mr-2 leading-tight">
-          {item.name}
-        </h3>
+        <h3 className="text-sm font-semibold text-white flex-1 mr-2 leading-tight">{item.name}</h3>
         <span className="text-sm font-bold customer-rating whitespace-nowrap">
           {formatCurrency(item.price)}
         </span>
@@ -136,12 +135,8 @@ const MenuItem = ({ item, onAddToCart, onUpdateQuantity, cartQuantity = 0 }) => 
       {/* Rating Display */}
       {item.avg_rating > 0 && (
         <div className="flex items-center gap-1 mb-3">
-          <div className="flex items-center gap-0.5">
-            {renderStars()}
-          </div>
-          <span className="text-xs text-gray-500 ml-1">
-            ({item.total_ratings || 0})
-          </span>
+          <div className="flex items-center gap-0.5">{renderStars()}</div>
+          <span className="text-xs text-gray-500 ml-1">({item.total_ratings || 0})</span>
         </div>
       )}
 
@@ -150,29 +145,40 @@ const MenuItem = ({ item, onAddToCart, onUpdateQuantity, cartQuantity = 0 }) => 
         {cartQuantity > 0 ? (
           <div className="flex items-center justify-between bg-zinc-900/80 rounded-lg border border-orange-500/50 p-1 shadow-lg backdrop-blur-sm">
             <button
+              data-testid="decrease-quantity"
               onClick={(e) => {
                 e.stopPropagation();
                 onUpdateQuantity(item.id, cartQuantity - 1);
               }}
-              className="w-8 h-8 flex items-center justify-center rounded-md bg-zinc-800 text-white hover:bg-zinc-700 active:scale-95 transition-all border border-white/5"
+              className="w-11 h-11 flex items-center justify-center rounded-md bg-zinc-800 text-white hover:bg-zinc-700 active:scale-95 transition-all border border-white/5"
+              aria-label="Decrease quantity"
             >
               <Minus className="w-4 h-4" />
             </button>
-            <span className="font-bold text-white tabular-nums text-sm px-2">{cartQuantity}</span>
+            <span
+              className="font-bold text-white tabular-nums text-sm px-2"
+              data-testid="item-quantity"
+            >
+              {cartQuantity}
+            </span>
             <button
+              data-testid="increase-quantity"
               onClick={(e) => {
                 e.stopPropagation();
                 onUpdateQuantity(item.id, cartQuantity + 1);
               }}
-              className="w-8 h-8 flex items-center justify-center rounded-md bg-orange-500 text-white hover:bg-orange-600 active:scale-95 transition-all shadow-lg shadow-orange-500/20"
+              className="w-11 h-11 flex items-center justify-center rounded-md bg-orange-500 text-white hover:bg-orange-600 active:scale-95 transition-all shadow-lg shadow-orange-500/20"
+              aria-label="Increase quantity"
             >
               <Plus className="w-4 h-4" />
             </button>
           </div>
         ) : (
           <button
+            data-testid="add-to-cart"
             onClick={handleAdd}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95 transition-all duration-200 text-sm font-semibold"
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 hover:shadow-lg hover:shadow-orange-500/30 active:scale-95 transition-all duration-200 text-sm font-semibold min-h-[44px]"
+            aria-label={`Add ${item.name} to cart`}
           >
             <ShoppingCart className="w-4 h-4" />
             <span>Add to Cart</span>

@@ -5,12 +5,12 @@ import { formatCurrency } from '@shared/utils/formatters';
 /**
  * TableCard Component
  * Displays a table's current status with visual indicators
- * 
+ *
  * Status Colors:
  * - Green (emerald): Available/Free table
  * - Red (rose): Occupied table
  * - Yellow (amber): Ready to clear (orders completed but not paid/cleared)
- * 
+ *
  * Props:
  * @param {Object} table - Table object with status, number, capacity, etc.
  * @param {Function} onClick - Handler when card is clicked
@@ -20,7 +20,7 @@ const TableCard = ({ table, onClick }) => {
   const isOccupied = table.status === 'occupied';
   const isReserved = table.status === 'reserved';
   const isCleaning = table.status === 'cleaning';
-  
+
   // Ready to clear: occupied table with completed orders but pending payment
   const isReadyToClear = isOccupied && table.hasCompletedOrders && table.hasPendingPayments;
 
@@ -52,35 +52,30 @@ const TableCard = ({ table, onClick }) => {
   }
 
   // Calculate time occupied (in minutes)
-  const timeOccupied = table.booked_at 
+  const timeOccupied = table.booked_at
     ? Math.round((Date.now() - new Date(table.booked_at).getTime()) / 60000)
     : 0;
 
   return (
     <button
+      data-testid="table-card"
       onClick={() => onClick(table)}
-      className={`glass-panel rounded-2xl p-4 border transition-all hover:scale-105 active:scale-95 ${statusColor} text-left w-full`}
+      className={`glass-panel rounded-2xl p-4 border transition-all hover:scale-105 active:scale-95 ${statusColor} text-left w-full min-h-[44px]`}
       aria-label={`Table ${table.table_number}, ${statusLabel}`}
     >
       {/* Header: Label and Status Icon */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-bold uppercase tracking-wide opacity-70">
-          Table
-        </span>
+        <span className="text-xs font-bold uppercase tracking-wide opacity-70">Table</span>
         <span className="text-lg" aria-hidden="true">
           {statusIcon}
         </span>
       </div>
 
       {/* Table Number */}
-      <div className="text-3xl font-bold mb-2 font-mono-nums">
-        {table.table_number}
-      </div>
+      <div className="text-3xl font-bold mb-2 font-mono-nums">{table.table_number}</div>
 
       {/* Status Label */}
-      <div className="text-xs opacity-80 capitalize mb-3">
-        {statusLabel}
-      </div>
+      <div className="text-xs opacity-80 capitalize mb-3">{statusLabel}</div>
 
       {/* Order Count & Time - Only show when occupied */}
       {isOccupied && (
@@ -100,10 +95,9 @@ const TableCard = ({ table, onClick }) => {
             <div className="flex items-center gap-2 text-xs">
               <Clock className="h-3 w-3" />
               <span className="opacity-80">
-                {timeOccupied < 60 
-                  ? `${timeOccupied} min` 
-                  : `${Math.floor(timeOccupied / 60)}h ${timeOccupied % 60}m`
-                }
+                {timeOccupied < 60
+                  ? `${timeOccupied} min`
+                  : `${Math.floor(timeOccupied / 60)}h ${timeOccupied % 60}m`}
               </span>
             </div>
           )}
@@ -117,9 +111,7 @@ const TableCard = ({ table, onClick }) => {
             <DollarSign className="h-3 w-3" />
             <span>Bill</span>
           </div>
-          <div className="text-sm font-bold">
-            {formatCurrency(table.totalBill)}
-          </div>
+          <div className="text-sm font-bold">{formatCurrency(table.totalBill)}</div>
         </div>
       )}
 
