@@ -59,8 +59,13 @@ export default defineConfig({
         manualChunks: (id) => {
           // Node modules chunking strategy
           if (id.includes('node_modules')) {
-            // React core
-            if (id.includes('react') || id.includes('react-dom') || id.includes('scheduler')) {
+            // React core - MUST include use-sync-external-store to avoid initialization issues
+            if (
+              id.includes('react') ||
+              id.includes('react-dom') ||
+              id.includes('scheduler') ||
+              id.includes('use-sync-external-store')
+            ) {
               return 'vendor-react';
             }
             // React Router
@@ -161,6 +166,7 @@ export default defineConfig({
       'lucide-react',
       'use-sync-external-store',
       'use-sync-external-store/shim',
+      'use-sync-external-store/with-selector',
     ],
   },
 });
