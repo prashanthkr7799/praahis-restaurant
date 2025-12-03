@@ -9,9 +9,15 @@ import { supabase } from '@config/supabase';
  * Sign up a new user (Admin only action via Edge Function)
  * This creates the auth user but does NOT insert into users table
  * The calling code should use admin_upsert_user_profile RPC after this
+ *
+ * IMPORTANT: This function preserves the current session so the manager
+ * doesn't get logged out when creating a new staff member.
  */
 export const signUp = async (email, password, userData) => {
   try {
+    // Save current session BEFORE signUp (signUp creates a new session for the new user)
+    const { data: currentSession } = await supabase.auth.getSession();
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -24,6 +30,12 @@ export const signUp = async (email, password, userData) => {
       },
     });
 
+    // Restore the original session immediately after signUp
+    // This prevents the manager from being logged out
+    if (currentSession?.session) {
+      await supabase.auth.setSession(currentSession.session);
+    }
+
     if (error) throw error;
 
     // NOTE: We no longer insert into users table here
@@ -33,6 +45,22 @@ export const signUp = async (email, password, userData) => {
     return { data, error: null };
   } catch (error) {
     console.error('Sign up error:', error);
+    // Try to restore session even on error
+    try {
+      const { data: currentSession } = await supabase.auth.getSession();
+      if (!currentSession?.session) {
+        // Session was lost, try to get it from storage
+        const storedSession = localStorage.getItem('supabase.auth.token');
+        if (storedSession) {
+          const parsed = JSON.parse(storedSession);
+          if (parsed?.currentSession) {
+            await supabase.auth.setSession(parsed.currentSession);
+          }
+        }
+      }
+    } catch (restoreError) {
+      console.error('Failed to restore session:', restoreError);
+    }
     return { data: null, error };
   }
 };
@@ -57,7 +85,7 @@ export const signIn = async (email, password) => {
         .select('id, restaurant_id')
         .eq('id', data.user.id)
         .maybeSingle();
-      
+
       if (!profileCheckError && existingProfile) {
         // Profile exists, just update last login
         await supabase
@@ -70,13 +98,16 @@ export const signIn = async (email, password) => {
         const fullName = metadata.full_name || metadata.name || email.split('@')[0];
         const role = metadata.role || 'manager';
         const restaurantId = metadata.restaurant_id || null;
-        
-        console.log('Creating missing profile for user:', data.user.id, { fullName, role, restaurantId });
-        
+
+        console.log('Creating missing profile for user:', data.user.id, {
+          fullName,
+          role,
+          restaurantId,
+        });
+
         // Try direct insert (may fail due to RLS, but worth trying)
-        const { error: insertError } = await supabase
-          .from('users')
-          .upsert({
+        const { error: insertError } = await supabase.from('users').upsert(
+          {
             id: data.user.id,
             email: data.user.email,
             full_name: fullName,
@@ -86,8 +117,10 @@ export const signIn = async (email, password) => {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             last_login: new Date().toISOString(),
-          }, { onConflict: 'id' });
-        
+          },
+          { onConflict: 'id' }
+        );
+
         if (insertError) {
           console.warn('Could not auto-create profile (may need manual fix):', insertError.message);
         } else {
@@ -110,14 +143,18 @@ export const signOut = async () => {
   try {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-    
+
     // Clear any localStorage
     localStorage.removeItem('adminAuth');
     // Clear restaurant context persistence
     localStorage.removeItem('praahis_restaurant_ctx');
-  // Clear owner session flag if set
-  try { localStorage.removeItem('is_owner_session'); } catch { /* ignore */ }
-    
+    // Clear owner session flag if set
+    try {
+      localStorage.removeItem('is_owner_session');
+    } catch {
+      /* ignore */
+    }
+
     return { error: null };
   } catch (error) {
     console.error('Sign out error:', error);
@@ -130,8 +167,11 @@ export const signOut = async () => {
  */
 export const getCurrentUser = async () => {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (authError || !user) {
       return { user: null, profile: null, error: authError };
     }
@@ -165,7 +205,10 @@ export const getCurrentUser = async () => {
  */
 export const getSession = async () => {
   try {
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
     return { session, error };
   } catch (error) {
     console.error('Get session error:', error);
@@ -275,7 +318,7 @@ export const createInactivityManager = (options = {}) => {
 
   const resetTimer = () => {
     if (!isActive) return;
-    
+
     // Clear existing timers
     if (timeoutId) clearTimeout(timeoutId);
     if (warningTimeoutId) clearTimeout(warningTimeoutId);
@@ -296,9 +339,9 @@ export const createInactivityManager = (options = {}) => {
   const start = () => {
     if (isActive) return;
     isActive = true;
-    
+
     // Add event listeners
-    events.forEach(event => {
+    events.forEach((event) => {
       window.addEventListener(event, resetTimer, { passive: true });
     });
 
@@ -307,13 +350,13 @@ export const createInactivityManager = (options = {}) => {
 
   const stop = () => {
     isActive = false;
-    
+
     // Clear timers
     if (timeoutId) clearTimeout(timeoutId);
     if (warningTimeoutId) clearTimeout(warningTimeoutId);
-    
+
     // Remove event listeners
-    events.forEach(event => {
+    events.forEach((event) => {
       window.removeEventListener(event, resetTimer);
     });
   };
