@@ -35,6 +35,9 @@ export default defineConfig({
       '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
       '@config': fileURLToPath(new URL('./src/config', import.meta.url)),
       '@styles': fileURLToPath(new URL('./src/styles', import.meta.url)),
+      // Ensure single React instance
+      react: fileURLToPath(new URL('./node_modules/react', import.meta.url)),
+      'react-dom': fileURLToPath(new URL('./node_modules/react-dom', import.meta.url)),
     },
   },
   build: {
