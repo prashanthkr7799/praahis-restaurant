@@ -25,6 +25,15 @@
     <title>Praahis Restaurant</title>
   </head>
   <body class="dark">
+    <script>
+      // Suppress storage access errors in restricted contexts (incognito, iframes, etc.)
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event.reason && event.reason.message && 
+            event.reason.message.includes('storage')) {
+          event.preventDefault();
+        }
+      });
+    </script>
     <noscript>
       <div style="padding: 20px; text-align: center; font-family: system-ui, sans-serif;">
         <h1>JavaScript Required</h1>
@@ -37,13 +46,18 @@
       // Register service worker for PWA support
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-              console.log('SW registered:', registration.scope);
-            })
-            .catch(error => {
-              console.log('SW registration failed:', error);
-            });
+          // Check if storage is available before registering SW
+          try {
+            navigator.serviceWorker.register('/sw.js')
+              .then(registration => {
+                console.log('SW registered:', registration.scope);
+              })
+              .catch(() => {
+                // Silent fail - SW not critical for app functionality
+              });
+          } catch {
+            // Storage or SW not available in this context
+          }
         });
       }
     </script>
