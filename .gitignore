@@ -62,3 +62,4 @@ dist-ssr
 # Archived legacy files
 docs/legacy_sql_history/
 docs/archive/root_documentation/
+.vercel

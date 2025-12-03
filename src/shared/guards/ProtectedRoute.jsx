@@ -5,6 +5,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import { Navigate, useLocation } from 'react-router-dom';
 import { getCurrentUser } from '@features/auth/services/authService';
 import { hasPermission, getDashboardRoute } from '@shared/utils/permissions';
@@ -14,7 +15,12 @@ import { supabase } from '@config/supabase';
 import { logger } from '@shared/utils/logger';
 import toast from 'react-hot-toast';
 
-const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = [], requireRestaurant = true }) => {
+const ProtectedRoute = ({
+  children,
+  requiredPermissions = [],
+  requiredRoles = [],
+  requireRestaurant = true,
+}) => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -22,31 +28,34 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
   const location = useLocation();
   const { restaurantId, loading: restaurantLoading } = useRestaurant();
 
-  const logSecurityEvent = useCallback(async (eventType, details) => {
-    try {
-      await supabase.from('auth_activity_logs').insert({
-        user_id: user?.id || null,
-        action: eventType,
-        ip_address: null,
-        user_agent: navigator.userAgent,
-        metadata: {
-          ...details,
-          path: location.pathname,
-          timestamp: new Date().toISOString()
-        }
-      });
-    } catch (error) {
-      console.error('Failed to log security event:', error);
-    }
-  }, [user, location.pathname]);
+  const logSecurityEvent = useCallback(
+    async (eventType, details) => {
+      try {
+        await supabase.from('auth_activity_logs').insert({
+          user_id: user?.id || null,
+          action: eventType,
+          ip_address: null,
+          user_agent: navigator.userAgent,
+          metadata: {
+            ...details,
+            path: location.pathname,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        console.error('Failed to log security event:', error);
+      }
+    },
+    [user, location.pathname]
+  );
 
   const checkAuth = async () => {
     const { user: authUser, profile: userProfile, error } = await getCurrentUser();
-    
+
     if (error) {
       console.error('🛡️ ProtectedRoute: Auth error:', error);
     }
-    
+
     setUser(authUser);
     setProfile(userProfile);
     setLoading(false);
@@ -67,7 +76,7 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
       setValidationError('no_restaurant_assigned');
       await logSecurityEvent('access_denied_no_restaurant', {
         user_role: profile?.role,
-        reason: 'User has no restaurant assigned'
+        reason: 'User has no restaurant assigned',
       });
       return;
     }
@@ -98,7 +107,7 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
       await logSecurityEvent('access_denied_no_context', {
         user_role: profile?.role,
         user_restaurant_id: profile?.restaurant_id,
-        reason: 'Restaurant context not set'
+        reason: 'Restaurant context not set',
       });
       return;
     }
@@ -110,9 +119,9 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
         user_role: profile?.role,
         user_restaurant_id: profile?.restaurant_id,
         attempted_restaurant_id: restaurantId,
-        reason: 'Attempted to access different restaurant data'
+        reason: 'Attempted to access different restaurant data',
       });
-      
+
       toast.error('Unauthorized: Restaurant access violation detected');
       return;
     }
@@ -121,7 +130,8 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
     try {
       const { data: restaurant, error: restaurantError } = await supabase
         .from('restaurants')
-        .select(`
+        .select(
+          `
           id, 
           name, 
           is_active,
@@ -130,7 +140,8 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
             status,
             current_period_end
           )
-        `)
+        `
+        )
         .eq('id', profile.restaurant_id)
         .single();
 
@@ -139,13 +150,13 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
         // Don't block on error, but log it
       } else if (restaurant) {
         // Check subscription status first (managers can access subscription page even when deactivated)
-        const subscription = Array.isArray(restaurant.subscriptions) 
-          ? restaurant.subscriptions[0] 
+        const subscription = Array.isArray(restaurant.subscriptions)
+          ? restaurant.subscriptions[0]
           : restaurant.subscriptions;
-        
+
         if (subscription) {
           const subStatus = subscription.status?.toLowerCase();
-          
+
           // Block if subscription is suspended or cancelled or expired
           // EXCEPTION: Managers can access subscription page to make payment
           if (subStatus === 'suspended' || subStatus === 'cancelled' || subStatus === 'expired') {
@@ -154,7 +165,7 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
               setValidationError(null);
               return;
             }
-            
+
             // For managers on other pages, redirect to subscription
             if (isManager) {
               setValidationError('subscription_suspended_manager');
@@ -162,7 +173,7 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
                 user_role: profile?.role,
                 restaurant_id: restaurant.id,
                 subscription_status: subStatus,
-                reason: 'Manager redirected to subscription page for payment'
+                reason: 'Manager redirected to subscription page for payment',
               });
               return;
             } else {
@@ -171,7 +182,7 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
                 user_role: profile?.role,
                 restaurant_id: restaurant.id,
                 subscription_status: subStatus,
-                reason: 'Subscription has been suspended/cancelled'
+                reason: 'Subscription has been suspended/cancelled',
               });
               return;
             }
@@ -188,7 +199,7 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
                 setValidationError(null);
                 return;
               }
-              
+
               // For managers on other pages, redirect to subscription
               if (isManager) {
                 setValidationError('subscription_expired_manager');
@@ -196,7 +207,7 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
                   user_role: profile?.role,
                   restaurant_id: restaurant.id,
                   expiry_date: subscription.current_period_end,
-                  reason: 'Manager redirected to subscription page for payment'
+                  reason: 'Manager redirected to subscription page for payment',
                 });
                 return;
               } else {
@@ -205,44 +216,44 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
                   user_role: profile?.role,
                   restaurant_id: restaurant.id,
                   expiry_date: subscription.current_period_end,
-                  reason: 'Subscription has expired'
+                  reason: 'Subscription has expired',
                 });
                 return;
               }
             }
           }
         }
-        
+
         // Check is_active flag (only if subscription check didn't return)
         // But if subscription status is 'active' or 'trial', we should allow access
         // This handles cases where SuperAdmin extended subscription but forgot to reactivate
         // subscription variable is already defined above, reuse it
         const activeSubStatus = subscription?.status?.toLowerCase();
-        
+
         if (!restaurant.is_active && activeSubStatus !== 'active' && activeSubStatus !== 'trial') {
           // Check if manager trying to access subscription page
           if (isManager && isSubscriptionPage) {
             setValidationError(null);
             return;
           }
-          
+
           if (isManager) {
             setValidationError('subscription_suspended_manager');
             await logSecurityEvent('manager_redirected_to_subscription', {
               user_role: profile?.role,
               restaurant_id: restaurant.id,
               restaurant_name: restaurant.name,
-              reason: 'Restaurant deactivated - manager redirected to subscription'
+              reason: 'Restaurant deactivated - manager redirected to subscription',
             });
             return;
           }
-          
+
           setValidationError('restaurant_deactivated');
           await logSecurityEvent('access_denied_restaurant_deactivated', {
             user_role: profile?.role,
             restaurant_id: restaurant.id,
             restaurant_name: restaurant.name,
-            reason: 'Restaurant has been deactivated'
+            reason: 'Restaurant has been deactivated',
           });
           return;
         }
@@ -264,7 +275,15 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
     if (!loading && !restaurantLoading && user && profile && requireRestaurant) {
       validateRestaurantAccess();
     }
-  }, [loading, restaurantLoading, user, profile, restaurantId, requireRestaurant, validateRestaurantAccess]);
+  }, [
+    loading,
+    restaurantLoading,
+    user,
+    profile,
+    restaurantId,
+    requireRestaurant,
+    validateRestaurantAccess,
+  ]);
 
   // Conditional rendering starts below all hooks
   if (loading || (requireRestaurant && restaurantLoading)) {
@@ -307,37 +326,45 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
   // Restaurant validation errors
   if (validationError) {
     // For managers with subscription issues, redirect directly to subscription page
-    if (validationError === 'subscription_suspended_manager' || validationError === 'subscription_expired_manager') {
+    if (
+      validationError === 'subscription_suspended_manager' ||
+      validationError === 'subscription_expired_manager'
+    ) {
       return <Navigate to="/manager/subscription" replace />;
     }
-    
+
     let errorTitle = 'Access Denied';
     let errorMessage = 'You do not have access to this restaurant.';
     let showPaymentOption = false;
-    
+
     switch (validationError) {
       case 'no_restaurant_assigned':
-        errorMessage = 'Your account is not associated with any restaurant. Please contact support.';
+        errorMessage =
+          'Your account is not associated with any restaurant. Please contact support.';
         break;
       case 'no_restaurant_context':
         errorMessage = 'Restaurant context is missing. Please log in again.';
         break;
       case 'restaurant_mismatch':
         errorTitle = 'Unauthorized Access';
-        errorMessage = 'You are attempting to access data from a different restaurant. This incident has been logged.';
+        errorMessage =
+          'You are attempting to access data from a different restaurant. This incident has been logged.';
         break;
       case 'restaurant_deactivated':
         errorTitle = 'Restaurant Deactivated';
-        errorMessage = 'Your restaurant has been deactivated by the administrator. Please contact support for assistance.';
+        errorMessage =
+          'Your restaurant has been deactivated by the administrator. Please contact support for assistance.';
         break;
       case 'subscription_suspended':
         errorTitle = 'Subscription Suspended';
-        errorMessage = 'Your restaurant subscription has been suspended. The manager needs to complete payment to reactivate.';
+        errorMessage =
+          'Your restaurant subscription has been suspended. The manager needs to complete payment to reactivate.';
         showPaymentOption = profile?.role?.toLowerCase() === 'manager';
         break;
       case 'subscription_expired':
         errorTitle = 'Subscription Expired';
-        errorMessage = 'Your restaurant subscription has expired. The manager needs to renew the subscription to continue.';
+        errorMessage =
+          'Your restaurant subscription has expired. The manager needs to renew the subscription to continue.';
         showPaymentOption = profile?.role?.toLowerCase() === 'manager';
         break;
     }
@@ -385,23 +412,22 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
     if ((profile.role || '').toLowerCase() === 'owner') {
       return <Navigate to="/superadmin/dashboard" replace />;
     }
-    
+
     // Debug logging (dev only)
     logger.debug('🔒 Access Denied Debug:');
     logger.debug('Required roles:', requiredRoles);
     logger.debug('User profile:', profile);
     logger.debug('User role:', profile.role);
     logger.debug('Role match:', requiredRoles.includes(profile.role));
-    
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md">
           <h2 className="text-2xl font-bold text-red-600 mb-4">Access Denied</h2>
-          <p className="text-gray-600 mb-2">
-            You don't have permission to access this page.
-          </p>
+          <p className="text-gray-600 mb-2">You don't have permission to access this page.</p>
           <p className="text-sm text-gray-500 mb-4">
-            Required role: {requiredRoles.join(', ')}<br/>
+            Required role: {requiredRoles.join(', ')}
+            <br />
             Your role: {profile.role || 'none'}
           </p>
           <a
@@ -443,6 +469,19 @@ const ProtectedRoute = ({ children, requiredPermissions = [], requiredRoles = []
 
   // User has access
   return children;
+};
+
+ProtectedRoute.propTypes = {
+  children: PropTypes.node.isRequired,
+  requiredPermissions: PropTypes.arrayOf(PropTypes.string),
+  requiredRoles: PropTypes.arrayOf(PropTypes.string),
+  requireRestaurant: PropTypes.bool,
+};
+
+ProtectedRoute.defaultProps = {
+  requiredPermissions: [],
+  requiredRoles: [],
+  requireRestaurant: true,
 };
 
 export default ProtectedRoute;

@@ -4,16 +4,10 @@
  */
 
 import React, { useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { X } from 'lucide-react';
 
-const Modal = ({
-  isOpen,
-  onClose,
-  title,
-  children,
-  size = 'md',
-  showCloseButton = true,
-}) => {
+const Modal = ({ isOpen, onClose, title, children, size = 'md', showCloseButton = true }) => {
   // Close on escape key
   useEffect(() => {
     const handleEscape = (e) => {
@@ -50,7 +44,7 @@ const Modal = ({
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 overflow-y-auto"
       role="dialog"
       aria-modal="true"
@@ -71,7 +65,7 @@ const Modal = ({
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-5 border-b border-border/50 bg-muted/20">
-            <h3 
+            <h3
               id="modal-title"
               className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent"
             >
@@ -94,6 +88,20 @@ const Modal = ({
       </div>
     </div>
   );
+};
+
+Modal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  title: PropTypes.string.isRequired,
+  children: PropTypes.node.isRequired,
+  size: PropTypes.oneOf(['sm', 'md', 'lg', 'xl', 'full']),
+  showCloseButton: PropTypes.bool,
+};
+
+Modal.defaultProps = {
+  size: 'md',
+  showCloseButton: true,
 };
 
 export default Modal;

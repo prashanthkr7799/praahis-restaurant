@@ -15,7 +15,7 @@ import {
   filterByStatus,
   calculateRevenueStats,
   exportPaymentsToCSV,
-} from './billingUtils';
+} from './billingHelpers';
 
 describe('formatINR', () => {
   it('should format zero correctly', () => {
@@ -113,9 +113,9 @@ describe('calculateTotal', () => {
       ],
       discount: 0,
     };
-    
+
     const result = calculateTotal(order);
-    
+
     expect(result.subtotal).toBe(250); // 200 + 50
     expect(result.discount).toBe(0);
     expect(result.tax).toBe(12.5); // 5% of 250
@@ -124,14 +124,12 @@ describe('calculateTotal', () => {
 
   it('should apply discount correctly', () => {
     const order = {
-      items: [
-        { price: 100, quantity: 2 },
-      ],
+      items: [{ price: 100, quantity: 2 }],
       discount: 20,
     };
-    
+
     const result = calculateTotal(order);
-    
+
     expect(result.subtotal).toBe(200);
     expect(result.discount).toBe(20);
     expect(result.tax).toBe(9); // 5% of (200 - 20)
@@ -140,7 +138,7 @@ describe('calculateTotal', () => {
 
   it('should return zeros for null order', () => {
     const result = calculateTotal(null);
-    
+
     expect(result.subtotal).toBe(0);
     expect(result.tax).toBe(0);
     expect(result.discount).toBe(0);
@@ -149,14 +147,14 @@ describe('calculateTotal', () => {
 
   it('should return zeros for order without items', () => {
     const result = calculateTotal({});
-    
+
     expect(result.subtotal).toBe(0);
     expect(result.total).toBe(0);
   });
 
   it('should handle empty items array', () => {
     const result = calculateTotal({ items: [] });
-    
+
     expect(result.subtotal).toBe(0);
     expect(result.total).toBe(0);
   });
@@ -165,9 +163,9 @@ describe('calculateTotal', () => {
     const order = {
       items: [{ price: 500, quantity: 1 }],
     };
-    
+
     const result = calculateTotal(order);
-    
+
     expect(result.subtotal).toBe(500);
     expect(result.tax).toBe(25);
     expect(result.total).toBe(525);
@@ -187,7 +185,7 @@ describe('getDateRangeFilter', () => {
 
   it('should return today range', () => {
     const range = getDateRangeFilter('today');
-    
+
     expect(range.start.getDate()).toBe(15);
     expect(range.start.getMonth()).toBe(5); // June
     expect(range.start.getHours()).toBe(0);
@@ -196,21 +194,21 @@ describe('getDateRangeFilter', () => {
 
   it('should return yesterday range', () => {
     const range = getDateRangeFilter('yesterday');
-    
+
     expect(range.start.getDate()).toBe(14);
     expect(range.end.getDate()).toBe(14);
   });
 
   it('should return week range', () => {
     const range = getDateRangeFilter('week');
-    
+
     expect(range.start.getDate()).toBe(8); // 7 days ago
     expect(range.end.getDate()).toBe(15);
   });
 
   it('should return month range', () => {
     const range = getDateRangeFilter('month');
-    
+
     // 30 days ago from June 15 is May 16
     expect(range.start.getMonth()).toBe(4); // May
     expect(range.start.getDate()).toBe(16);
@@ -218,14 +216,14 @@ describe('getDateRangeFilter', () => {
 
   it('should return null dates for unknown range', () => {
     const range = getDateRangeFilter('unknown');
-    
+
     expect(range.start).toBeNull();
     expect(range.end).toBeNull();
   });
 
   it('should return null dates for empty string', () => {
     const range = getDateRangeFilter('');
-    
+
     expect(range.start).toBeNull();
     expect(range.end).toBeNull();
   });
@@ -296,19 +294,19 @@ describe('filterByAmount', () => {
   it('should filter by minimum amount', () => {
     const filtered = filterByAmount(payments, 200, null);
     expect(filtered).toHaveLength(3);
-    expect(filtered.map(p => p.id)).toEqual([2, 3, 4]);
+    expect(filtered.map((p) => p.id)).toEqual([2, 3, 4]);
   });
 
   it('should filter by maximum amount', () => {
     const filtered = filterByAmount(payments, null, 500);
     expect(filtered).toHaveLength(3);
-    expect(filtered.map(p => p.id)).toEqual([1, 2, 3]);
+    expect(filtered.map((p) => p.id)).toEqual([1, 2, 3]);
   });
 
   it('should filter by range', () => {
     const filtered = filterByAmount(payments, 200, 500);
     expect(filtered).toHaveLength(2);
-    expect(filtered.map(p => p.id)).toEqual([2, 3]);
+    expect(filtered.map((p) => p.id)).toEqual([2, 3]);
   });
 
   it('should return all if no min/max specified', () => {
@@ -435,7 +433,7 @@ describe('calculateRevenueStats', () => {
 
   it('should return zeros for empty payments', () => {
     const stats = calculateRevenueStats([]);
-    
+
     expect(stats.todayRevenue).toBe(0);
     expect(stats.weekRevenue).toBe(0);
     expect(stats.monthRevenue).toBe(0);
@@ -444,7 +442,7 @@ describe('calculateRevenueStats', () => {
 
   it('should return zeros for null payments', () => {
     const stats = calculateRevenueStats(null);
-    
+
     expect(stats.todayRevenue).toBe(0);
     expect(stats.weekRevenue).toBe(0);
   });
@@ -455,9 +453,9 @@ describe('calculateRevenueStats', () => {
       { created_at: '2024-06-15T11:00:00', amount: 200, status: 'paid' },
       { created_at: '2024-06-14T10:00:00', amount: 500, status: 'paid' },
     ];
-    
+
     const stats = calculateRevenueStats(payments);
-    
+
     expect(stats.todayRevenue).toBe(300);
   });
 
@@ -467,9 +465,9 @@ describe('calculateRevenueStats', () => {
       { created_at: '2024-06-15T11:00:00', amount: 200, status: 'pending' },
       { created_at: '2024-06-15T12:00:00', amount: 300, status: 'completed' },
     ];
-    
+
     const stats = calculateRevenueStats(payments);
-    
+
     expect(stats.todayRevenue).toBe(400); // only paid + completed
   });
 
@@ -479,9 +477,9 @@ describe('calculateRevenueStats', () => {
       { created_at: '2024-06-10T10:00:00', amount: 200, status: 'paid' },
       { created_at: '2024-05-20T10:00:00', amount: 500, status: 'paid' },
     ];
-    
+
     const stats = calculateRevenueStats(payments);
-    
+
     expect(stats.todayRevenue).toBe(100);
     expect(stats.weekRevenue).toBe(300); // today + week
     expect(stats.monthRevenue).toBe(800); // all within 30 days
@@ -491,37 +489,72 @@ describe('calculateRevenueStats', () => {
     const payments = [
       { created_at: new Date().toISOString(), amount: 100, status: 'paid', payment_method: 'cash' },
       { created_at: new Date().toISOString(), amount: 200, status: 'paid', payment_method: 'Cash' },
-      { created_at: new Date().toISOString(), amount: 300, status: 'paid', payment_method: 'online' },
+      {
+        created_at: new Date().toISOString(),
+        amount: 300,
+        status: 'paid',
+        payment_method: 'online',
+      },
     ];
-    
+
     const stats = calculateRevenueStats(payments);
-    
+
     expect(stats.cashRevenue).toBe(300); // 100 + 200 cash payments
   });
 
   it('should calculate onlineRevenue from online payments', () => {
     const payments = [
-      { created_at: new Date().toISOString(), amount: 100, status: 'paid', payment_method: 'online' },
-      { created_at: new Date().toISOString(), amount: 200, status: 'paid', payment_method: 'Online' },
+      {
+        created_at: new Date().toISOString(),
+        amount: 100,
+        status: 'paid',
+        payment_method: 'online',
+      },
+      {
+        created_at: new Date().toISOString(),
+        amount: 200,
+        status: 'paid',
+        payment_method: 'Online',
+      },
       { created_at: new Date().toISOString(), amount: 300, status: 'paid', payment_method: 'cash' },
     ];
-    
+
     const stats = calculateRevenueStats(payments);
-    
+
     expect(stats.onlineRevenue).toBe(300); // 100 + 200 online payments
   });
 
   it('should calculate both cash and online revenue together', () => {
     const payments = [
       { created_at: new Date().toISOString(), amount: 100, status: 'paid', payment_method: 'cash' },
-      { created_at: new Date().toISOString(), amount: 200, status: 'paid', payment_method: 'online' },
-      { created_at: new Date().toISOString(), amount: 150, status: 'completed', payment_method: 'cash' },
-      { created_at: new Date().toISOString(), amount: 250, status: 'success', payment_method: 'online' },
-      { created_at: new Date().toISOString(), amount: 500, status: 'pending', payment_method: 'cash' },
+      {
+        created_at: new Date().toISOString(),
+        amount: 200,
+        status: 'paid',
+        payment_method: 'online',
+      },
+      {
+        created_at: new Date().toISOString(),
+        amount: 150,
+        status: 'completed',
+        payment_method: 'cash',
+      },
+      {
+        created_at: new Date().toISOString(),
+        amount: 250,
+        status: 'success',
+        payment_method: 'online',
+      },
+      {
+        created_at: new Date().toISOString(),
+        amount: 500,
+        status: 'pending',
+        payment_method: 'cash',
+      },
     ];
-    
+
     const stats = calculateRevenueStats(payments);
-    
+
     expect(stats.cashRevenue).toBe(250); // 100 + 150 (paid cash)
     expect(stats.onlineRevenue).toBe(450); // 200 + 250 (paid online)
     expect(stats.pendingPayments).toBe(1);
@@ -532,9 +565,9 @@ describe('calculateRevenueStats', () => {
       { created_at: new Date().toISOString(), amount: 100, status: 'paid' },
       { created_at: new Date().toISOString(), amount: 200, status: 'paid', payment_method: null },
     ];
-    
+
     const stats = calculateRevenueStats(payments);
-    
+
     expect(stats.cashRevenue).toBe(0);
     expect(stats.onlineRevenue).toBe(0);
     expect(stats.totalTransactions).toBe(2);
@@ -542,10 +575,7 @@ describe('calculateRevenueStats', () => {
 });
 
 // Import additional functions for testing
-import {
-  getPaymentMethodDistribution,
-  formatRelativeTime,
-} from './billingUtils';
+import { getPaymentMethodDistribution, formatRelativeTime } from './billingHelpers';
 
 describe('getPaymentMethodDistribution', () => {
   it('should return empty array for empty payments', () => {
@@ -566,7 +596,7 @@ describe('getPaymentMethodDistribution', () => {
       { status: 'paid', payment_method: 'cash' },
     ];
     const distribution = getPaymentMethodDistribution(payments);
-    const cash = distribution.find(d => d.name === 'Cash');
+    const cash = distribution.find((d) => d.name === 'Cash');
     expect(cash.value).toBe(2);
   });
 
@@ -576,16 +606,14 @@ describe('getPaymentMethodDistribution', () => {
       { status: 'completed', payment_method: 'online' },
     ];
     const distribution = getPaymentMethodDistribution(payments);
-    const online = distribution.find(d => d.name === 'Online');
+    const online = distribution.find((d) => d.name === 'Online');
     expect(online.value).toBe(2);
   });
 
   it('should count split payments', () => {
-    const payments = [
-      { status: 'success', payment_method: 'split' },
-    ];
+    const payments = [{ status: 'success', payment_method: 'split' }];
     const distribution = getPaymentMethodDistribution(payments);
-    const split = distribution.find(d => d.name === 'Split');
+    const split = distribution.find((d) => d.name === 'Split');
     expect(split.value).toBe(1);
   });
 
@@ -596,7 +624,7 @@ describe('getPaymentMethodDistribution', () => {
       { status: 'failed', payment_method: 'cash' },
     ];
     const distribution = getPaymentMethodDistribution(payments);
-    const cash = distribution.find(d => d.name === 'Cash');
+    const cash = distribution.find((d) => d.name === 'Cash');
     expect(cash.value).toBe(1);
   });
 
@@ -617,11 +645,11 @@ describe('getPaymentMethodDistribution', () => {
       { status: 'paid', payment_method: 'split' },
     ];
     const distribution = getPaymentMethodDistribution(payments);
-    
-    const cash = distribution.find(d => d.name === 'Cash');
-    const online = distribution.find(d => d.name === 'Online');
-    const split = distribution.find(d => d.name === 'Split');
-    
+
+    const cash = distribution.find((d) => d.name === 'Cash');
+    const online = distribution.find((d) => d.name === 'Online');
+    const split = distribution.find((d) => d.name === 'Split');
+
     expect(cash.color).toBe('#10b981');
     expect(online.color).toBe('#8b5cf6');
     expect(split.color).toBe('#f59e0b');
@@ -637,11 +665,11 @@ describe('getPaymentMethodDistribution', () => {
       { status: 'paid', payment_method: 'split' },
     ];
     const distribution = getPaymentMethodDistribution(payments);
-    
+
     expect(distribution).toHaveLength(3);
-    expect(distribution.find(d => d.name === 'Cash').value).toBe(2);
-    expect(distribution.find(d => d.name === 'Online').value).toBe(1);
-    expect(distribution.find(d => d.name === 'Split').value).toBe(3);
+    expect(distribution.find((d) => d.name === 'Cash').value).toBe(2);
+    expect(distribution.find((d) => d.name === 'Online').value).toBe(1);
+    expect(distribution.find((d) => d.name === 'Split').value).toBe(3);
   });
 });
 
@@ -703,7 +731,7 @@ describe('formatRelativeTime', () => {
 });
 
 // Import and test get7DayRevenueData
-import { get7DayRevenueData } from './billingUtils';
+import { get7DayRevenueData } from './billingHelpers';
 
 describe('get7DayRevenueData', () => {
   it('should return 7 days of data', () => {
@@ -714,7 +742,7 @@ describe('get7DayRevenueData', () => {
 
   it('should return zero revenue for empty payments', () => {
     const data = get7DayRevenueData([]);
-    data.forEach(day => {
+    data.forEach((day) => {
       expect(day.revenue).toBe(0);
     });
   });
@@ -744,7 +772,7 @@ describe('get7DayRevenueData', () => {
 
   it('should include date labels', () => {
     const data = get7DayRevenueData([]);
-    data.forEach(day => {
+    data.forEach((day) => {
       expect(day.date).toBeDefined();
       expect(typeof day.date).toBe('string');
     });
@@ -764,13 +792,13 @@ describe('get7DayRevenueData', () => {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     const payments = [
       { created_at: today.toISOString(), amount: 100, status: 'paid' },
       { created_at: yesterday.toISOString(), amount: 200, status: 'paid' },
     ];
     const data = get7DayRevenueData(payments);
-    
+
     expect(data[6].revenue).toBe(100); // today
     expect(data[5].revenue).toBe(200); // yesterday
   });
@@ -788,7 +816,7 @@ describe('exportPaymentsToCSV', () => {
     // Save original alert
     originalAlert = globalThis.alert;
     globalThis.alert = vi.fn();
-    
+
     mockLink = {
       setAttribute: vi.fn(),
       click: vi.fn(),
@@ -826,83 +854,81 @@ describe('exportPaymentsToCSV', () => {
 
   it('should create CSV with correct headers', () => {
     const payments = [
-      { 
-        id: 'pay-123', 
+      {
+        id: 'pay-123',
         order_number: 'ORD001',
         table_number: '5',
         payment_method: 'cash',
         amount: 500,
         status: 'paid',
-        created_at: '2024-06-15T10:30:00'
-      }
+        created_at: '2024-06-15T10:30:00',
+      },
     ];
-    
+
     exportPaymentsToCSV(payments);
-    
+
     expect(mockCreateElement).toHaveBeenCalledWith('a');
     expect(mockCreateObjectURL).toHaveBeenCalled();
     expect(mockLink.click).toHaveBeenCalled();
   });
 
   it('should use default filename when not provided', () => {
-    const payments = [
-      { id: 'pay-123', created_at: '2024-06-15T10:30:00' }
-    ];
-    
+    const payments = [{ id: 'pay-123', created_at: '2024-06-15T10:30:00' }];
+
     exportPaymentsToCSV(payments);
-    
-    expect(mockLink.setAttribute).toHaveBeenCalledWith('download', expect.stringContaining('payments-export'));
+
+    expect(mockLink.setAttribute).toHaveBeenCalledWith(
+      'download',
+      expect.stringContaining('payments-export')
+    );
   });
 
   it('should use custom filename when provided', () => {
-    const payments = [
-      { id: 'pay-123', created_at: '2024-06-15T10:30:00' }
-    ];
-    
+    const payments = [{ id: 'pay-123', created_at: '2024-06-15T10:30:00' }];
+
     exportPaymentsToCSV(payments, 'custom-export');
-    
-    expect(mockLink.setAttribute).toHaveBeenCalledWith('download', expect.stringContaining('custom-export'));
+
+    expect(mockLink.setAttribute).toHaveBeenCalledWith(
+      'download',
+      expect.stringContaining('custom-export')
+    );
   });
 
   it('should handle payments with missing fields', () => {
     const payments = [
-      { created_at: '2024-06-15T10:30:00' } // minimal payment
+      { created_at: '2024-06-15T10:30:00' }, // minimal payment
     ];
-    
+
     expect(() => exportPaymentsToCSV(payments)).not.toThrow();
     expect(mockLink.click).toHaveBeenCalled();
   });
 
   it('should handle payments with nested order data', () => {
     const payments = [
-      { 
+      {
         id: 'pay-123',
         order: { order_number: 'ORD001', table_number: '3' },
-        created_at: '2024-06-15T10:30:00'
-      }
+        created_at: '2024-06-15T10:30:00',
+      },
     ];
-    
+
     expect(() => exportPaymentsToCSV(payments)).not.toThrow();
     expect(mockCreateObjectURL).toHaveBeenCalled();
   });
 
   it('should set link visibility to hidden', () => {
-    const payments = [
-      { id: 'pay-123', created_at: '2024-06-15T10:30:00' }
-    ];
-    
+    const payments = [{ id: 'pay-123', created_at: '2024-06-15T10:30:00' }];
+
     exportPaymentsToCSV(payments);
-    
+
     expect(mockLink.style.visibility).toBe('hidden');
   });
 
   it('should append and remove link from document body', () => {
-    const payments = [
-      { id: 'pay-123', created_at: '2024-06-15T10:30:00' }
-    ];
-    
+    const payments = [{ id: 'pay-123', created_at: '2024-06-15T10:30:00' }];
+
     exportPaymentsToCSV(payments);
-    
+
     expect(mockAppendChild).toHaveBeenCalled();
     expect(mockRemoveChild).toHaveBeenCalled();
   });

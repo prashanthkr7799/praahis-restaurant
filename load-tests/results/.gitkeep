@@ -1,0 +1,2 @@
+# This directory stores k6 load test results
+# Files here are gitignored except for this .gitkeep

@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 
 /**
  * Professional Button Component for SuperAdmin Dashboard
@@ -20,13 +21,20 @@ const Button = ({
   ...props
 }) => {
   const variants = {
-    primary: 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent dark:bg-emerald-500 dark:hover:bg-emerald-600',
-    secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-900 border-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-100 dark:border-gray-700',
-    danger: 'bg-red-600 hover:bg-red-700 text-white border-transparent dark:bg-red-500 dark:hover:bg-red-600',
-    success: 'bg-green-600 hover:bg-green-700 text-white border-transparent dark:bg-green-500 dark:hover:bg-green-600',
-    warning: 'bg-amber-600 hover:bg-amber-700 text-white border-transparent dark:bg-amber-500 dark:hover:bg-amber-600',
-    outline: 'bg-transparent hover:bg-gray-50 text-gray-700 border-gray-300 dark:hover:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
-    ghost: 'bg-transparent hover:bg-gray-100 text-gray-700 border-transparent dark:hover:bg-gray-800 dark:text-gray-300',
+    primary:
+      'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent dark:bg-emerald-500 dark:hover:bg-emerald-600',
+    secondary:
+      'bg-gray-100 hover:bg-gray-200 text-gray-900 border-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-100 dark:border-gray-700',
+    danger:
+      'bg-red-600 hover:bg-red-700 text-white border-transparent dark:bg-red-500 dark:hover:bg-red-600',
+    success:
+      'bg-green-600 hover:bg-green-700 text-white border-transparent dark:bg-green-500 dark:hover:bg-green-600',
+    warning:
+      'bg-amber-600 hover:bg-amber-700 text-white border-transparent dark:bg-amber-500 dark:hover:bg-amber-600',
+    outline:
+      'bg-transparent hover:bg-gray-50 text-gray-700 border-gray-300 dark:hover:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
+    ghost:
+      'bg-transparent hover:bg-gray-100 text-gray-700 border-transparent dark:hover:bg-gray-800 dark:text-gray-300',
   };
 
   const sizes = {
@@ -85,15 +93,44 @@ const Button = ({
           />
         </svg>
       )}
-      {Icon && !loading && iconPosition === 'left' && (
-        <Icon className={iconSizes[size]} />
-      )}
+      {Icon && !loading && iconPosition === 'left' && <Icon className={iconSizes[size]} />}
       {children}
-      {Icon && !loading && iconPosition === 'right' && (
-        <Icon className={iconSizes[size]} />
-      )}
+      {Icon && !loading && iconPosition === 'right' && <Icon className={iconSizes[size]} />}
     </button>
   );
+};
+
+Button.propTypes = {
+  children: PropTypes.node,
+  variant: PropTypes.oneOf([
+    'primary',
+    'secondary',
+    'danger',
+    'success',
+    'warning',
+    'outline',
+    'ghost',
+  ]),
+  size: PropTypes.oneOf(['sm', 'md', 'lg', 'icon']),
+  icon: PropTypes.elementType,
+  iconPosition: PropTypes.oneOf(['left', 'right']),
+  loading: PropTypes.bool,
+  disabled: PropTypes.bool,
+  fullWidth: PropTypes.bool,
+  className: PropTypes.string,
+  onClick: PropTypes.func,
+  type: PropTypes.oneOf(['button', 'submit', 'reset']),
+};
+
+Button.defaultProps = {
+  variant: 'primary',
+  size: 'md',
+  iconPosition: 'left',
+  loading: false,
+  disabled: false,
+  fullWidth: false,
+  className: '',
+  type: 'button',
 };
 
 export default Button;

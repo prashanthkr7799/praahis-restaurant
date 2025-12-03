@@ -30,7 +30,7 @@ vi.mock('@supabase/supabase-js', () => {
   };
 
   const mockChain = createChainMock();
-  
+
   const mockSupabaseClient = {
     from: vi.fn(() => mockChain),
     rpc: vi.fn(() => Promise.resolve({ data: {}, error: null })),
@@ -113,7 +113,7 @@ import {
   subscribeToOrder,
   ensureDemoRestaurant,
   supabase,
-} from './supabaseClient';
+} from '@config/supabase';
 
 // Get references to mocks for test manipulation - use _ prefix for unused
 const _getMockClient = () => createClient().__mockClient || createClient();
@@ -285,11 +285,15 @@ describe('Database Operations', () => {
     });
 
     it('should require order ID when undefined', async () => {
-      await expect(cancelOrder(undefined, { reason: 'test' })).rejects.toThrow('Order ID is required');
+      await expect(cancelOrder(undefined, { reason: 'test' })).rejects.toThrow(
+        'Order ID is required'
+      );
     });
 
     it('should require cancellation reason', async () => {
-      await expect(cancelOrder('order-123', { reason: '' })).rejects.toThrow('Cancellation reason is required');
+      await expect(cancelOrder('order-123', { reason: '' })).rejects.toThrow(
+        'Cancellation reason is required'
+      );
     });
 
     it('should require cancellation reason when missing', async () => {
@@ -507,38 +511,45 @@ describe('Payment Functions', () => {
     });
 
     it('should require order ID', async () => {
-      await expect(processRefund(null, { refundAmount: 100, reason: 'test' }))
-        .rejects.toThrow('Order ID is required');
+      await expect(processRefund(null, { refundAmount: 100, reason: 'test' })).rejects.toThrow(
+        'Order ID is required'
+      );
     });
 
     it('should require order ID when empty', async () => {
-      await expect(processRefund('', { refundAmount: 100, reason: 'test' }))
-        .rejects.toThrow('Order ID is required');
+      await expect(processRefund('', { refundAmount: 100, reason: 'test' })).rejects.toThrow(
+        'Order ID is required'
+      );
     });
 
     it('should require valid refund amount', async () => {
-      await expect(processRefund('order-123', { refundAmount: 0, reason: 'test' }))
-        .rejects.toThrow('Valid refund amount is required');
+      await expect(processRefund('order-123', { refundAmount: 0, reason: 'test' })).rejects.toThrow(
+        'Valid refund amount is required'
+      );
     });
 
     it('should require positive refund amount', async () => {
-      await expect(processRefund('order-123', { refundAmount: -50, reason: 'test' }))
-        .rejects.toThrow('Valid refund amount is required');
+      await expect(
+        processRefund('order-123', { refundAmount: -50, reason: 'test' })
+      ).rejects.toThrow('Valid refund amount is required');
     });
 
     it('should require refund amount to be present', async () => {
-      await expect(processRefund('order-123', { reason: 'test' }))
-        .rejects.toThrow('Valid refund amount is required');
+      await expect(processRefund('order-123', { reason: 'test' })).rejects.toThrow(
+        'Valid refund amount is required'
+      );
     });
 
     it('should require refund reason', async () => {
-      await expect(processRefund('order-123', { refundAmount: 100, reason: '' }))
-        .rejects.toThrow('Refund reason is required');
+      await expect(processRefund('order-123', { refundAmount: 100, reason: '' })).rejects.toThrow(
+        'Refund reason is required'
+      );
     });
 
     it('should require refund reason to be present', async () => {
-      await expect(processRefund('order-123', { refundAmount: 100 }))
-        .rejects.toThrow('Refund reason is required');
+      await expect(processRefund('order-123', { refundAmount: 100 })).rejects.toThrow(
+        'Refund reason is required'
+      );
     });
   });
 });
@@ -800,48 +811,58 @@ describe('Complaint Functions', () => {
       const result = createComplaint({
         orderId: 'order-123',
         issueType: 'food_quality',
-        description: 'Test description'
+        description: 'Test description',
       });
       expect(result).toBeInstanceOf(Promise);
       result.catch(() => {}); // Catch unhandled rejection
     });
 
     it('should require orderId', async () => {
-      await expect(createComplaint({
-        issueType: 'food_quality',
-        description: 'Test'
-      })).rejects.toThrow('Order ID is required');
+      await expect(
+        createComplaint({
+          issueType: 'food_quality',
+          description: 'Test',
+        })
+      ).rejects.toThrow('Order ID is required');
     });
 
     it('should require issueType', async () => {
-      await expect(createComplaint({
-        orderId: 'order-123',
-        description: 'Test'
-      })).rejects.toThrow('Issue type is required');
+      await expect(
+        createComplaint({
+          orderId: 'order-123',
+          description: 'Test',
+        })
+      ).rejects.toThrow('Issue type is required');
     });
 
     it('should validate issueType values', async () => {
-      await expect(createComplaint({
-        orderId: 'order-123',
-        issueType: 'invalid_type',
-        description: 'Test'
-      })).rejects.toThrow('Invalid issue type');
+      await expect(
+        createComplaint({
+          orderId: 'order-123',
+          issueType: 'invalid_type',
+          description: 'Test',
+        })
+      ).rejects.toThrow('Invalid issue type');
     });
 
     it('should require description', async () => {
-      await expect(createComplaint({
-        orderId: 'order-123',
-        issueType: 'food_quality',
-        description: ''
-      })).rejects.toThrow('Description is required');
+      await expect(
+        createComplaint({
+          orderId: 'order-123',
+          issueType: 'food_quality',
+          description: '',
+        })
+      ).rejects.toThrow('Description is required');
     });
 
     it('should require non-whitespace description', async () => {
-      await expect(createComplaint({
-        orderId: 'order-123',
-        issueType: 'food_quality',
-        description: '   '
-      })).rejects.toThrow('Description is required');
+      await expect(
+        createComplaint({
+          orderId: 'order-123',
+          issueType: 'food_quality',
+          description: '   ',
+        })
+      ).rejects.toThrow('Description is required');
     });
   });
 
@@ -953,67 +974,80 @@ describe('Order Update Functions', () => {
     });
 
     it('should require order ID', async () => {
-      await expect(applyDiscount(null, { type: 'percentage', value: 10 }))
-        .rejects.toThrow('Order ID is required');
+      await expect(applyDiscount(null, { type: 'percentage', value: 10 })).rejects.toThrow(
+        'Order ID is required'
+      );
     });
 
     it('should require order ID when empty', async () => {
-      await expect(applyDiscount('', { type: 'percentage', value: 10 }))
-        .rejects.toThrow('Order ID is required');
+      await expect(applyDiscount('', { type: 'percentage', value: 10 })).rejects.toThrow(
+        'Order ID is required'
+      );
     });
 
     it('should require valid discount type', async () => {
-      await expect(applyDiscount('order-123', { type: 'invalid', value: 10 }))
-        .rejects.toThrow('Discount type must be "percentage" or "fixed"');
+      await expect(applyDiscount('order-123', { type: 'invalid', value: 10 })).rejects.toThrow(
+        'Discount type must be "percentage" or "fixed"'
+      );
     });
 
     it('should require percentage or fixed type', async () => {
-      await expect(applyDiscount('order-123', { type: 'bogo', value: 10 }))
-        .rejects.toThrow('Discount type must be "percentage" or "fixed"');
+      await expect(applyDiscount('order-123', { type: 'bogo', value: 10 })).rejects.toThrow(
+        'Discount type must be "percentage" or "fixed"'
+      );
     });
 
     it('should require positive discount value', async () => {
-      await expect(applyDiscount('order-123', { type: 'percentage', value: 0 }))
-        .rejects.toThrow('Discount value must be greater than 0');
+      await expect(applyDiscount('order-123', { type: 'percentage', value: 0 })).rejects.toThrow(
+        'Discount value must be greater than 0'
+      );
     });
 
     it('should require non-negative discount value', async () => {
-      await expect(applyDiscount('order-123', { type: 'percentage', value: -10 }))
-        .rejects.toThrow('Discount value must be greater than 0');
+      await expect(applyDiscount('order-123', { type: 'percentage', value: -10 })).rejects.toThrow(
+        'Discount value must be greater than 0'
+      );
     });
 
     it('should reject percentage discount over 100', async () => {
-      await expect(applyDiscount('order-123', { type: 'percentage', value: 150 }))
-        .rejects.toThrow('Percentage discount cannot exceed 100%');
+      await expect(applyDiscount('order-123', { type: 'percentage', value: 150 })).rejects.toThrow(
+        'Percentage discount cannot exceed 100%'
+      );
     });
 
     it('should require discount reason', async () => {
-      await expect(applyDiscount('order-123', { type: 'percentage', value: 10, reason: '' }))
-        .rejects.toThrow('Discount reason is required');
+      await expect(
+        applyDiscount('order-123', { type: 'percentage', value: 10, reason: '' })
+      ).rejects.toThrow('Discount reason is required');
     });
 
     it('should require non-whitespace discount reason', async () => {
-      await expect(applyDiscount('order-123', { type: 'percentage', value: 10, reason: '   ' }))
-        .rejects.toThrow('Discount reason is required');
+      await expect(
+        applyDiscount('order-123', { type: 'percentage', value: 10, reason: '   ' })
+      ).rejects.toThrow('Discount reason is required');
     });
 
     it('should require valid discount amount', async () => {
-      await expect(applyDiscount('order-123', { 
-        type: 'percentage', 
-        value: 10, 
-        reason: 'test', 
-        amount: -5 
-      })).rejects.toThrow('Invalid discount amount');
+      await expect(
+        applyDiscount('order-123', {
+          type: 'percentage',
+          value: 10,
+          reason: 'test',
+          amount: -5,
+        })
+      ).rejects.toThrow('Invalid discount amount');
     });
 
     it('should require valid new total', async () => {
-      await expect(applyDiscount('order-123', { 
-        type: 'percentage', 
-        value: 10, 
-        reason: 'test', 
-        amount: 10,
-        newTotal: -100 
-      })).rejects.toThrow('Invalid new total');
+      await expect(
+        applyDiscount('order-123', {
+          type: 'percentage',
+          value: 10,
+          reason: 'test',
+          amount: 10,
+          newTotal: -100,
+        })
+      ).rejects.toThrow('Invalid new total');
     });
   });
 });
@@ -1099,33 +1133,35 @@ describe('Payment Functions Extended', () => {
     });
 
     it('should require order ID', async () => {
-      await expect(processSplitPayment(null, 50, 50))
-        .rejects.toThrow('Order ID is required');
+      await expect(processSplitPayment(null, 50, 50)).rejects.toThrow('Order ID is required');
     });
 
     it('should require order ID when empty', async () => {
-      await expect(processSplitPayment('', 50, 50))
-        .rejects.toThrow('Order ID is required');
+      await expect(processSplitPayment('', 50, 50)).rejects.toThrow('Order ID is required');
     });
 
     it('should require positive cash amount', async () => {
-      await expect(processSplitPayment('order-123', 0, 50))
-        .rejects.toThrow('Cash amount must be greater than 0');
+      await expect(processSplitPayment('order-123', 0, 50)).rejects.toThrow(
+        'Cash amount must be greater than 0'
+      );
     });
 
     it('should require non-negative cash amount', async () => {
-      await expect(processSplitPayment('order-123', -10, 50))
-        .rejects.toThrow('Cash amount must be greater than 0');
+      await expect(processSplitPayment('order-123', -10, 50)).rejects.toThrow(
+        'Cash amount must be greater than 0'
+      );
     });
 
     it('should require positive online amount', async () => {
-      await expect(processSplitPayment('order-123', 50, 0))
-        .rejects.toThrow('Online amount must be greater than 0');
+      await expect(processSplitPayment('order-123', 50, 0)).rejects.toThrow(
+        'Online amount must be greater than 0'
+      );
     });
 
     it('should require non-negative online amount', async () => {
-      await expect(processSplitPayment('order-123', 50, -10))
-        .rejects.toThrow('Online amount must be greater than 0');
+      await expect(processSplitPayment('order-123', 50, -10)).rejects.toThrow(
+        'Online amount must be greater than 0'
+      );
     });
   });
 
@@ -1145,31 +1181,37 @@ describe('Payment Functions Extended', () => {
     });
 
     it('should require positive cash amount', async () => {
-      await expect(handleSplitPayment('order-123', { cash: 0, online: 50 }))
-        .rejects.toThrow('Cash amount must be greater than 0');
+      await expect(handleSplitPayment('order-123', { cash: 0, online: 50 })).rejects.toThrow(
+        'Cash amount must be greater than 0'
+      );
     });
 
     it('should require non-negative cash amount', async () => {
-      await expect(handleSplitPayment('order-123', { cash: -10, online: 50 }))
-        .rejects.toThrow('Cash amount must be greater than 0');
+      await expect(handleSplitPayment('order-123', { cash: -10, online: 50 })).rejects.toThrow(
+        'Cash amount must be greater than 0'
+      );
     });
 
     it('should require positive online amount', async () => {
-      await expect(handleSplitPayment('order-123', { cash: 50, online: 0 }))
-        .rejects.toThrow('Online amount must be greater than 0');
+      await expect(handleSplitPayment('order-123', { cash: 50, online: 0 })).rejects.toThrow(
+        'Online amount must be greater than 0'
+      );
     });
 
     it('should require non-negative online amount', async () => {
-      await expect(handleSplitPayment('order-123', { cash: 50, online: -10 }))
-        .rejects.toThrow('Online amount must be greater than 0');
+      await expect(handleSplitPayment('order-123', { cash: 50, online: -10 })).rejects.toThrow(
+        'Online amount must be greater than 0'
+      );
     });
 
     it('should require razorpay payment id when razorpayDetails provided', async () => {
-      await expect(handleSplitPayment('order-123', { 
-        cash: 50, 
-        online: 50,
-        razorpayDetails: {} 
-      })).rejects.toThrow('Razorpay payment ID is required for online portion');
+      await expect(
+        handleSplitPayment('order-123', {
+          cash: 50,
+          online: 50,
+          razorpayDetails: {},
+        })
+      ).rejects.toThrow('Razorpay payment ID is required for online portion');
     });
   });
 });

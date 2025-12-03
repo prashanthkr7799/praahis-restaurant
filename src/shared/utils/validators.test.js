@@ -23,7 +23,7 @@ import {
   validateRefundAmount,
   formatPhoneNumber,
   cleanPhoneNumber,
-} from './validation';
+} from './validators';
 
 describe('validateEmail', () => {
   describe('valid emails', () => {
@@ -323,7 +323,10 @@ describe('validateLength', () => {
     });
 
     it('should accept string when no max specified', () => {
-      expect(validateLength('hello world this is a long string', 3)).toEqual({ isValid: true, error: null });
+      expect(validateLength('hello world this is a long string', 3)).toEqual({
+        isValid: true,
+        error: null,
+      });
     });
   });
 
@@ -472,7 +475,10 @@ describe('validateURL', () => {
     });
 
     it('should accept URL with path', () => {
-      expect(validateURL('https://example.com/path/to/page')).toEqual({ isValid: true, error: null });
+      expect(validateURL('https://example.com/path/to/page')).toEqual({
+        isValid: true,
+        error: null,
+      });
     });
 
     it('should accept URL with query string', () => {
@@ -705,7 +711,7 @@ describe('validateForm', () => {
       email: [{ validator: validateEmail, args: [] }],
       name: [{ validator: validateRequired, args: [] }],
     };
-    
+
     const result = validateForm(formData, rules);
     expect(result.isValid).toBe(true);
     expect(result.errors).toEqual({});
@@ -720,7 +726,7 @@ describe('validateForm', () => {
       email: [{ validator: validateEmail, args: [] }],
       name: [{ validator: validateRequired, args: [] }],
     };
-    
+
     const result = validateForm(formData, rules);
     expect(result.isValid).toBe(false);
     expect(Object.keys(result.errors).length).toBeGreaterThan(0);
