@@ -73,7 +73,7 @@ class SessionHeartbeat {
 
     // Track various user activities
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
-    events.forEach(event => {
+    events.forEach((event) => {
       document.addEventListener(event, updateActivity, { passive: true });
     });
 
@@ -84,7 +84,7 @@ class SessionHeartbeat {
   removeActivityTracking() {
     if (this.activityEvents) {
       const { events, handler } = this.activityEvents;
-      events.forEach(event => {
+      events.forEach((event) => {
         document.removeEventListener(event, handler);
       });
       this.activityEvents = null;
@@ -94,28 +94,43 @@ class SessionHeartbeat {
   resetActivity() {
     this.lastActivity = Date.now();
   }
+
+  /**
+   * Initialize auth state listeners
+   * Called lazily to avoid circular dependency issues during module initialization
+   */
+  init() {
+    if (this._initialized) return;
+    this._initialized = true;
+
+    // Auto-start on authenticated state
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        this.start();
+        this.resetActivity();
+      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        this.stop();
+      }
+    });
+
+    supabaseOwner.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        this.start();
+        this.resetActivity();
+      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        this.stop();
+      }
+    });
+  }
 }
 
 // Create singleton instance
 const sessionHeartbeat = new SessionHeartbeat();
 
-// Auto-start on authenticated state
-supabase.auth.onAuthStateChange((event) => {
-  if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-    sessionHeartbeat.start();
-    sessionHeartbeat.resetActivity();
-  } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
-    sessionHeartbeat.stop();
-  }
-});
-
-supabaseOwner.auth.onAuthStateChange((event) => {
-  if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-    sessionHeartbeat.start();
-    sessionHeartbeat.resetActivity();
-  } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
-    sessionHeartbeat.stop();
-  }
-});
+// Defer initialization to next tick to avoid circular dependency issues
+// This ensures all modules are loaded before we start listening to auth events
+if (typeof window !== 'undefined') {
+  setTimeout(() => sessionHeartbeat.init(), 0);
+}
 
 export default sessionHeartbeat;
