@@ -149,13 +149,13 @@ jobs:
           retention-days: 7
 
   # =====================================================
-  # DEPLOY TO STAGING (on develop branch)
+  # DEPLOY TO STAGING (on develop branch or PRs)
   # =====================================================
   deploy-staging:
     name: 🚀 Deploy to Staging
     runs-on: ubuntu-latest
     needs: [build, e2e]
-    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') && github.event_name == 'push'
     environment:
       name: staging
       url: ${{ steps.deploy.outputs.url }}
