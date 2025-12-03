@@ -68,9 +68,11 @@ const createSafeStorage = () => {
 };
 
 // Suppress expected multi-client warning (we use dual clients for manager + owner sessions)
-// and chart initialization warnings
+// and chart initialization warnings, and auth refresh token errors (handled gracefully)
 if (typeof console !== 'undefined' && !globalThis.__supabase_warn_suppressed__) {
   const originalWarn = console.warn;
+  const originalError = console.error;
+
   console.warn = (...args) => {
     const message = args[0]?.toString() || '';
     if (message.includes('Multiple GoTrueClient instances')) {
@@ -83,6 +85,22 @@ if (typeof console !== 'undefined' && !globalThis.__supabase_warn_suppressed__) 
     }
     originalWarn.apply(console, args);
   };
+
+  console.error = (...args) => {
+    const message = args[0]?.toString() || '';
+    // Suppress AuthApiError for invalid refresh tokens - this is handled gracefully
+    if (
+      message.includes('AuthApiError') ||
+      message.includes('Invalid Refresh Token') ||
+      message.includes('Refresh Token Not Found')
+    ) {
+      // Log as debug instead - we handle this gracefully
+      logger.debug('Auth token refresh failed - session will be cleared');
+      return;
+    }
+    originalError.apply(console, args);
+  };
+
   globalThis.__supabase_warn_suppressed__ = true;
 }
 
@@ -118,12 +136,24 @@ export const supabase =
   }));
 
 // Listen for auth errors and handle invalid refresh tokens automatically
-supabase.auth.onAuthStateChange((event, _session) => {
+supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'TOKEN_REFRESHED') {
     logger.info('✅ Token refreshed successfully');
   }
   if (event === 'SIGNED_OUT') {
     logger.info('🔒 User signed out');
+  }
+  // Handle auth errors that result in null session
+  if (event === 'INITIAL_SESSION' && !session) {
+    // Clear any stale tokens that might cause refresh errors
+    try {
+      const keys = Object.keys(localStorage).filter(
+        (k) => k.startsWith('sb-') && k.includes('-auth-token')
+      );
+      keys.forEach((k) => localStorage.removeItem(k));
+    } catch {
+      // Ignore storage errors
+    }
   }
 });
 

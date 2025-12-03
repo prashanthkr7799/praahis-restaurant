@@ -84,4 +84,19 @@ export const supabaseOwner =
     },
   }));
 
+// Handle stale tokens on initial load for owner client
+supabaseOwner.auth.onAuthStateChange((event, session) => {
+  if (event === 'INITIAL_SESSION' && !session) {
+    // Clear any stale owner tokens
+    try {
+      const keys = Object.keys(localStorage).filter(
+        (k) => k.startsWith('sb-owner') && k.includes('-auth-token')
+      );
+      keys.forEach((k) => localStorage.removeItem(k));
+    } catch {
+      // Ignore storage errors
+    }
+  }
+});
+
 export default supabaseOwner;
